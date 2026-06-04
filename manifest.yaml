@@ -4,7 +4,7 @@
 
 name: memorius
 version: "0.1.0"
-description: "Memorius — universal memory adapter for any AI agent"
+description: "Memorius — universal memory vault for any AI agent"
 author: "Memorius Contributors"
 license: MIT
 repository: "https://github.com/Dream-Pixels-Forge/memorius"
@@ -12,8 +12,8 @@ homepage: "https://github.com/Dream-Pixels-Forge/memorius"
 
 # MCP server shared across all agents
 mcp:
-  command: mempalace-mcp
-  args: []
+  command: memorius
+  args: [serve]
 
 # Agent-specific hooks and plugin configurations
 agents:
@@ -26,8 +26,8 @@ agents:
     skills: true
     marketplace: true
     install:
-      - "claude mcp add mempalace -- mempalace-mcp"
-      - "claude plugin install mempalace"
+      - "claude mcp add memorius -- memorius serve"
+      - "claude plugin install memorius"
 
   codex:
     hooks:
@@ -38,38 +38,38 @@ agents:
       precompact:
         timeout: 30
     skills: true
-    display_name: "MemPalace"
+    display_name: "Memorius"
     brand_color: "#7C3AED"
     install:
-      - "codex mcp add mempalace -- mempalace-mcp"
+      - "codex mcp add memorius -- memorius serve"
 
   gemini-cli:
     hooks:
       precompress:
         timeout: 30
     install:
-      - "gemini mcp add mempalace $(which python3) -m mempalace.mcp_server --scope user"
+      - "gemini mcp add memorius $(which memorius) serve"
 
   cursor:
     mcp_only: true
     config_file: ".cursor/mcp.json"
     install:
-      - "Add to .cursor/mcp.json: {\"mcpServers\": {\"mempalace\": {\"command\": \"mempalace-mcp\"}}}"
+      - "Add to .cursor/mcp.json: {\"mcpServers\": {\"memorius\": {\"command\": \"memorius\", \"args\": [\"serve\"]}}}"
 
   openclaw:
     mcp_only: true
     skill: true
     install:
-      - "openclaw mcp set mempalace '{\"command\":\"python3\",\"args\":[\"-m\",\"mempalace.mcp_server\"]}'"
+      - "openclaw mcp set memorius '{\"command\":\"memorius\",\"args\":[\"serve\"]}'"
 
   aider:
     mcp_only: true
     config_file: ".aider.mcp.json"
     install:
-      - "aider --mcp-servers mempalace=mempalace-mcp"
+      - "aider --mcp-servers memorius=memorius serve"
 
   continue:
     mcp_only: true
     config_file: ".continue/config.json"
     install:
-      - "Add mempalace to .continue/config.json MCP servers"
+      - "Add memorius to .continue/config.json MCP servers"

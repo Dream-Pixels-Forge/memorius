@@ -1,13 +1,13 @@
 """
-Additional conversation format normalizers for MemPalace.
+Additional conversation format normalizers for Memorius.
 
-Extends the formats already supported by mempalace.normalize (Claude Code,
+Extends the formats already supported for Memorius (Claude Code,
 ChatGPT, Slack, Gemini, Codex) with Discord, Telegram, WhatsApp, and
 generic formats.
 
 Usage:
   memorius-normalize detect file.json       # auto-detect format
-  memorius-normalize convert file.json       # convert to MemPalace transcript
+  memorius-normalize convert file.json       # convert to Memorius transcript
   memorius-normalize convert file.json --format discord
   memorius-normalize batch ./chat-exports/   # batch convert a directory
 """
@@ -103,7 +103,7 @@ def detect_text_format(content: str) -> str | None:
 
 
 def normalize_discord(content: str, channel_name: str = "discord-chat") -> str:
-    """Convert a Discord channel export JSON to MemPalace transcript format.
+    """Convert a Discord channel export JSON to Memorius transcript format.
 
     Discord export format (from DiscordChatExporter or similar):
     {
@@ -161,7 +161,7 @@ def normalize_discord(content: str, channel_name: str = "discord-chat") -> str:
 
 
 def normalize_telegram(content: str, chat_title: str = "telegram-chat") -> str:
-    """Convert a Telegram chat export JSON to MemPalace transcript format.
+    """Convert a Telegram chat export JSON to Memorius transcript format.
 
     Telegram export format (from Telegram Desktop export):
     {
@@ -231,7 +231,7 @@ def normalize_telegram(content: str, chat_title: str = "telegram-chat") -> str:
 
 
 def normalize_whatsapp(content: str, chat_name: str = "whatsapp-chat") -> str:
-    """Convert a WhatsApp chat export (plain text) to MemPalace transcript format.
+    """Convert a WhatsApp chat export (plain text) to Memorius transcript format.
 
     WhatsApp export format (two variants):
 
@@ -308,7 +308,7 @@ def normalize_whatsapp(content: str, chat_name: str = "whatsapp-chat") -> str:
 
 
 def normalize_generic_json(content: str, source_name: str = "chat-export") -> str:
-    """Try to normalize any JSON chat format into MemPalace transcript.
+    """Try to normalize any JSON chat format into Memorius transcript.
 
     Handles formats like:
     - List of {role, content} objects (OpenAI-style)

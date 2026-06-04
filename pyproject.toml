@@ -1,7 +1,7 @@
 [project]
 name = "memorius"
 version = "0.1.0"
-description = "Self-contained memory palace for any AI agent — vector search, knowledge graph, session diaries, and agent-agnostic hooks. The better MemPalace."
+description = "Self-contained memory vault for any AI agent — vector search, session diaries, and agent-agnostic hooks. The better MemPalace."
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
@@ -59,7 +59,6 @@ memorius-normalize = "memorius.normalizers.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["memorius", "memorius.*"]
-exclude = ["hooks"]
 
 [build-system]
 requires = ["setuptools>=64.0"]

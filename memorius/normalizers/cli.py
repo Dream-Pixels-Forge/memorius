@@ -63,7 +63,7 @@ def cmd_detect(args: list[str]):
 
 
 def cmd_convert(args: list[str]):
-    """Convert a single file to MemPalace transcript format."""
+    """Convert a single file to Memorius transcript format."""
     import argparse
 
     parser = argparse.ArgumentParser("memorius-normalize convert")
@@ -184,7 +184,7 @@ def main():
 
     parser = argparse.ArgumentParser(
         "memorius-normalize",
-        description="Additional conversation format normalizers for MemPalace (Discord, Telegram, WhatsApp, etc.)",
+        description="Conversation format normalizers for Memorius (Discord, Telegram, WhatsApp, etc.)",
     )
     parser.add_argument("--version", action="store_true", help="Show version and exit")
     subparsers = parser.add_subparsers(dest="command")

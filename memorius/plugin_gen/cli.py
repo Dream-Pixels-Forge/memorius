@@ -2,7 +2,7 @@
 Universal Plugin Manifest — single source of truth for all agent plugins.
 
 The problem:
-  MemPalace maintains three near-identical plugin directories:
+  Memorius maintains three near-identical plugin directories:
   .claude-plugin/, .codex-plugin/, .agents/plugins/. Adding support for
   a new agent requires duplicating the same skeleton.
 
@@ -18,17 +18,17 @@ Usage:
 
 Universal manifest format:
 
-  name: mempalace
-  version: 3.3.6
-  description: "Give your AI a memory..."
-  author: "Milla Jovovich"
+  name: memorius
+  version: 0.1.0
+  description: "Memorius — universal memory vault for any AI agent."
+  author: "Memorius Contributors"
   license: MIT
-  repository: https://github.com/MemPalace/mempalace
+  repository: https://github.com/Dream-Pixels-Forge/memorius
 
   # MCP server config (shared across all agents)
   mcp:
-    command: mempalace-mcp
-    args: []
+    command: memorius
+    args: [serve]
 
   # Agent-specific configurations
   agents:
@@ -51,7 +51,7 @@ Universal manifest format:
         precompact:
           timeout: 30
       skills: true
-      display_name: "MemPalace"
+      display_name: "Memorius"
       brand_color: "#7C3AED"
 
     cursor:
@@ -81,22 +81,22 @@ import yaml
 
 
 DEFAULT_MANIFEST = """\
-# MemPalace Universal Plugin Manifest
+# Memorius Universal Plugin Manifest
 # One source of truth for all agent integrations.
 # Run: memorius-plugin-gen generate
 
-name: mempalace
+name: memorius
 version: "0.1.0"
-description: "Universal MemPalace integration — hooks, MCP, and memory protocol for any AI agent."
-author: "MemPalace Contributors"
+description: "Memorius — universal memory vault for any AI agent — hooks, MCP, and memory protocol."
+author: "Memorius Contributors"
 license: MIT
-repository: "https://github.com/MemPalace/mempalace"
-homepage: "https://mempalaceofficial.com"
+repository: "https://github.com/Dream-Pixels-Forge/memorius"
+homepage: "https://github.com/Dream-Pixels-Forge/memorius"
 
 # MCP server shared across all agents
 mcp:
-  command: mempalace-mcp
-  args: []
+  command: memorius
+  args: [serve]
 
 # Agent-specific hooks and plugin configurations
 agents:
@@ -109,8 +109,8 @@ agents:
     skills: true
     marketplace: true
     install:
-      - "claude mcp add mempalace -- mempalace-mcp"
-      - "claude plugin install mempalace"
+      - "claude mcp add memorius -- memorius serve"
+      - "claude plugin install memorius"
 
   codex:
     hooks:
@@ -121,41 +121,41 @@ agents:
       precompact:
         timeout: 30
     skills: true
-    display_name: "MemPalace"
+    display_name: "Memorius"
     brand_color: "#7C3AED"
     install:
-      - "codex mcp add mempalace -- mempalace-mcp"
+      - "codex mcp add memorius -- memorius serve"
 
   gemini-cli:
     hooks:
       precompress:
         timeout: 30
     install:
-      - "gemini mcp add mempalace $(which python3) -m mempalace.mcp_server --scope user"
+      - "gemini mcp add memorius $(which memorius) serve"
 
   cursor:
     mcp_only: true
     config_file: ".cursor/mcp.json"
     install:
-      - "Add to .cursor/mcp.json: {\\\"mcpServers\\\": {\\\"mempalace\\\": {\\\"command\\\": \\\"mempalace-mcp\\\"}}}"
+      - "Add to .cursor/mcp.json: {\\\"mcpServers\\\": {\\\"memorius\\\": {\\\"command\\\": \\\"memorius\\\", \\\"args\\\": [\\\"serve\\\"]}}}"
 
   openclaw:
     mcp_only: true
     skill: true
     install:
-      - "openclaw mcp set mempalace '{\\\"command\\\":\\\"python3\\\",\\\"args\\\":[\\\"-m\\\",\\\"mempalace.mcp_server\\\"]}'"
+      - "openclaw mcp set memorius '{\\\"command\\\":\\\"memorius\\\",\\\"args\\\":[\\\"serve\\\"]}'"
 
   aider:
     mcp_only: true
     config_file: ".aider.mcp.json"
     install:
-      - "aider --mcp-servers mempalace=mempalace-mcp"
+      - "aider --mcp-servers memorius=memorius serve"
 
   continue:
     mcp_only: true
     config_file: ".continue/config.json"
     install:
-      - "Add mempalace to .continue/config.json MCP servers"
+      - "Add memorius to .continue/config.json MCP servers"
 """
 
 
@@ -196,10 +196,11 @@ def generate_claude_plugin(manifest: dict, output_dir: Path):
         "commands": agent_cfg.get("plugin_json", {}).get("commands", []),
         "mcpServers": {
             name: {
-                "command": manifest.get("mcp", {}).get("command", "memorius-mcp"),
-            }
+                "command": manifest.get("mcp", {}).get("command", "memorius"),
+            "args": manifest.get("mcp", {}).get("args", ["serve"]),
+        }
         },
-        "keywords": ["memory", "ai", "rag", "mcp", "chromadb", "palace", "search"],
+        "keywords": ["memory", "ai", "rag", "mcp", "chromadb", "vault", "search"],
         "repository": repository,
     }
     (plugin_dir / "plugin.json").write_text(json.dumps(plugin_json, indent=4) + "\n")
@@ -304,13 +305,14 @@ def generate_codex_plugin(manifest: dict, output_dir: Path):
         "homepage": repository,
         "repository": repository,
         "license": manifest.get("license", "MIT"),
-        "keywords": ["memory", "ai", "rag", "mcp", "chromadb", "palace", "search"],
+        "keywords": ["memory", "ai", "rag", "mcp", "chromadb", "vault", "search"],
         "skills": "./skills/",
         "hooks": "./hooks.json",
         "mcpServers": {
             name: {
-                "command": manifest.get("mcp", {}).get("command", "memorius-mcp"),
-            }
+                "command": manifest.get("mcp", {}).get("command", "memorius"),
+            "args": manifest.get("mcp", {}).get("args", ["serve"]),
+        }
         },
         "interface": {
             "displayName": agent_cfg.get("display_name", name.title()),
@@ -324,8 +326,8 @@ def generate_codex_plugin(manifest: dict, output_dir: Path):
             "termsOfServiceURL": repository,
             "defaultPrompt": [
                 "Search my memories for recent decisions",
-                "Mine this project into my memory palace",
-                "Show my palace status and room counts",
+                "Mine this project into my memory vault",
+                "Show my vault status and shelf counts",
             ],
             "brandColor": agent_cfg.get("brand_color", "#7C3AED"),
         },
@@ -419,8 +421,9 @@ def generate_cursor_config(manifest: dict, output_dir: Path):
     cursor_json = {
         "mcpServers": {
             name: {
-                "command": manifest.get("mcp", {}).get("command", "memorius-mcp"),
-            }
+                "command": manifest.get("mcp", {}).get("command", "memorius"),
+            "args": manifest.get("mcp", {}).get("args", ["serve"]),
+        }
         }
     }
 
@@ -468,18 +471,18 @@ metadata:
 # {name.title()} — Universal AI Memory System
 
 ## Architecture
-- **Wings** = people or projects
-- **Rooms** = specific topics
-- **Drawers** = individual memory chunks (verbatim text)
-- **Knowledge Graph** = entity-relationship facts with time validity
+- **Vaults** = top-level memory vaults (people, projects, domains)
+- **Shelves** = broad knowledge areas
+- **Folders** = specific subjects or topics
+- **Notes** = individual memory chunks (verbatim text)
 
 ## Memory Protocol — Use Every Session
 
-1. **ON START**: Call `mempalace_status` to load palace overview.
-2. **BEFORE ANSWERING**: Call `mempalace_search` or `mempalace_kg_query`. Never guess.
-3. **IF UNSURE**: Say "let me check" and query the palace.
-4. **AFTER SESSION**: Write a diary entry with `mempalace_diary_write`.
-5. **WHEN FACTS CHANGE**: Invalidate old KG facts, add new ones.
+1. **ON START**: Call `memorius_status` to load vault overview.
+2. **BEFORE ANSWERING**: Call `memorius_search` or check existing notes. Never guess.
+3. **IF UNSURE**: Say "let me check" and query the vault.
+4. **AFTER SESSION**: Write a diary entry with `memorius_diary_write`.
+5. **WHEN FACTS CHANGE**: Invalidate old vault entries, add new ones.
 
 ## MCP Tools (29 total — search, knowledge graph, diary, etc.)
 
@@ -530,7 +533,7 @@ Do not edit manually — regenerate with: `memorius-plugin-gen generate`
 
 ## MCP Server
 
-Command: `{manifest.get('mcp', {}).get('command', 'mempalace-mcp')}`
+Command: `{manifest.get('mcp', {}).get('command', 'memorius')}` + `{' '.join(manifest.get('mcp', {}).get('args', ['serve']))}`
 
 ## Regenerate
 
@@ -593,13 +596,13 @@ exit $EXIT_CODE
 
 def _generate_skill_card(name: str) -> str:
     """Generate a skill card for the agent."""
-    return f"""You have access to a memory palace via MCP tools.
+    return f"""You have access to a memory vault via MCP tools.
 
 Key rules:
-1. Call `mempalace_search` before answering questions about past work.
-2. Call `mempalace_status` at session start.
-3. Write diary entries after each session via `mempalace_diary_write`.
-4. Never guess from training data when you can verify from the palace.
+1. Call `memorius_search` before answering questions about past work.
+2. Call `memorius_status` at session start.
+3. Write diary entries after each session via `memorius_diary_write`.
+4. Never guess from training data when you can verify from the vault.
 """
 
 

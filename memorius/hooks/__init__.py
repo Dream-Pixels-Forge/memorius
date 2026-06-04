@@ -1,19 +1,19 @@
 """
-Universal Hook Lifecycle Adapter for MemPalace
-================================================
+Universal Hook Lifecycle Adapter for Memorius
+=================================================
 
-Decouples MemPalace hooks from any single AI agent's hook protocol.
+Decouples Memorius hooks from any single AI agent's hook protocol.
 
 The problem:
   Claude Code, Codex CLI, Gemini CLI, Cursor, and OpenClaw all have
   different hook event names, JSON payload schemas, and lifecycle
   semantics (block vs. allow, synchronous vs. async). Currently
-  MemPalace duplicates shell wrappers per agent.
+  Memorius duplicates shell wrappers per agent.
 
 The solution:
   A single hook lifecycle engine that reads a declarative config,
   normalises any agent's event into a common internal event model,
-  and executes the appropriate MemPalace action (mine, diary, compact).
+  and executes the appropriate Memorius action (mine, diary, compact).
 
 Usage:
   # Agent-agnostic: pipe stdin from any supported agent
@@ -227,7 +227,7 @@ class GenericAgentAdapter(BaseAgentAdapter):
     This is the universal adapter — if no specific adapter matches,
     we try to make sense of whatever we got. This is what makes the
     system "universal": an agent doesn't need a specific adapter
-    written to use MemPalace hooks.
+    written to use Memorius hooks.
     """
 
     agent_name = "generic"

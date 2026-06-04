@@ -9,7 +9,7 @@ Usage:
   cat payload.json | memorius-hook run
   cat payload.json | memorius-hook run --agent claude-code
   memorius-hook run --event precompact < payload.json
-  memorius-hook init-config   # generate default ~/.mempalace/hooks.yaml
+  memorius-hook init-config   # generate default ~/.memorius/hooks.yaml
   memorius-hook status        # show hook state
 """
 
@@ -56,7 +56,7 @@ def cmd_run(args):
         parser = argparse.ArgumentParser("memorius-hook run")
         parser.add_argument("--agent", choices=["auto", "claude-code", "codex", "gemini-cli", "openclaw"], default="auto",
                             help="AI agent to emulate (auto-detect from stdin if omitted)")
-        parser.add_argument("--config", default="~/.mempalace/hooks.yaml",
+        parser.add_argument("--config", default="~/.memorius/hooks.yaml",
                             help="Path to hooks lifecycle YAML config")
         parser.add_argument("--event", default=None,
                             help="Force a specific event type (session_start, session_stop, pre_compress)")
@@ -137,7 +137,7 @@ def cmd_init_config(args: list[str]):
     """Generate the default hooks.yaml configuration."""
     from .engine import DEFAULT_CONFIG_YAML
 
-    config_path = Path("~/.mempalace/hooks.yaml").expanduser()
+    config_path = Path("~/.memorius/hooks.yaml").expanduser()
 
     if config_path.exists():
         print(f"Config already exists: {config_path}")
@@ -151,7 +151,7 @@ def cmd_init_config(args: list[str]):
 
 def cmd_status(args: list[str]):
     """Show hook state summary."""
-    state_dir = Path("~/.mempalace/hook_state").expanduser()
+    state_dir = Path("~/.memorius/hook_state").expanduser()
     if not state_dir.exists():
         print("No hook state found (no hooks have run yet).")
         return 0
@@ -184,7 +184,7 @@ def main():
 
     parser = argparse.ArgumentParser(
         "memorius-hook",
-        description="Universal MemPalace hook lifecycle adapter — works with any AI agent.",
+        description="Universal Memorius hook lifecycle adapter — works with any AI agent.",
     )
     parser.add_argument("--version", action="store_true", help="Show version and exit")
 
@@ -193,7 +193,7 @@ def main():
     run_parser = subparsers.add_parser("run", help="Run the hook lifecycle (reads stdin)")
     run_parser.add_argument("--event", required=True, help="Hook event name (stop, precompact, session-start, etc.)")
     run_parser.add_argument("--agent", default="auto", help="Agent harness (auto-detect if omitted)")
-    run_parser.add_argument("--config", default="~/.mempalace/hooks.yaml", help="Path to hooks.yaml config")
+    run_parser.add_argument("--config", default="~/.memorius/hooks.yaml", help="Path to hooks.yaml config")
 
     subparsers.add_parser("init-config", help="Generate default hooks.yaml")
     subparsers.add_parser("status", help="Show hook state")

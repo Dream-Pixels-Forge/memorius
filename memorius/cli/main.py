@@ -73,7 +73,8 @@ def main():
     diary_p.add_argument("--vault", default="main", help="Vault name")
 
     subparsers.add_parser("diaries", help="List recent diary entries")
-    subparsers.add_parser("ls", help="Explore vault hierarchy")
+    p = subparsers.add_parser("ls", help="Explore vault hierarchy")
+    p.add_argument("--vault", default=None, help="Vault to explore (default: all)")
 
     serve_p = subparsers.add_parser("serve", help="Start MCP server (stdio)")
     serve_p.add_argument("--port", type=int, default=8911, help="Not used for stdio")
