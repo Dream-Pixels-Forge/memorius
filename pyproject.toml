@@ -1,7 +1,7 @@
 [project]
 name = "memorius"
 version = "0.1.0"
-description = "Universal memory adapter system — hooks lifecycle, REST gateway, and plugin manifest for any AI agent. Bridges any AI to MemPalace and other memory backends."
+description = "Self-contained memory palace for any AI agent — vector search, knowledge graph, session diaries, and agent-agnostic hooks. The better MemPalace."
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
@@ -21,16 +21,29 @@ classifiers = [
 
 dependencies = [
     "pyyaml>=6.0",
+    "chromadb>=0.4.0",
+    "httpx>=0.24.0",
 ]
 
 [project.optional-dependencies]
-gateway = [
+rest = [
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
     "pydantic>=2.0.0",
+    "sse-starlette>=1.0.0",
+]
+local-embeddings = [
+    "sentence-transformers>=2.2.0",
+]
+openai = [
+    "openai>=1.0.0",
+]
+all = [
+    "memorius[rest,local-embeddings,openai]",
 ]
 dev = [
     "pytest>=7.0",
+    "pytest-asyncio>=0.21.0",
 ]
 
 [project.urls]
@@ -39,8 +52,8 @@ Repository = "https://github.com/Dream-Pixels-Forge/memorius"
 Issues = "https://github.com/Dream-Pixels-Forge/memorius/issues"
 
 [project.scripts]
+memorius = "memorius.cli.main:main"
 memorius-hook = "memorius.hooks.cli:main"
-memorius-serve = "memorius.gateway.http_server:main"
 memorius-plugin-gen = "memorius.plugin_gen.cli:main"
 memorius-normalize = "memorius.normalizers.cli:main"
 

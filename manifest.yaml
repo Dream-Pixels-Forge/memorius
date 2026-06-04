@@ -7,8 +7,8 @@ version: "0.1.0"
 description: "Memorius — universal memory adapter for any AI agent"
 author: "Memorius Contributors"
 license: MIT
-repository: "https://github.com/memoria-ai/memorius"
-homepage: "https://github.com/memoria-ai/memorius"
+repository: "https://github.com/Dream-Pixels-Forge/memorius"
+homepage: "https://github.com/Dream-Pixels-Forge/memorius"
 
 # MCP server shared across all agents
 mcp:
