@@ -9,9 +9,12 @@ Usage:
   memorius diary <session>   Write a diary entry (interactive)
   memorius diaries           List recent diary entries
   memorius ls [vault]        Explore vault hierarchy
-  memorius serve             Start the MCP server (stdio)
-  memorius serve-rest        Start the REST API server
-  memorius config            Show current config
+  |  memorius serve             Start the MCP server (stdio)
+  |  memorius serve-rest        Start the REST API server
+  |  memorius config            Show current config
+  |  memorius obsidian list     List notes in an Obsidian vault
+  |  memorius obsidian import   Import Obsidian notes as memories
+  |  memorius obsidian export   Export memories as Obsidian notes
 """
 
 from __future__ import annotations
@@ -87,6 +90,33 @@ def main():
     config_p.add_argument("--show", action="store_true", default=True, help="Show config")
     config_p.add_argument("--path", action="store_true", help="Show config file path")
 
+    # ── pypi-login ──
+    pypi_p = subparsers.add_parser("pypi-login", help="Set up or verify PyPI credentials (.pypirc)")
+    pypi_p.add_argument("--token", default=None, help="PyPI API token (starts with pypi-)")
+    pypi_p.add_argument("--path", default=None, help="Write to custom path instead of ~/.pypirc")
+    pypi_p.add_argument("--verify", action="store_true", help="Verify existing .pypirc only (don't write)")
+    pypi_p.add_argument("--test", action="store_true", help="Also test the token against PyPI")
+
+    # ── Obsidian subcommands ──
+    obsidian_p = subparsers.add_parser("obsidian", help="Interact with Obsidian vaults")
+    obsidian_sub = obsidian_p.add_subparsers(dest="subcommand")
+
+    list_p = obsidian_sub.add_parser("list", help="List notes in Obsidian vault")
+    list_p.add_argument("--vault", dest="obsidian_vault", default=None, help="Path to Obsidian vault (default: $OBSIDIAN_VAULT_PATH or ~/Documents/Obsidian Vault)")
+
+    import_p = obsidian_sub.add_parser("import", help="Import Obsidian notes as memories")
+    import_p.add_argument("--vault", dest="obsidian_vault", default=None, help="Path to Obsidian vault")
+    import_p.add_argument("--target-vault", default="main", help="Target memorius vault (default: main)")
+    import_p.add_argument("--target-shelf", default="obsidian", help="Target memorius shelf (default: obsidian)")
+    import_p.add_argument("--tag", default=None, help="Only import notes with this tag")
+    import_p.add_argument("--dry-run", action="store_true", help="Show what would be imported without writing")
+
+    export_p = obsidian_sub.add_parser("export", help="Export memorius memories as Obsidian notes")
+    export_p.add_argument("--vault", dest="obsidian_vault", default=None, help="Path to Obsidian vault")
+    export_p.add_argument("--source-vault", default="main", help="Source memorius vault (default: main)")
+    export_p.add_argument("--source-shelf", default=None, help="Filter by shelf (default: all)")
+    export_p.add_argument("--dry-run", action="store_true", help="Show what would be exported without writing")
+
     args = parser.parse_args()
 
     if args.version:
@@ -98,6 +128,11 @@ def main():
 
     if args.command is None:
         parser.print_help()
+        return
+
+    # Commands that don't need vault engine
+    if args.command == "pypi-login":
+        cmd_pypi_login(None, args, None)
         return
 
     # Load config and create engine
@@ -117,6 +152,8 @@ def main():
         "serve": cmd_serve,
         "serve-rest": cmd_serve_rest,
         "config": cmd_config,
+        "obsidian": cmd_obsidian,
+        "pypi-login": cmd_pypi_login,
     }
     handler = commands.get(args.command)
     if handler:
@@ -300,6 +337,18 @@ def cmd_config(engine, args, config):
         print(f"  Exists: {path.exists()}")
         return
     print(json.dumps(config, indent=2, default=str))
+
+
+def cmd_obsidian(engine, args, config):
+    """Dispatch obsidian subcommands."""
+    from memorius.cli.obsidian import cmd_obsidian as _dispatch
+    _dispatch(engine, args, config)
+
+
+def cmd_pypi_login(engine, args, config):
+    """Set up or verify PyPI credentials."""
+    from memorius.cli.pypi_login import cmd_pypi_login as _dispatch
+    _dispatch(engine, args, config)
 
 
 if __name__ == "__main__":

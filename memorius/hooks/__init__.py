@@ -368,7 +368,16 @@ class GenericAgentAdapter(BaseAgentAdapter):
         return True
 
     @classmethod
-    def parse(cls, data: dict) -> HookEvent:
+    def parse(cls, data: Any) -> HookEvent:
+        if not isinstance(data, dict):
+            # Handle non-dict payloads (e.g. JSON arrays)
+            return HookEvent(
+                event_type=HookEventType.UNKNOWN,
+                session_id=str(hash(str(data))),
+                agent_name="generic",
+                raw_payload=data if isinstance(data, dict) else {"_raw": str(data)},
+                can_block=False,
+            )
         # Try common field names across agents
         session_id = (
             data.get("session_id")
@@ -422,14 +431,8 @@ AGENT_ADAPTERS: list[type[BaseAgentAdapter]] = [
 
 def detect_agent(data: dict) -> type[BaseAgentAdapter]:
     """Auto-detect which agent produced this payload."""
-    # Check if data is actually a list (some agents send arrays)
+    # Lists are not valid hook payloads — use generic adapter
     if isinstance(data, list):
-        # Try to find hook info in any list element
-        for item in data:
-            if isinstance(item, dict):
-                if "session_id" in item or "hook" in item.get("type", "").lower():
-                    return detect_agent(item)
-        # If no element matches, treat as generic
         return GenericAgentAdapter
 
     for adapter_cls in AGENT_ADAPTERS:

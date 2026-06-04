@@ -1,6 +1,6 @@
 [project]
 name = "memorius"
-version = "0.1.0"
+version = "0.1.1"
 description = "Self-contained memory vault for any AI agent — vector search, session diaries, and agent-agnostic hooks."
 readme = "README.md"
 requires-python = ">=3.11"

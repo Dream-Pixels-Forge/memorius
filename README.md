@@ -2,7 +2,7 @@
 
 **Universal memory vault for any AI agent.**
 
-Memorius is a self-contained, agent-agnostic memory system that gives LLMs and AI agents persistent, searchable memory with a hierarchical knowledge organization. Drop-in replacement for MemPalace with multi-backend vector storage, pluggable embeddings, built-in MCP + REST servers, and agent-agnostic hooks.
+Memorius is a self-contained, agent-agnostic memory system that gives LLMs and AI agents persistent, searchable memory with a hierarchical knowledge organization. Drop-in with multi-backend vector storage, pluggable embeddings, built-in MCP + REST servers, and agent-agnostic hooks.
 
 ```
 pip install memorius
