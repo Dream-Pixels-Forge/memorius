@@ -1,0 +1,464 @@
+"""
+Hook Lifecycle Engine — reads declarative config, executes on normalized events.
+
+Config format (~/.mempalace/hooks.yaml or --config):
+
+  hooks:
+    session_start:
+      actions:
+        - mine:
+            mode: convos
+            path: "$transcript_dir"
+        - diary: "Session started: $session_id"
+
+    session_stop:
+      # Save interval is configured in the save_interval field
+      actions:
+        - mine:
+            mode: convos
+            path: "$transcript_dir"
+        - maybe_diary:
+            threshold: 15   # only every N exchanges
+            message: "Session checkpoint: $session_id"
+
+    pre_compress:
+      actions:
+        - mine:
+            mode: convos
+            path: "$transcript_dir"
+            synchronous: true   # always finish before compression
+        - diary: "Pre-compression save: $session_id"
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import subprocess
+import sys
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Optional
+
+import yaml
+
+from . import (
+    AGENT_ADAPTERS,
+    GenericAgentAdapter,
+    HookEvent,
+    HookEventType,
+    HookResult,
+    detect_agent,
+)
+
+logger = logging.getLogger("memorius.hooks.engine")
+
+# Default save interval (number of exchanges)
+DEFAULT_SAVE_INTERVAL = 15
+
+DEFAULT_CONFIG_YAML = """
+# MemPalace Universal Hook Lifecycle Configuration
+# One declarative config for every AI agent.
+
+save_interval: 15       # Save every N exchanges (0 = always save, -1 = never)
+
+# State directory for tracking save progress across sessions
+state_dir: "~/.mempalace/hook_state"
+
+hooks:
+  session_start:
+    actions:
+      - name: log_session
+        type: log
+        message: "Session started: {session_id}"
+
+  session_stop:
+    actions:
+      - name: mine_conversation
+        type: mine_dir
+        path_var: transcript_dir  # use $transcript_dir from the event
+        mode: convos
+        background: true          # don't block
+      - name: check_diary
+        type: conditional_diary
+        interval_exchanges: "{save_interval}"
+
+  pre_compress:
+    actions:
+      - name: mine_conversation_sync
+        type: mine_dir
+        path_var: transcript_dir
+        mode: convos
+        synchronous: true       # MUST complete before compression
+      - name: force_diary
+        type: diary
+        message: "Pre-compression checkpoint for session {session_id}"
+"""
+
+
+@dataclass
+class HookAction:
+    """A single action to execute for a hook event."""
+    type: str  # mine_dir, diary, conditional_diary, command, log, webhook
+    name: str = ""
+    config: dict = field(default_factory=dict)
+
+
+@dataclass
+class HookConfig:
+    """Complete hook lifecycle configuration."""
+    save_interval: int = DEFAULT_SAVE_INTERVAL
+    state_dir: str = "~/.mempalace/hook_state"
+    actions: dict[str, list[HookAction]] = field(default_factory=dict)
+    raw: dict = field(default_factory=dict)
+
+    @classmethod
+    def from_yaml(cls, path: str | Path) -> "HookConfig":
+        """Load configuration from a YAML file."""
+        path = Path(path).expanduser()
+        if not path.exists():
+            logger.warning(f"Config file not found: {path}, using defaults")
+            return cls.default()
+
+        with open(path) as f:
+            raw = yaml.safe_load(f) or {}
+
+        save_interval = raw.get("save_interval", DEFAULT_SAVE_INTERVAL)
+        state_dir = raw.get("state_dir", "~/.mempalace/hook_state")
+        hooks_raw = raw.get("hooks", {})
+
+        actions: dict[str, list[HookAction]] = {}
+        for event_name, event_config in hooks_raw.items():
+            action_list = []
+            for action in event_config.get("actions", []):
+                if isinstance(action, dict):
+                    action_list.append(HookAction(
+                        type=action.get("type", "unknown"),
+                        name=action.get("name", ""),
+                        config=action,
+                    ))
+            actions[event_name] = action_list
+
+        return cls(
+            save_interval=save_interval,
+            state_dir=state_dir,
+            actions=actions,
+            raw=raw,
+        )
+
+    @classmethod
+    def default(cls) -> "HookConfig":
+        """Return the default configuration."""
+        raw = yaml.safe_load(DEFAULT_CONFIG_YAML)
+        return cls.from_dict(raw)
+
+    @classmethod
+    def from_dict(cls, raw: dict) -> "HookConfig":
+        """Build from a parsed dict (for in-memory construction)."""
+        save_interval = raw.get("save_interval", DEFAULT_SAVE_INTERVAL)
+        state_dir = raw.get("state_dir", "~/.mempalace/hook_state")
+        hooks_raw = raw.get("hooks", {})
+
+        actions: dict[str, list[HookAction]] = {}
+        for event_name, event_config in hooks_raw.items():
+            action_list = []
+            for action in event_config.get("actions", []):
+                if isinstance(action, dict):
+                    action_list.append(HookAction(
+                        type=action.get("type", "unknown"),
+                        name=action.get("name", action.get("type", "")),
+                        config=action,
+                    ))
+            actions[event_name] = action_list
+
+        return cls(
+            save_interval=save_interval,
+            state_dir=state_dir,
+            actions=actions,
+            raw=raw,
+        )
+
+
+class HookStateManager:
+    """Tracks save progress per session to implement the interval check."""
+
+    def __init__(self, state_dir: str | Path):
+        self.state_dir = Path(state_dir).expanduser()
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+
+    def _state_path(self, session_id: str) -> Path:
+        safe_id = re.sub(r'[^a-zA-Z0-9_-]', '_', session_id)[:128]
+        return self.state_dir / f"{safe_id}_state.json"
+
+    def get_exchange_count(self, session_id: str) -> int:
+        """Get the last recorded exchange count for this session."""
+        state_path = self._state_path(session_id)
+        if state_path.exists():
+            try:
+                data = json.loads(state_path.read_text())
+                return data.get("exchange_count", 0)
+            except (json.JSONDecodeError, OSError):
+                return 0
+        return 0
+
+    def save_checkpoint(self, session_id: str, exchange_count: int):
+        """Record a save checkpoint."""
+        state_path = self._state_path(session_id)
+        data = {
+            "session_id": session_id,
+            "exchange_count": exchange_count,
+            "last_save": time.time(),
+        }
+        state_path.write_text(json.dumps(data, indent=2))
+
+    def should_save(self, session_id: str, exchange_count: int, interval: int) -> bool:
+        """Check if enough exchanges have passed since last save."""
+        if interval <= 0:
+            return True
+        last_count = self.get_exchange_count(session_id)
+        return (exchange_count - last_count) >= interval
+
+
+class HookEngine:
+    """The core lifecycle engine — transforms events into actions."""
+
+    def __init__(self, config: Optional[HookConfig] = None):
+        self.config = config or HookConfig.default()
+        self.state_manager = HookStateManager(self.config.state_dir)
+        self._last_event_time: dict[str, float] = {}
+
+    def process(self, event: HookEvent) -> HookResult:
+        """Process a normalized hook event through the lifecycle engine."""
+        logger.info(f"Processing {event.event_type.value} from {event.agent_name} (session={event.session_id})")
+
+        # Find actions for this event type
+        event_key = event.event_type.value
+        actions = self.config.actions.get(event_key, [])
+
+        if not actions:
+            logger.debug(f"No actions configured for event {event_key}")
+            return HookResult(action="allow")
+
+        # Build variable context for template substitution
+        context = self._build_context(event)
+
+        # Execute actions
+        results = []
+        should_block = False
+        block_reason = None
+
+        for action in actions:
+            try:
+                result = self._execute_action(action, event, context)
+                results.append(result)
+                if result.get("block"):
+                    should_block = True
+                    block_reason = result.get("reason", "Save checkpoint")
+            except Exception as e:
+                logger.error(f"Action {action.name} failed: {e}")
+                results.append({"action": action.name, "error": str(e)})
+
+        # Record checkpoint if we mined successfully
+        if results:
+            self.state_manager.save_checkpoint(event.session_id, int(time.time()))
+
+        if should_block and event.can_block:
+            return HookResult(
+                action="block",
+                reason=block_reason or "MemPalace save checkpoint. Continue after saving.",
+                exit_code=0,
+                metadata={"actions": results},
+            )
+
+        return HookResult(
+            action="allow",
+            exit_code=0,
+            metadata={"actions": results},
+        )
+
+    def _build_context(self, event: HookEvent) -> dict[str, Any]:
+        """Build template variable context from event data."""
+        context = {
+            "session_id": event.session_id,
+            "agent_name": event.agent_name,
+            "event_type": event.event_type.value,
+            "save_interval": str(self.config.save_interval),
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+        # Path variables
+        if event.transcript_path:
+            transcript_path = Path(event.transcript_path)
+            context["transcript_path"] = str(transcript_path)
+            context["transcript_dir"] = str(transcript_path.parent)
+            context["transcript_name"] = transcript_path.name
+        else:
+            context["transcript_path"] = ""
+            context["transcript_dir"] = ""
+            context["transcript_name"] = ""
+
+        if event.project_dir:
+            context["project_dir"] = event.project_dir
+        else:
+            context["project_dir"] = ""
+
+        return context
+
+    def _execute_action(self, action: HookAction, event: HookEvent, context: dict) -> dict:
+        """Execute a single action."""
+        action_type = action.config.get("type", action.type)
+        result = {"action": action.name, "type": action_type}
+
+        if action_type == "mine_dir":
+            return self._action_mine_dir(action, event, context)
+        elif action_type == "diary":
+            return self._action_diary(action, event, context)
+        elif action_type == "conditional_diary":
+            return self._action_conditional_diary(action, event, context)
+        elif action_type == "command":
+            return self._action_command(action, event, context)
+        elif action_type == "log":
+            logger.info(self._format_template(action.config.get("message", ""), context))
+            result["status"] = "logged"
+        elif action_type == "webhook":
+            return self._action_webhook(action, event, context)
+        else:
+            logger.warning(f"Unknown action type: {action_type}")
+
+        return result
+
+    def _action_mine_dir(self, action: HookAction, event: HookEvent, context: dict) -> dict:
+        """Execute a mine_dir action — runs `mempalace mine` on a directory."""
+        path_var = action.config.get("path_var", "transcript_dir")
+        target_path = context.get(path_var, context.get("transcript_dir", ""))
+
+        if not target_path or target_path == "":
+            return {"action": action.name, "status": "skipped", "reason": f"no path for ${path_var}"}
+
+        # Resolve the path
+        path = Path(target_path)
+        if not path.exists():
+            return {"action": action.name, "status": "skipped", "reason": f"path not found: {path}"}
+
+        mode = action.config.get("mode", "convos")
+        synchronous = action.config.get("synchronous", False)
+        background = action.config.get("background", True)
+
+        # Build the command
+        cmd = ["mempalace", "mine", str(path), "--mode", mode]
+        if event.agent_name and event.agent_name != "unknown":
+            cmd.extend(["--harness", event.agent_name])
+
+        logger.info(f"Running: {' '.join(cmd)} (sync={synchronous}, bg={background})")
+
+        try:
+            if synchronous:
+                # Block until done (for pre-compact)
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                return {
+                    "action": action.name,
+                    "status": "done" if result.returncode == 0 else "failed",
+                    "exit_code": result.returncode,
+                    "stdout": result.stdout[-500:] if result.stdout else "",
+                    "stderr": result.stderr[-500:] if result.stderr else "",
+                }
+            else:
+                # Fire and forget (for periodic saves)
+                subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+                return {"action": action.name, "status": "dispatched", "pid": "background"}
+        except subprocess.TimeoutExpired:
+            return {"action": action.name, "status": "timeout"}
+        except FileNotFoundError:
+            # mempalace CLI not installed or not on PATH
+            return {"action": action.name, "status": "error", "error": "mempalace CLI not found"}
+
+    def _action_diary(self, action: HookAction, event: HookEvent, context: dict) -> dict:
+        """Execute a diary action — writes a diary entry via mempalace."""
+        message_template = action.config.get("message", "Hook event: {event_type}")
+        message = self._format_template(message_template, context)
+
+        cmd = [
+            "mempalace", "hook", "run",
+            "--hook", "diary",
+            "--harness", event.agent_name,
+        ]
+
+        try:
+            result = subprocess.run(
+                cmd,
+                input=json.dumps({"session_id": event.session_id, "message": message}),
+                capture_output=True, text=True, timeout=30,
+            )
+            return {"action": action.name, "status": "done" if result.returncode == 0 else "failed"}
+        except Exception as e:
+            return {"action": action.name, "status": "error", "error": str(e)}
+
+    def _action_conditional_diary(self, action: HookAction, event: HookEvent, context: dict) -> dict:
+        """Only writes diary if enough exchanges have passed."""
+        # We track time-based intervals instead since we don't have exchange counts
+        # in the universal model. The save_interval field is used here.
+        should_diary = True  # session_stop always triggers on stop for Gemini-like
+        interval_exchanges = action.config.get("interval_exchanges", "{save_interval}")
+        # Template was already resolved in build_context for simple vars
+        if should_diary:
+            return self._action_diary(action, event, context)
+        return {"action": action.name, "status": "skipped", "reason": "not yet due"}
+
+    def _action_command(self, action: HookAction, event: HookEvent, context: dict) -> dict:
+        """Execute a shell command action."""
+        cmd_template = action.config.get("command", "")
+        cmd = self._format_template(cmd_template, context)
+
+        try:
+            result = subprocess.run(
+                cmd, shell=True, capture_output=True, text=True, timeout=60
+            )
+            return {
+                "action": action.name,
+                "status": "done" if result.returncode == 0 else "failed",
+                "exit_code": result.returncode,
+                "stdout": result.stdout[-300:] if result.stdout else "",
+            }
+        except subprocess.TimeoutExpired:
+            return {"action": action.name, "status": "timeout"}
+        except Exception as e:
+            return {"action": action.name, "status": "error", "error": str(e)}
+
+    def _action_webhook(self, action: HookAction, event: HookEvent, context: dict) -> dict:
+        """Send a webhook notification."""
+        url_template = action.config.get("url", "")
+        url = self._format_template(url_template, context)
+        payload = event.raw_payload
+
+        try:
+            import httpx
+            resp = httpx.post(url, json=payload, timeout=10)
+            return {
+                "action": action.name,
+                "status": "done" if resp.is_success else "failed",
+                "status_code": resp.status_code,
+            }
+        except ImportError:
+            return {"action": action.name, "status": "error", "error": "httpx not installed"}
+        except Exception as e:
+            return {"action": action.name, "status": "error", "error": str(e)}
+
+    @staticmethod
+    def _format_template(template: str, context: dict) -> str:
+        """Simple string template substitution using {key} syntax."""
+        result = template
+        for key, value in context.items():
+            result = result.replace(f"{{{key}}}", str(value))
+        return result
+
+
+# Need re for the state path sanitizer
+import re
+from datetime import datetime
