@@ -7,6 +7,8 @@ import logging
 import sys
 from typing import Any
 
+from memorius import __version__ as _memorius_version
+
 logger = logging.getLogger("memorius.mcp")
 
 
@@ -160,7 +162,7 @@ class McpServer:
         return self._make_response(msg_id, {
             "protocolVersion": "2024-11-05",
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "memorius", "version": "0.1.0"},
+            "serverInfo": {"name": "memorius", "version": _memorius_version},
         })
 
     def _handle_list_tools(self, msg_id):

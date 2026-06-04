@@ -291,7 +291,11 @@ class PiAdapter(BaseAgentAdapter):
     @classmethod
     def can_parse(cls, data: dict) -> bool:
         has_session = bool(data.get("session_id"))
-        pi_events = {"session_start", "session_shutdown", "session_before_compact", "tool_call", "turn_end"}
+        # Mirrors event_type_map keys (the events this adapter actually claims to handle).
+        pi_events = {
+            "session_start", "session_shutdown", "session_before_compact",
+            "tool_call", "turn_end", "stop", "shutdown", "precompact",
+        }
         has_pi_event = data.get("event", "").lower() in pi_events
         has_hook_type = data.get("hook_type", "").lower() in pi_events
         return has_session and (has_pi_event or has_hook_type)

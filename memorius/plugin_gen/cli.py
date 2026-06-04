@@ -79,6 +79,8 @@ from typing import Any, Optional
 
 import yaml
 
+from memorius import __version__ as _MEMORIUS_VERSION
+
 
 DEFAULT_MANIFEST = """\
 # Memorius Universal Plugin Manifest
@@ -181,7 +183,7 @@ def generate_claude_plugin(manifest: dict, output_dir: Path):
     _ensure_dir(plugin_dir)
 
     name = manifest.get("name", "memorius")
-    version = manifest.get("version", "0.1.0")
+    version = manifest.get("version", _MEMORIUS_VERSION)
     description = manifest.get("description", "AI memory system")
     repository = manifest.get("repository", "")
     agent_cfg = manifest.get("agents", {}).get("claude-code", {})
@@ -291,7 +293,7 @@ def generate_codex_plugin(manifest: dict, output_dir: Path):
     _ensure_dir(plugin_dir)
 
     name = manifest.get("name", "memorius")
-    version = manifest.get("version", "0.1.0")
+    version = manifest.get("version", _MEMORIUS_VERSION)
     description = manifest.get("description", "AI memory system")
     repository = manifest.get("repository", "")
     agent_cfg = manifest.get("agents", {}).get("codex", {})
@@ -439,7 +441,7 @@ def generate_openclaw_skill(manifest: dict, output_dir: Path):
     _ensure_dir(skill_dir)
 
     name = manifest.get("name", "memorius")
-    version = manifest.get("version", "0.1.0")
+    version = manifest.get("version", _MEMORIUS_VERSION)
     repository = manifest.get("repository", "")
 
     skill_content = f"""---
@@ -714,12 +716,7 @@ def main():
     args, remaining = parser.parse_known_args()
 
     if args.version:
-        try:
-            from .. import __version__
-            v = __version__
-        except ImportError:
-            v = "0.1.0"
-        print(f"memorius-plugin-gen v{v}")
+        print(f"memorius-plugin-gen v{_MEMORIUS_VERSION}")
         return 0
 
     if args.command == "list":
