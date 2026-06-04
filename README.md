@@ -2,9 +2,12 @@
 
 **Universal memory vault for any AI agent.**
 
-Memorius is a self-contained, agent-agnostic memory system that gives LLMs and AI agents persistent, searchable memory with a hierarchical knowledge organization. Drop-in with multi-backend vector storage, pluggable embeddings, built-in MCP + REST servers, and agent-agnostic hooks.
+Memorius is a self-contained, agent-agnostic memory system that gives LLMs and AI
+agents persistent, searchable memory with a hierarchical knowledge organization.
+Drop-in with multi-backend vector storage, pluggable embeddings, built-in MCP + REST
+servers, and auto-detecting agent hooks for **7 different AI coding agents**.
 
-```
+```bash
 pip install memorius
 ```
 
@@ -33,26 +36,29 @@ memorius diary --session "session-001" --title "Research findings"
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                      Memorius                           │
-├─────────────────────────────────────────────────────────┤
-│  CLI        memorius init | store | search | mine | ... │
-│  MCP        JSON-RPC protocol server (stdin/stdout)     │
-│  REST       FastAPI HTTP server (optional)              │
-│  Hooks      Agent-agnostic lifecycle hooks              │
-├─────────────────────────────────────────────────────────┤
-│  Vault Engine                                           │
-│  ├── ChromaStore    Vector search (ChromaDB)            │
-│  ├── SQLiteStore    Metadata & hierarchy (SQLite)       │
-│  └── Embeddings     Pluggable providers                 │
-├─────────────────────────────────────────────────────────┤
-│  Vault  >  Shelf  >  Folder  >  Note  hierarchy         │
-│  Diaries          Session diary entries                 │
-│  Mine             Extract memories from transcripts     │
-├─────────────────────────────────────────────────────────┤
-│  Plugin Gen    →  Generate per-agent plugins            │
-│  Normalizers   →  Import Discord/Telegram/WhatsApp/etc  │
-└─────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│                       Memorius                             │
+├────────────────────────────────────────────────────────────┤
+│  CLI        memorius init | store | search | mine | ...    │
+│  MCP        JSON-RPC protocol server (stdin/stdout)        │
+│  REST       FastAPI HTTP server (optional)                 │
+│  Hooks      Auto-detect: Claude Code, Codex, Gemini, ...  │
+│  Obsidian   Import / export notes from Obsidian vaults     │
+├────────────────────────────────────────────────────────────┤
+│  Vault Engine                                              │
+│  ├── ChromaStore    Vector search (ChromaDB)               │
+│  ├── SQLiteStore    Metadata & hierarchy (SQLite)          │
+│  └── Embeddings     Pluggable providers (ONNX / SF / OA)   │
+├────────────────────────────────────────────────────────────┤
+│  Vault  >  Shelf  >  Folder  >  Note  hierarchy            │
+│  Diaries          Session diary entries                    │
+│  Mine             Extract memories from transcripts        │
+├────────────────────────────────────────────────────────────┤
+│  Plugin Gen    →  Generate per-agent plugins               │
+│  Normalizers   →  Import Discord/Telegram/WhatsApp/etc     │
+│  Obsidian      →  Bidirectional vault sync                 │
+│  PyPI Login    →  Set up PyPI credentials for publishing   │
+└────────────────────────────────────────────────────────────┘
 ```
 
 ## Configuration
@@ -98,35 +104,79 @@ Environment variable overrides:
 
 ## CLI Reference
 
+### Core commands
+
+```bash
+memorius init                Initialize a new vault
+memorius status              Show vault status
+memorius store <text>        Store a memory
+  --vault, -v                  Vault name (default: main)
+  --shelf, -s                  Shelf name (default: default)
+  --folder, -f                 Folder name (default: default)
+  --note, -n                   Note name (default: default)
+memorius search <query>      Semantic search
+  --vault, -v                  Filter by vault
+  --shelf, -s                  Filter by shelf
+  --limit, -l                  Max results (default: 10)
+memorius mine <file|text>    Extract memories from transcript
+  --vault, -v                  Target vault (default: main)
+memorius diary <session>     Write a diary entry
+  --title, -t                  Entry title
+  --summary, -s                Entry summary
+  --vault, -v                  Vault name (default: main)
+memorius diaries              List recent diary entries
+memorius ls                   Explore vault hierarchy
+memorius serve                Start MCP server (stdio)
+memorius serve-rest           Start REST API server
+memorius --version            Show version
+memorius config               Show current configuration
 ```
-Usage:
-  memorius init                Initialize a new vault
-  memorius status              Show vault status
-  memorius store <text>        Store a memory
-    --vault, -v                  Vault name (default: main)
-    --shelf, -s                  Shelf name (default: default)
-    --folder, -f                 Folder name (default: default)
-    --note, -n                   Note name (default: default)
-  memorius search <query>      Semantic search
-    --vault, -v                  Filter by vault
-    --shelf, -s                  Filter by shelf
-    --limit, -l                  Max results (default: 10)
-  memorius mine <file|text>    Extract memories from transcript
-    --vault, -v                  Target vault (default: main)
-  memorius diary <session>     Write a diary entry
-    --title, -t                  Entry title
-    --summary, -s                Entry summary
-    --vault, -v                  Vault name (default: main)
-  memorius diaries              List recent diary entries
-  memorius ls                   Explore vault hierarchy
-  memorius serve                Start MCP server (stdio)
-  memorius serve-rest           Start REST API server
-  memorius --version            Show version
+
+### Obsidian integration
+
+```bash
+memorius obsidian list                Explore vault structure
+  --vault, -v                           Path to Obsidian vault directory
+                                        (default: $OBSIDIAN_VAULT_PATH or
+                                         ~/Documents/Obsidian Vault)
+
+memorius obsidian import              Import Obsidian notes as memorius memories
+  --vault, -v                           Path to Obsidian vault
+  --target-vault                        Target memorius vault (default: main)
+  --target-shelf                        Target memorius shelf (default: obsidian)
+  --tag                                 Only import notes with this tag
+  --dry-run                             Preview without importing
+
+memorius obsidian export              Export memorius memories as Obsidian notes
+  --vault, -v                           Path to Obsidian vault
+  --source-vault                        Source memorius vault (default: main)
+  --source-shelf                        Filter by shelf (default: all)
+  --dry-run                             Preview without exporting
 ```
+
+Import preserves the file hierarchy: `vault/Subfolder/note.md` maps to
+`vault/Subfolder/vault > shelf > folder > note`. YAML frontmatter is parsed
+and stored as memory attributes.
+
+### PyPI setup
+
+```bash
+memorius pypi-login                   Interactive — paste a PyPI API token
+  --token pypi-AgEI...               Non-interactive (for CI / scripts)
+  --path /project/.pypirc            Write to custom path
+  --verify                            Check existing .pypirc file
+  --test                              Validate token format
+```
+
+The command checks token format (`pypi-` prefix, minimum length), writes with
+correct `[pypi]` section and `__token__` username, and sets 0o600 permissions.
+Follows the standard PyPI API token flow — create one at
+[pypi.org/manage/account/token](https://pypi.org/manage/account/token/).
 
 ## MCP Protocol
 
-MCP is the primary interface for AI agents to interact with Memorius. Connect any MCP-compatible client (Claude Code, Cursor, Codex CLI, Gemini CLI, etc.) by pointing it at the MCP server:
+MCP is the primary interface for AI agents to interact with Memorius. Connect
+any MCP-compatible client by pointing it at the MCP server:
 
 ```json
 {
@@ -153,13 +203,9 @@ Available MCP tools:
 
 ## REST API
 
-Start the REST server:
-
 ```bash
 memorius serve-rest
 ```
-
-Endpoints:
 
 | Method | Path | Description |
 |---|---|---|
@@ -171,9 +217,10 @@ Endpoints:
 | POST | `/diary` | Write diary entry |
 | GET | `/palace` | Browse hierarchy |
 
-## Agent Hooks (optional)
+## Agent Hooks
 
-Memorius includes agent-agnostic lifecycle hooks. Hook scripts are generated per agent:
+Memorius includes **universal agent lifecycle hooks** — auto-detecting,
+agent-agnostic, and framework-free. Hook scripts are generated per agent:
 
 ```bash
 memorius-plugin-gen init
@@ -181,7 +228,39 @@ memorius-plugin-gen init
 memorius-plugin-gen generate
 ```
 
-This generates plugins for Claude Code, Codex CLI, Cursor, Gemini CLI, Windsurf, and more.
+### Supported agents
+
+| Agent | Hook protocol | Events |
+|---|---|---|
+| **Claude Code** (Anthropic) | `stop_hook_active` / `precompact` | stop, precompact, session_start |
+| **Codex CLI** (OpenAI) | `session_id` + `context_dir` | session_start, session_stop |
+| **Gemini CLI** (Google) | `conversation_id` + `extensions` | stop, session_start |
+| **OpenClaw** | `openclaw` marker in payload | stop, session_stop, precompact, session_start |
+| **OpenCode** (anomalyco/sst) | `provider` dict + `openCodeVersion` | stop, session_stop, session_start, precompact |
+| **Pi** (kachow-compatible) | `event` in Pi event set | session_start, session_shutdown, pre_compact, tool_call, turn_end |
+| **OpenClaude** | `OpenClaude` marker in payload | stop, precompact, session_start |
+
+### Auto-detection (no config needed)
+
+Hooks are auto-detected from stdin — no `--agent` flag required. Just pipe
+agent hook JSON to the memorius hook engine and it figures out which agent
+sent the event:
+
+```bash
+# Hook engine auto-detects the agent
+cat hook-payload.json | memorius-hook mine
+cat hook-payload.json | memorius-hook diary
+```
+
+You can also force a specific agent with `--agent`:
+
+```bash
+memorius-hook mine --agent claude-code
+memorius-hook diary --agent opencode
+```
+
+Detection priority (most-specific first):
+`OpenClaude → Claude Code → Codex → Gemini CLI → OpenClaw → OpenCode → Pi → Generic`
 
 ## Plugin Generator (optional)
 
@@ -216,6 +295,22 @@ pytest
 memorius init
 memorius store "test memory"
 memorius search "test"
+
+# Build for PyPI
+python -m build --no-isolation
+```
+
+## Publishing
+
+```bash
+# Set up PyPI credentials
+memorius pypi-login --token pypi-AgEI...
+
+# Build
+python -m build --no-isolation
+
+# Upload
+python -m twine upload dist/*
 ```
 
 ## License
