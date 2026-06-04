@@ -57,7 +57,6 @@ memorius diary --session "session-001" --title "Research findings"
 │  Plugin Gen    →  Generate per-agent plugins               │
 │  Normalizers   →  Import Discord/Telegram/WhatsApp/etc     │
 │  Obsidian      →  Bidirectional vault sync                 │
-│  PyPI Login    →  Set up PyPI credentials for publishing   │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -157,21 +156,6 @@ memorius obsidian export              Export memorius memories as Obsidian notes
 Import preserves the file hierarchy: `vault/Subfolder/note.md` maps to
 `vault/Subfolder/vault > shelf > folder > note`. YAML frontmatter is parsed
 and stored as memory attributes.
-
-### PyPI setup
-
-```bash
-memorius pypi-login                   Interactive — paste a PyPI API token
-  --token pypi-AgEI...               Non-interactive (for CI / scripts)
-  --path /project/.pypirc            Write to custom path
-  --verify                            Check existing .pypirc file
-  --test                              Validate token format
-```
-
-The command checks token format (`pypi-` prefix, minimum length), writes with
-correct `[pypi]` section and `__token__` username, and sets 0o600 permissions.
-Follows the standard PyPI API token flow — create one at
-[pypi.org/manage/account/token](https://pypi.org/manage/account/token/).
 
 ## MCP Protocol
 
@@ -295,22 +279,6 @@ pytest
 memorius init
 memorius store "test memory"
 memorius search "test"
-
-# Build for PyPI
-python -m build --no-isolation
-```
-
-## Publishing
-
-```bash
-# Set up PyPI credentials
-memorius pypi-login --token pypi-AgEI...
-
-# Build
-python -m build --no-isolation
-
-# Upload
-python -m twine upload dist/*
 ```
 
 ## License

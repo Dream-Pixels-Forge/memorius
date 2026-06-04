@@ -9,12 +9,12 @@ Usage:
   memorius diary <session>   Write a diary entry (interactive)
   memorius diaries           List recent diary entries
   memorius ls [vault]        Explore vault hierarchy
-  |  memorius serve             Start the MCP server (stdio)
-  |  memorius serve-rest        Start the REST API server
-  |  memorius config            Show current config
-  |  memorius obsidian list     List notes in an Obsidian vault
-  |  memorius obsidian import   Import Obsidian notes as memories
-  |  memorius obsidian export   Export memories as Obsidian notes
+  memorius serve             Start the MCP server (stdio)
+  memorius serve-rest        Start the REST API server
+  memorius config            Show current config
+  memorius obsidian list     List notes in an Obsidian vault
+  memorius obsidian import   Import Obsidian notes as memories
+  memorius obsidian export   Export memories as Obsidian notes
 """
 
 from __future__ import annotations
@@ -90,13 +90,6 @@ def main():
     config_p.add_argument("--show", action="store_true", default=True, help="Show config")
     config_p.add_argument("--path", action="store_true", help="Show config file path")
 
-    # ── pypi-login ──
-    pypi_p = subparsers.add_parser("pypi-login", help="Set up or verify PyPI credentials (.pypirc)")
-    pypi_p.add_argument("--token", default=None, help="PyPI API token (starts with pypi-)")
-    pypi_p.add_argument("--path", default=None, help="Write to custom path instead of ~/.pypirc")
-    pypi_p.add_argument("--verify", action="store_true", help="Verify existing .pypirc only (don't write)")
-    pypi_p.add_argument("--test", action="store_true", help="Also test the token against PyPI")
-
     # ── Obsidian subcommands ──
     obsidian_p = subparsers.add_parser("obsidian", help="Interact with Obsidian vaults")
     obsidian_sub = obsidian_p.add_subparsers(dest="subcommand")
@@ -130,11 +123,6 @@ def main():
         parser.print_help()
         return
 
-    # Commands that don't need vault engine
-    if args.command == "pypi-login":
-        cmd_pypi_login(None, args, None)
-        return
-
     # Load config and create engine
     config = load_config(args.config)
     engine = VaultEngine(config)
@@ -153,7 +141,6 @@ def main():
         "serve-rest": cmd_serve_rest,
         "config": cmd_config,
         "obsidian": cmd_obsidian,
-        "pypi-login": cmd_pypi_login,
     }
     handler = commands.get(args.command)
     if handler:
@@ -342,12 +329,6 @@ def cmd_config(engine, args, config):
 def cmd_obsidian(engine, args, config):
     """Dispatch obsidian subcommands."""
     from memorius.cli.obsidian import cmd_obsidian as _dispatch
-    _dispatch(engine, args, config)
-
-
-def cmd_pypi_login(engine, args, config):
-    """Set up or verify PyPI credentials."""
-    from memorius.cli.pypi_login import cmd_pypi_login as _dispatch
     _dispatch(engine, args, config)
 
 
