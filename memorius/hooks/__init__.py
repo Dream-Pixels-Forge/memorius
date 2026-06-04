@@ -5,7 +5,8 @@ Universal Hook Lifecycle Adapter for Memorius
 Decouples Memorius hooks from any single AI agent's hook protocol.
 
 The problem:
-  Claude Code, Codex CLI, Gemini CLI, Cursor, and OpenClaw all have
+  Claude Code, Codex CLI, Gemini CLI, Cursor, OpenClaw, OpenCode,
+  Pi, and OpenClaude all have
   different hook event names, JSON payload schemas, and lifecycle
   semantics (block vs. allow, synchronous vs. async). Currently
   Memorius duplicates shell wrappers per agent.
@@ -196,8 +197,10 @@ class OpenClawAdapter(BaseAgentAdapter):
 
     @classmethod
     def can_parse(cls, data: dict) -> bool:
-        return bool(data.get("hook_type")) or (
-            bool(data.get("session_id")) and "hook" in str(data.keys()).lower()
+        # Only match when openclaw is explicitly indicated
+        return any(
+            "openclaw" in str(k).lower() or "openclaw" in str(v).lower()
+            for k, v in data.items()
         )
 
     @classmethod
@@ -217,6 +220,134 @@ class OpenClawAdapter(BaseAgentAdapter):
             agent_name=cls.agent_name,
             raw_payload=data,
             can_block=bool(data.get("can_block", False)),
+        )
+
+
+class OpenCodeAdapter(BaseAgentAdapter):
+    """Parses OpenCode's hook-style event payload.
+
+    OpenCode (anomalyco/opencode) uses a JSON-based communication
+    protocol. This adapter detects OpenCode by checking for
+    OpenCode-specific fields like 'provider', 'permission',
+    or OpenCode-specific session markers.
+    """
+
+    agent_name = "opencode"
+    event_type_map = {
+        "stop": HookEventType.SESSION_STOP,
+        "session_stop": HookEventType.SESSION_STOP,
+        "session_start": HookEventType.SESSION_START,
+        "precompact": HookEventType.PRE_COMPACT,
+    }
+
+    @classmethod
+    def can_parse(cls, data: dict) -> bool:
+        # Check for OpenCode-specific fields (not just generic session_id+event)
+        has_provider = data.get("provider") is not None and isinstance(data.get("provider"), dict)
+        has_opencode_marker = any(
+            "opencode" in str(k).lower() or "opencode" in str(v).lower()
+            for k, v in data.items()
+        )
+        has_session = bool(data.get("session_id"))
+        has_opencode_event = data.get("event", "").lower() in {"stop", "session_stop", "session_start", "precompact"}
+        return (has_session and has_opencode_event and has_provider) or has_opencode_marker
+
+    @classmethod
+    def parse(cls, data: dict) -> HookEvent:
+        raw_type = data.get("event", data.get("hook_name", "stop")).lower()
+        event_type = cls.event_type_map.get(raw_type, HookEventType.UNKNOWN)
+        return HookEvent(
+            event_type=event_type,
+            session_id=str(data.get("session_id", "unknown")),
+            transcript_path=data.get("transcript_path") or data.get("log_path"),
+            agent_name=cls.agent_name,
+            raw_payload=data,
+            can_block=True,
+        )
+
+
+class PiAdapter(BaseAgentAdapter):
+    """Parses Pi's hook-style event payload.
+
+    Pi uses a declarative hook system delivered via a TypeScript extension
+    bridge. Events: session_start, tool_call, turn_end, session_shutdown,
+    session_before_compact.
+
+    Pi's home directory is ~/.pi/agent/ and uses settings.json.
+    """
+
+    agent_name = "pi"
+    event_type_map = {
+        "session_start": HookEventType.SESSION_START,
+        "session_shutdown": HookEventType.SESSION_STOP,
+        "stop": HookEventType.SESSION_STOP,
+        "shutdown": HookEventType.SESSION_STOP,
+        "tool_call": HookEventType.UNKNOWN,
+        "turn_end": HookEventType.SESSION_STOP,
+        "session_before_compact": HookEventType.PRE_COMPACT,
+        "precompact": HookEventType.PRE_COMPACT,
+    }
+
+    @classmethod
+    def can_parse(cls, data: dict) -> bool:
+        has_session = bool(data.get("session_id"))
+        pi_events = {"session_start", "session_shutdown", "session_before_compact", "tool_call", "turn_end"}
+        has_pi_event = data.get("event", "").lower() in pi_events
+        has_hook_type = data.get("hook_type", "").lower() in pi_events
+        return has_session and (has_pi_event or has_hook_type)
+
+    @classmethod
+    def parse(cls, data: dict) -> HookEvent:
+        raw_type = data.get("event", data.get("hook_type", "session_shutdown")).lower()
+        event_type = cls.event_type_map.get(raw_type, HookEventType.UNKNOWN)
+        return HookEvent(
+            event_type=event_type,
+            session_id=str(data.get("session_id", "unknown")),
+            transcript_path=data.get("transcript_path"),
+            agent_name=cls.agent_name,
+            raw_payload=data,
+            can_block=False,  # Pi uses bridge extension, not block protocol
+        )
+
+
+class OpenClaudeAdapter(BaseAgentAdapter):
+    """Parses OpenClaude's hook-style event payload.
+
+    OpenClaude is a Claude Code-compatible open-source agent that
+    mirrors Claude Code's hook protocol with OpenClaude-specific naming.
+    """
+
+    agent_name = "openclaude"
+    event_type_map = {
+        "stop": HookEventType.SESSION_STOP,
+        "precompact": HookEventType.PRE_COMPACT,
+        "session_start": HookEventType.SESSION_START,
+    }
+
+    @classmethod
+    def can_parse(cls, data: dict) -> bool:
+        # Only match when OpenClaude is explicitly indicated
+        # (otherwise ClaudeCodeAdapter handles the standard format)
+        has_openclaude_marker = any(
+            "openclaude" in str(k).lower() or "openclaude" in str(v).lower()
+            for k, v in data.items()
+        )
+        if not has_openclaude_marker:
+            return False
+        has_session = bool(data.get("session_id"))
+        return has_session
+
+    @classmethod
+    def parse(cls, data: dict) -> HookEvent:
+        raw_type = data.get("hook_name", data.get("hook_type", "stop")).lower()
+        event_type = cls.event_type_map.get(raw_type, HookEventType.UNKNOWN)
+        return HookEvent(
+            event_type=event_type,
+            session_id=str(data.get("session_id", "unknown")),
+            transcript_path=data.get("transcript_path"),
+            agent_name=cls.agent_name,
+            raw_payload=data,
+            can_block=True,
         )
 
 
@@ -278,10 +409,13 @@ class GenericAgentAdapter(BaseAgentAdapter):
 
 # Registry: ordered by specificity (most specific first)
 AGENT_ADAPTERS: list[type[BaseAgentAdapter]] = [
+    OpenClaudeAdapter,    # before ClaudeCode (checks "openclaude" whole word)
     ClaudeCodeAdapter,
     CodexAdapter,
     GeminiCliAdapter,
     OpenClawAdapter,
+    OpenCodeAdapter,
+    PiAdapter,
     GenericAgentAdapter,  # must be last
 ]
 

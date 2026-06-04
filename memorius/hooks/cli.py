@@ -54,7 +54,7 @@ def cmd_run(args):
         parsed.mock_input = None
     else:
         parser = argparse.ArgumentParser("memorius-hook run")
-        parser.add_argument("--agent", choices=["auto", "claude-code", "codex", "gemini-cli", "openclaw"], default="auto",
+        parser.add_argument("--agent", choices=["auto", "claude-code", "codex", "gemini-cli", "openclaw", "opencode", "pi", "openclaude"], default="auto",
                             help="AI agent to emulate (auto-detect from stdin if omitted)")
         parser.add_argument("--config", default="~/.memorius/hooks.yaml",
                             help="Path to hooks lifecycle YAML config")
@@ -194,7 +194,7 @@ def main():
 
     run_parser = subparsers.add_parser("run", help="Run the hook lifecycle (reads stdin)")
     run_parser.add_argument("--event", required=True, help="Hook event name (stop, precompact, session-start, etc.)")
-    run_parser.add_argument("--agent", default="auto", help="Agent harness (auto-detect if omitted)")
+    run_parser.add_argument("--agent", default="auto", help="Agent harness (auto-detect, claude-code, codex, gemini-cli, openclaw, opencode, pi, openclaude)")
     run_parser.add_argument("--config", default="~/.memorius/hooks.yaml", help="Path to hooks.yaml config")
 
     subparsers.add_parser("init-config", help="Generate default hooks.yaml")
