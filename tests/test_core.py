@@ -1,4 +1,4 @@
-"""Tests for memorius — core palace engine, search, mine, and storage."""
+"""Tests for memorius — core vault engine, search, mine, and storage."""
 
 import os
 import shutil
@@ -10,13 +10,13 @@ import pytest
 
 @pytest.fixture
 def engine():
-    """Create a PalaceEngine with isolated temp storage per test."""
+    """Create a VaultEngine with isolated temp storage per test."""
     tmp = Path(tempfile.mkdtemp())
     os.environ["MEMORIUS_STORAGE_PATH"] = str(tmp)
-    from memorius.palace import PalaceEngine
+    from memorius.vault import VaultEngine
     from memorius.config import load_config
     config = load_config()
-    eng = PalaceEngine(config)
+    eng = VaultEngine(config)
     yield eng
     shutil.rmtree(tmp, ignore_errors=True)
     # ChromeDB's Rust backend holds file handles; force cleanup
@@ -52,34 +52,34 @@ def test_embeddings_chroma_default():
 
 def test_store_and_search(engine):
     """Store a memory and find it via semantic search."""
-    m = engine.store("Python is a high-level programming language", palace="test")
+    m = engine.store("Python is a high-level programming language", vault="test")
     assert m.id
-    assert m.palace == "test"
-    assert m.wing == "default"
+    assert m.vault == "test"
+    assert m.shelf == "default"
     
-    results = engine.search("programming languages", palace="test")
+    results = engine.search("programming languages", vault="test")
     assert len(results) >= 1
     assert "Python" in results[0].content
     
-    results_unrelated = engine.search("zzzzzzzzzz", palace="test")
+    results_unrelated = engine.search("zzzzzzzzzz", vault="test")
     assert len(results_unrelated) <= len(results)
 
 
-def test_palace_hierarchy(engine):
+def test_vault_hierarchy(engine):
     """Store across hierarchy and explore it."""
-    engine.store("alpha", palace="p1", wing="w1", room="r1", drawer="d1")
-    engine.store("beta", palace="p1", wing="w1", room="r1", drawer="d2")
-    engine.store("gamma", palace="p1", wing="w2", room="r1", drawer="d1")
+    engine.store("alpha", vault="v1", shelf="s1", folder="f1", note="n1")
+    engine.store("beta", vault="v1", shelf="s1", folder="f1", note="n2")
+    engine.store("gamma", vault="v1", shelf="s2", folder="f1", note="n1")
     
-    palaces = engine._meta.list_palaces()
-    assert any(p["name"] == "p1" for p in palaces)
+    vaults = engine._meta.list_vaults()
+    assert any(p["name"] == "v1" for p in vaults)
     
-    wings = engine._meta.list_wings("p1")
-    assert len(wings) == 2
+    shelves = engine._meta.list_shelves("v1")
+    assert len(shelves) == 2
     
-    rooms_w1 = engine._meta.list_rooms("p1", "w1")
-    assert len(rooms_w1) == 1
-    assert rooms_w1[0]["name"] == "r1"
+    folders_s1 = engine._meta.list_folders("v1", "s1")
+    assert len(folders_s1) == 1
+    assert folders_s1[0]["name"] == "f1"
 
 
 def test_diary(engine):
@@ -108,9 +108,9 @@ Assistant: Machine learning is a subset of AI that enables systems to learn from
 User: Give me an example.
 Assistant: Spam detection is a classic example of supervised learning."""
     
-    memories = engine.mine(transcript, palace="test-mine")
+    memories = engine.mine(text=transcript, vault="test-mine")
     assert len(memories) >= 1
-    assert all(m.palace == "test-mine" for m in memories)
+    assert all(m.vault == "test-mine" for m in memories)
 
 
 def test_mcp_server_exists():
@@ -123,7 +123,7 @@ def test_mcp_server_exists():
     assert "memorius_search" in tool_names
     assert "memorius_mine" in tool_names
     assert "memorius_diary_write" in tool_names
-    assert "memorius_palace_ls" in tool_names
+    assert "memorius_vault_ls" in tool_names
     assert "memorius_diary_list" in tool_names
 
 
@@ -169,7 +169,7 @@ def test_storage_status(engine):
     """Engine.status() returns structured info."""
     status = engine.status()
     assert "memories" in status
-    assert "palaces" in status
+    assert "vaults" in status
     assert "embedding_provider" in status
     assert "embedding_dimension" in status
     assert status["embedding_dimension"] == 384

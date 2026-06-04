@@ -8,137 +8,74 @@ from typing import Any
 logger = logging.getLogger("memorius.rest")
 
 
-def create_app(engine):
-    """Create a FastAPI application wrapping the palace engine."""
+def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912):
+    """Start the FastAPI REST server."""
     try:
-        from fastapi import FastAPI, HTTPException
-        from pydantic import BaseModel
+        from fastapi import FastAPI
+        import uvicorn
     except ImportError:
-        raise ImportError(
-            "fastapi not installed. Install: pip install memorius[rest]"
-        )
+        print("Error: REST server requires extra dependencies. Install: pip install memorius[rest]")
+        return
 
-    app = FastAPI(
-        title="Memorius",
-        description="Memory palace REST API — store, search, and manage memories for any AI agent.",
-        version="0.1.0",
-    )
-
-    # ── Request models ──
-
-    class StoreRequest(BaseModel):
-        content: str
-        palace: str = "main"
-        wing: str = "default"
-        room: str = "default"
-        drawer: str = "default"
-        metadata: dict[str, Any] = {}
-
-    class SearchRequest(BaseModel):
-        query: str
-        n_results: int = 10
-        palace: str | None = None
-        wing: str | None = None
-
-    class MineRequest(BaseModel):
-        transcript: str
-        palace: str = "main"
-
-    class DiaryRequest(BaseModel):
-        session_id: str
-        title: str = ""
-        summary: str = ""
-        content: str = ""
-        exchange_count: int = 0
-        palace: str = "main"
-
-    # ── Endpoints ──
+    app = FastAPI(title="Memorius API", version="0.1.0")
 
     @app.get("/health")
-    def health():
-        return {"status": "ok", "version": "0.1.0"}
-
-    @app.get("/status")
-    def status():
-        return engine.status()
+    async def health():
+        return {"status": "ok", "service": "memorius"}
 
     @app.post("/store")
-    def store(req: StoreRequest):
+    async def store(payload: dict[str, Any]):
         memory = engine.store(
-            content=req.content,
-            palace=req.palace,
-            wing=req.wing,
-            room=req.room,
-            drawer=req.drawer,
-            metadata=req.metadata,
+            content=payload["content"],
+            vault=payload.get("vault", "main"),
+            shelf=payload.get("shelf", "default"),
+            folder=payload.get("folder", "default"),
+            note=payload.get("note", "default"),
+            metadata=payload.get("metadata"),
         )
-        return {"id": memory.id, "path": f"{memory.wing}/{memory.room}/{memory.drawer}"}
+        return memory.to_dict()
 
     @app.post("/search")
-    def search(req: SearchRequest):
+    async def search(payload: dict[str, Any]):
         results = engine.search(
-            query=req.query,
-            palace=req.palace,
-            wing=req.wing,
-            n_results=req.n_results,
+            query=payload["query"],
+            vault=payload.get("vault"),
+            shelf=payload.get("shelf"),
+            limit=payload.get("limit", 10),
         )
-        return {
-            "query": req.query,
-            "count": len(results),
-            "results": [m.to_dict() for m in results],
-        }
+        return {"query": payload["query"], "count": len(results), "results": [m.to_dict() for m in results]}
 
     @app.post("/mine")
-    def mine(req: MineRequest):
+    async def mine(payload: dict[str, Any]):
         memories = engine.mine(
-            transcript=req.transcript,
-            palace=req.palace,
+            text=payload["text"],
+            vault=payload.get("vault", "main"),
         )
         return {"stored": len(memories), "memory_ids": [m.id for m in memories]}
 
-    @app.get("/palace")
-    def list_palaces():
-        return {"palaces": engine._meta.list_palaces()}
-
-    @app.get("/palace/{name}")
-    def get_palace(name: str):
-        return engine.hierarchy(name)
-
-    @app.get("/palace/{name}/wings")
-    def list_wings(name: str):
-        return {"wings": engine._meta.list_wings(name)}
-
-    @app.get("/palace/{palace}/{wing}/rooms")
-    def list_rooms(palace: str, wing: str):
-        return {"rooms": engine._meta.list_rooms(palace, wing)}
-
-    @app.get("/palace/{palace}/{wing}/{room}/drawers")
-    def list_drawers(palace: str, wing: str, room: str):
-        return {"drawers": engine._meta.list_drawers(palace, wing, room)}
+    @app.get("/status")
+    async def status():
+        return engine.status()
 
     @app.post("/diary")
-    def write_diary(req: DiaryRequest):
+    async def diary(payload: dict[str, Any]):
         entry = engine.write_diary(
-            session_id=req.session_id,
-            palace=req.palace,
-            title=req.title,
-            summary=req.summary,
-            content=req.content,
-            exchange_count=req.exchange_count,
+            session_id=payload["session_id"],
+            vault=payload.get("vault", "main"),
+            title=payload.get("title", ""),
+            summary=payload.get("summary", ""),
+            content=payload.get("content", ""),
+            exchange_count=payload.get("exchange_count", 0),
         )
-        return {"id": entry["id"], "session_id": entry["session_id"]}
+        return entry
+
+    @app.get("/vault")
+    async def ls(vault: str = "main"):
+        return engine.get_hierarchy(vault)
 
     @app.get("/diaries")
-    def list_diaries(limit: int = 10, palace: str | None = None):
-        diaries = engine._meta.list_diaries(palace=palace, limit=limit)
-        return {"count": len(diaries), "diaries": diaries}
+    async def diaries(vault: str | None = None, limit: int = 10):
+        return engine._meta.list_diaries(vault=vault, limit=limit)
 
-    return app
-
-
-def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912):
-    """Run the REST API server."""
-    import uvicorn
-    app = create_app(engine)
-    logger.info(f"REST server starting on http://{host}:{port}")
+    print(f"Memorius REST API running on http://{host}:{port}")
     uvicorn.run(app, host=host, port=port, log_level="info")

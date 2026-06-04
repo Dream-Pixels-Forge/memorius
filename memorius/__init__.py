@@ -1,14 +1,14 @@
-"""memorius — self-contained memory palace for any AI agent.
+"""memorius — self-contained memory vault for any AI agent.
 
 Architecture:
 
   Storage Layer:
     chroma_db:     Vector store for semantic search (ChromaDB)
-    sqlite_store:  Metadata store for palaces, wings, rooms, drawers (SQLite)
-    embeddings:    Abstracted embedding provider (OpenAI, sentence-transformers)
+    sqlite_store:  Metadata store for vaults, shelves, folders, notes, and diaries (SQLite)
+  Hierarchy:       Vault > Shelf > Folder > Note
 
-  Palace Layer:
-    palace:   Palace > Wing > Room > Drawer knowledge hierarchy
+  Vault Layer:
+    vault:    Vault > Shelf > Folder > Note hierarchy
     diary:    Session diary entries with timestamps
     mine:     Extract memories from conversations/transcripts
     search:   Multi-modal search (vector + metadata + temporal)

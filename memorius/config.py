@@ -30,9 +30,9 @@ server:
   rest_port: 8912
   host: "127.0.0.1"
 
-palace:
+vault:
   default: "main"
-  max_drawer_size: 1000
+  max_note_size: 1000
 
 hooks:
   enabled: true
@@ -94,9 +94,9 @@ def _ensure_defaults(config: dict[str, Any]):
     server.setdefault("rest_port", 8912)
     server.setdefault("host", "127.0.0.1")
 
-    palace = config.setdefault("palace", {})
-    palace.setdefault("default", "main")
-    palace.setdefault("max_drawer_size", 1000)
+    vault_cfg = config.setdefault("vault", {})
+    vault_cfg.setdefault("default", "main")
+    vault_cfg.setdefault("max_note_size", 1000)
 
     hooks = config.setdefault("hooks", {})
     hooks.setdefault("enabled", True)
@@ -111,7 +111,7 @@ def _apply_env_overrides(config: dict[str, Any]):
         "MEMORIUS_MCP_PORT": ("server", "mcp_port"),
         "MEMORIUS_REST_PORT": ("server", "rest_port"),
         "MEMORIUS_HOST": ("server", "host"),
-        "MEMORIUS_DEFAULT_PALACE": ("palace", "default"),
+        "MEMORIUS_DEFAULT_VAULT": ("vault", "default"),
     }
     for env_key, (section, key) in overrides.items():
         val = os.environ.get(env_key)

@@ -14,7 +14,7 @@ class McpServer:
     """MCP protocol server over stdio.
 
     Implements the Model Context Protocol for AI agents to interact
-    with the memory palace. Runs over stdin/stdout JSON-RPC.
+    with the memory vault. Runs over stdin/stdout JSON-RPC.
     """
 
     def __init__(self, engine):
@@ -25,34 +25,34 @@ class McpServer:
     TOOLS = [
         {
             "name": "memorius_status",
-            "description": "Get memory palace status: palace count, memory count, recent diaries, embedding provider info. Call at session start.",
+            "description": "Get memory vault status: vault count, memory count, recent diaries, embedding provider info. Call at session start.",
             "inputSchema": {"type": "object", "properties": {}},
         },
         {
             "name": "memorius_store",
-            "description": "Store a memory in the palace under a hierarchical path.",
+            "description": "Store a memory in the vault under a hierarchical path (vault/shelf/folder/note).",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "content": {"type": "string", "description": "The memory content to store"},
-                    "palace": {"type": "string", "description": "Palace name (default: main)"},
-                    "wing": {"type": "string", "description": "Wing name (default: default)"},
-                    "room": {"type": "string", "description": "Room name (default: default)"},
-                    "drawer": {"type": "string", "description": "Drawer name (default: default)"},
+                    "vault": {"type": "string", "description": "Vault name (default: main)"},
+                    "shelf": {"type": "string", "description": "Shelf name (default: default)"},
+                    "folder": {"type": "string", "description": "Folder name (default: default)"},
+                    "note": {"type": "string", "description": "Note name (default: default)"},
                 },
                 "required": ["content"],
             },
         },
         {
             "name": "memorius_search",
-            "description": "Semantic search across the palace. Use before answering questions about past work.",
+            "description": "Semantic search across the vault. Use before answering questions about past work.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "query": {"type": "string", "description": "Natural language search query"},
                     "n_results": {"type": "number", "description": "Number of results (default: 10)", "default": 10},
-                    "palace": {"type": "string", "description": "Filter by palace"},
-                    "wing": {"type": "string", "description": "Filter by wing"},
+                    "vault": {"type": "string", "description": "Filter by vault"},
+                    "shelf": {"type": "string", "description": "Filter by shelf"},
                 },
                 "required": ["query"],
             },
@@ -68,30 +68,30 @@ class McpServer:
                     "summary": {"type": "string", "description": "One-paragraph summary of what happened"},
                     "content": {"type": "string", "description": "Detailed diary content or transcript"},
                     "exchange_count": {"type": "number", "description": "Number of exchanges in the session"},
-                    "palace": {"type": "string", "description": "Palace name (default: main)"},
+                    "vault": {"type": "string", "description": "Vault name (default: main)"},
                 },
                 "required": ["session_id"],
             },
         },
         {
             "name": "memorius_mine",
-            "description": "Extract memories from a conversation transcript and store them automatically in the conversations wing.",
+            "description": "Extract memories from a conversation transcript and store them automatically in the conversations shelf.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "transcript": {"type": "string", "description": "Conversation transcript to mine"},
-                    "palace": {"type": "string", "description": "Palace name (default: main)"},
+                    "vault": {"type": "string", "description": "Vault name (default: main)"},
                 },
                 "required": ["transcript"],
             },
         },
         {
-            "name": "memorius_palace_ls",
-            "description": "List the hierarchy: palaces, wings, rooms, drawers. Explore what's stored where.",
+            "name": "memorius_vault_ls",
+            "description": "List the hierarchy: vaults, shelves, folders, notes. Explore what's stored where.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "palace": {"type": "string", "description": "Palace to explore (default: main)"},
+                    "vault": {"type": "string", "description": "Vault to explore (default: main)"},
                 },
             },
         },
@@ -102,7 +102,7 @@ class McpServer:
                 "type": "object",
                 "properties": {
                     "limit": {"type": "number", "description": "Max entries (default: 10)", "default": 10},
-                    "palace": {"type": "string", "description": "Filter by palace"},
+                    "vault": {"type": "string", "description": "Filter by vault"},
                 },
             },
         },
@@ -186,19 +186,19 @@ class McpServer:
         content = args["content"]
         memory = self._engine.store(
             content=content,
-            palace=args.get("palace", "main"),
-            wing=args.get("wing", "default"),
-            room=args.get("room", "default"),
-            drawer=args.get("drawer", "default"),
+            vault=args.get("vault", "main"),
+            shelf=args.get("shelf", "default"),
+            folder=args.get("folder", "default"),
+            note=args.get("note", "default"),
         )
-        return {"id": memory.id, "palace": memory.palace, "path": f"{memory.wing}/{memory.room}/{memory.drawer}"}
+        return {"id": memory.id, "vault": memory.vault, "path": f"{memory.shelf}/{memory.folder}/{memory.note}"}
 
     def tool_memorius_search(self, args: dict) -> dict:
         results = self._engine.search(
             query=args["query"],
-            palace=args.get("palace"),
-            wing=args.get("wing"),
-            n_results=args.get("n_results", 10),
+            vault=args.get("vault"),
+            shelf=args.get("shelf"),
+            limit=args.get("n_results", 10),
         )
         return {
             "query": args["query"],
@@ -209,7 +209,7 @@ class McpServer:
     def tool_memorius_diary_write(self, args: dict) -> dict:
         entry = self._engine.write_diary(
             session_id=args["session_id"],
-            palace=args.get("palace", "main"),
+            vault=args.get("vault", "main"),
             title=args.get("title", ""),
             summary=args.get("summary", ""),
             content=args.get("content", ""),
@@ -219,19 +219,19 @@ class McpServer:
 
     def tool_memorius_mine(self, args: dict) -> dict:
         memories = self._engine.mine(
-            transcript=args["transcript"],
-            palace=args.get("palace", "main"),
+            text=args["transcript"],
+            vault=args.get("vault", "main"),
         )
         return {"stored": len(memories), "memory_ids": [m.id for m in memories]}
 
-    def tool_memorius_palace_ls(self, args: dict) -> dict:
-        palace = args.get("palace", "main")
-        hierarchy = self._engine.hierarchy(palace)
+    def tool_memorius_vault_ls(self, args: dict) -> dict:
+        vault = args.get("vault", "main")
+        hierarchy = self._engine.get_hierarchy(vault)
         return hierarchy
 
     def tool_memorius_diary_list(self, args: dict) -> dict:
         diaries = self._engine._meta.list_diaries(
-            palace=args.get("palace"),
+            vault=args.get("vault"),
             limit=args.get("limit", 10),
         )
         return {"count": len(diaries), "diaries": diaries}
