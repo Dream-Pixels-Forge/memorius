@@ -40,7 +40,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -291,7 +291,7 @@ class HookEngine:
             "agent_name": event.agent_name,
             "event_type": event.event_type.value,
             "save_interval": str(self.config.save_interval),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         if event.transcript_path:

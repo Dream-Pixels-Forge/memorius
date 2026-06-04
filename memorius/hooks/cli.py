@@ -96,6 +96,8 @@ def cmd_run(args):
     if parsed.agent and parsed.agent != "auto":
         adapter_map = {
             "claude-code": __import__("memorius.hooks", fromlist=["ClaudeCodeAdapter"]),
+            "codex": __import__("memorius.hooks", fromlist=["CodexAdapter"]),
+            "gemini-cli": __import__("memorius.hooks", fromlist=["GeminiCliAdapter"]),
         }
         # Use auto-detect even with explicit agent to reuse parsing
         adapter_cls = detect_agent(data)

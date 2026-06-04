@@ -208,7 +208,6 @@ class OpenClawAdapter(BaseAgentAdapter):
             "stop": HookEventType.SESSION_STOP,
             "session_start": HookEventType.SESSION_START,
             "precompact": HookEventType.PRE_COMPACT,
-            "precompact": HookEventType.PRE_COMPACT,
         }
         event_type = event_type_map.get(raw_type, HookEventType.UNKNOWN)
         return HookEvent(
