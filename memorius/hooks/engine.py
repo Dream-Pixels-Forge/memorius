@@ -396,11 +396,11 @@ class HookEngine:
             return {"action": action.name, "status": "error", "error": str(e)}
 
     def _action_conditional_diary(self, action: HookAction, event: HookEvent, context: dict) -> dict:
-        interval_exchanges = action.config.get("interval_exchanges", "{save_interval}")
-        should_diary = True
-        if should_diary:
+        interval_exchanges = int(action.config.get("interval_exchanges", str(self.config.save_interval)))
+        exchange_count = self.state_manager.get_exchange_count(event.session_id)
+        if self.state_manager.should_save(event.session_id, exchange_count, interval_exchanges):
             return self._action_diary(action, event, context)
-        return {"action": action.name, "status": "skipped", "reason": "not yet due"}
+        return {"action": action.name, "status": "skipped", "reason": f"not yet due (next at +{interval_exchanges} exchanges)"}
 
     def _action_command(self, action: HookAction, event: HookEvent, context: dict) -> dict:
         cmd_template = action.config.get("command", "")

@@ -108,9 +108,11 @@ class McpServer:
         },
     ]
 
-    def __getattr__(self, name):
-        """Forward memorius_* methods to engine with attribute fallback."""
-        raise AttributeError(f"Unknown tool: {name}")
+    # ── Tool dispatch ──
+
+    def _get_tool_handler(self, tool_name: str):
+        """Resolve a tool name to its handler method or None."""
+        return getattr(self, f"tool_{tool_name}", None)
 
     def run(self):
         """Run the MCP server over stdio (JSON-RPC)."""
@@ -168,7 +170,7 @@ class McpServer:
         tool_name = params.get("name", "")
         arguments = params.get("arguments", {})
 
-        handler = getattr(self, f"tool_{tool_name}", None)
+        handler = self._get_tool_handler(tool_name)
         if handler is None:
             return self._make_error(msg_id, -32601, f"Unknown tool: {tool_name}")
 

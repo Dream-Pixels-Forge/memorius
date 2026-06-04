@@ -51,10 +51,10 @@ def main():
         # 5. Show vault status
         status = engine.status()
         print(f"\nVault status:")
-        print(f"  Vaults:         {status['vaults']}")
-        print(f"  Total shelves:  {status['total_shelves']}")
-        print(f"  Total folders:  {status['total_folders']}")
-        print(f"  Total notes:    {status['total_notes']}")
+        print(f"  Vaults:              {status['vaults']}")
+        print(f"  Memories:            {status['memories']}")
+        print(f"  Embedding provider:  {status['embedding_provider']}")
+        print(f"  Embedding dimension: {status['embedding_dimension']}")
 
 
 if __name__ == "__main__":

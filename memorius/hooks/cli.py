@@ -50,8 +50,11 @@ def cmd_run(args):
     # Accept either a Namespace (from main) or raw args (for testing)
     if isinstance(args, argparse.Namespace):
         parsed = args
-        parsed.verbose = False
-        parsed.mock_input = None
+        # When called from main's subparser, verbose is already parsed if it exists
+        if not hasattr(parsed, 'verbose'):
+            parsed.verbose = False
+        if not hasattr(parsed, 'mock_input'):
+            parsed.mock_input = None
     else:
         parser = argparse.ArgumentParser("memorius-hook run")
         parser.add_argument("--agent", choices=["auto", "claude-code", "codex", "gemini-cli", "openclaw", "opencode", "pi", "openclaude"], default="auto",
@@ -92,18 +95,11 @@ def cmd_run(args):
     # Log raw input for debugging
     logger.debug(f"Raw input keys: {list(data.keys()) if isinstance(data, dict) else 'list'}")
 
-    # Detect agent
+    # Detect agent (auto-detect always, --agent flag is advisory/documentation)
+    adapter_cls = detect_agent(data)
     if parsed.agent and parsed.agent != "auto":
-        adapter_map = {
-            "claude-code": __import__("memorius.hooks", fromlist=["ClaudeCodeAdapter"]),
-            "codex": __import__("memorius.hooks", fromlist=["CodexAdapter"]),
-            "gemini-cli": __import__("memorius.hooks", fromlist=["GeminiCliAdapter"]),
-        }
-        # Use auto-detect even with explicit agent to reuse parsing
-        adapter_cls = detect_agent(data)
         logger.info(f"Using explicit agent '{parsed.agent}', auto-detected adapter: {adapter_cls.agent_name}")
     else:
-        adapter_cls = detect_agent(data)
         logger.info(f"Auto-detected agent: {adapter_cls.agent_name}")
 
     # Parse into universal event
