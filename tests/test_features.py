@@ -8,6 +8,18 @@ from pathlib import Path
 
 import pytest
 
+# Check if chromadb is available
+try:
+    import chromadb
+    HAS_CHROMADB = True
+except ImportError:
+    HAS_CHROMADB = False
+
+requires_chromadb = pytest.mark.skipif(
+    not HAS_CHROMADB,
+    reason="chromadb not installed in this Python environment"
+)
+
 
 @pytest.fixture
 def engine():
@@ -25,6 +37,9 @@ def engine():
             eng._vector._client = None
         except Exception:
             pass
+
+
+# Mark all engine-dependent tests as requiring chromadb
 
 
 # ── Temporal decay tests ──────────────────────────────────────────────────────
@@ -76,6 +91,7 @@ def test_search_score_combines_factors():
 # ── Consolidation tests ───────────────────────────────────────────────────────
 
 
+@requires_chromadb
 def test_consolidation_clusters_similar(engine):
     """Store similar memories and verify consolidation finds clusters."""
     engine.store("Python is a programming language", vault="test")
@@ -87,6 +103,7 @@ def test_consolidation_clusters_similar(engine):
     assert result.clusters_found >= 1
 
 
+@requires_chromadb
 def test_consolidation_dry_run_no_changes(engine):
     engine.store("Test memory one", vault="test")
     engine.store("Test memory two", vault="test")
@@ -100,6 +117,7 @@ def test_consolidation_dry_run_no_changes(engine):
 # ── Graph tests ───────────────────────────────────────────────────────────────
 
 
+@requires_chromadb
 def test_graph_link_memories(engine):
     from memorius.graph import link_memories, get_linked
 
@@ -114,6 +132,7 @@ def test_graph_link_memories(engine):
     assert links[0]["target_id"] == m2.id
 
 
+@requires_chromadb
 def test_graph_expand(engine):
     from memorius.graph import link_memories, expand_graph
 
@@ -129,6 +148,7 @@ def test_graph_expand(engine):
     assert len(result.expanded_ids) >= 1
 
 
+@requires_chromadb
 def test_graph_stats(engine):
     stats = engine.get_graph_stats()
     assert "total_edges" in stats
@@ -162,6 +182,7 @@ def test_extraction_empty_conversation():
 # ── Context injection tests ───────────────────────────────────────────────────
 
 
+@requires_chromadb
 def test_context_injection(engine):
     engine.store("Python decorators are functions that modify other functions", vault="ctx")
 
@@ -169,6 +190,7 @@ def test_context_injection(engine):
     assert "Python" in context or len(context) == 0  # may or may not find depending on search
 
 
+@requires_chromadb
 def test_context_injection_empty_vault(engine):
     context = engine.get_context("anything", vault="empty")
     assert context == ""
@@ -177,6 +199,7 @@ def test_context_injection_empty_vault(engine):
 # ── Session profile tests ─────────────────────────────────────────────────────
 
 
+@requires_chromadb
 def test_session_profile_build(engine):
     engine.write_diary(
         session_id="test-session",
@@ -206,6 +229,7 @@ def test_session_profile_formatting():
 # ── Fact-check tests ──────────────────────────────────────────────────────────
 
 
+@requires_chromadb
 def test_factcheck_verified(engine):
     engine.store("The project uses React for the frontend", vault="fc")
 
@@ -213,6 +237,7 @@ def test_factcheck_verified(engine):
     assert result.verdict in ("verified", "no_match", "uncertain")
 
 
+@requires_chromadb
 def test_factcheck_contradiction(engine):
     engine.store("The project uses React for the frontend", vault="fc")
 
@@ -221,6 +246,7 @@ def test_factcheck_contradiction(engine):
     assert result.verdict in ("contradicted", "no_match", "uncertain")
 
 
+@requires_chromadb
 def test_factcheck_no_match(engine):
     result = engine.check_fact("Quantum computing is the future", vault="fc")
     assert result.verdict == "no_match"
@@ -229,6 +255,7 @@ def test_factcheck_no_match(engine):
 # ── Memory stats tests ────────────────────────────────────────────────────────
 
 
+@requires_chromadb
 def test_memory_stats(engine):
     engine.store("Test memory", vault="stats")
     stats = engine.get_memory_stats()
@@ -236,6 +263,7 @@ def test_memory_stats(engine):
     assert stats["active"] >= 1
 
 
+@requires_chromadb
 def test_memory_meta_tracking(engine):
     mem = engine.store("Tracked memory", vault="tracked")
     meta = engine._meta.get_memory_meta(mem.id)
