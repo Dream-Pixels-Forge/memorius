@@ -27,6 +27,26 @@ logger = logging.getLogger("memorius")
 
 local = threading.local()
 
+# Name validation — prevents path traversal and injection
+_VALID_NAME_RE = __import__("re").compile(r'^[a-zA-Z0-9_\-]+$')
+_MAX_NAME_LENGTH = 1000
+
+
+def _validate_name(name: str, field: str = "name") -> str:
+    """Validate and sanitize a vault/shelf/folder/note name."""
+    if not name:
+        return name
+    if not isinstance(name, str):
+        name = str(name)
+    if len(name) > _MAX_NAME_LENGTH:
+        raise ValueError(f"{field} too long (max {_MAX_NAME_LENGTH} chars)")
+    if not _VALID_NAME_RE.match(name):
+        raise ValueError(
+            f"{field} contains invalid characters. "
+            f"Only alphanumeric, hyphens, and underscores allowed."
+        )
+    return name
+
 
 def _close_thread_conn():
     """Close the current thread's SQLite connection if open."""
@@ -59,7 +79,7 @@ class Memory:
     updated_at: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d = {
             "id": self.id,
             "vault": self.vault,
             "shelf": self.shelf,
@@ -70,6 +90,9 @@ class Memory:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
+        if self.vector is not None:
+            d["vector"] = self.vector
+        return d
 
 
 # ── ChromaDB vector store ────────────────────────────────────────────────────
@@ -173,6 +196,7 @@ class ChromaStore:
                     query_embeddings=[query_vector],
                     n_results=n_results,
                     where=where,
+                    include=["embeddings", "documents", "metadatas"],
                 )
             except Exception:
                 continue
@@ -286,6 +310,10 @@ class SQLiteStore:
     @staticmethod
     def _get_columns(conn: sqlite3.Connection, table: str) -> set[str]:
         """Return column names for a table."""
+        # Whitelist valid table names to prevent SQL injection
+        _VALID_TABLES = {"diaries", "memories", "hierarchy", "graph_edges", "memory_meta"}
+        if table not in _VALID_TABLES:
+            raise ValueError(f"Invalid table name: {table}")
         cur = conn.execute(f"PRAGMA table_info({table})")
         return {row["name"] for row in cur.fetchall()}
 
@@ -769,6 +797,12 @@ class VaultEngine:
               folder: str = "default", note: str = "default",
               metadata: dict[str, Any] | None = None) -> Memory:
         """Store a memory in the vault."""
+        # Validate names to prevent path traversal
+        vault = _validate_name(vault, "vault")
+        shelf = _validate_name(shelf, "shelf")
+        folder = _validate_name(folder, "folder")
+        note = _validate_name(note, "note")
+
         self._meta.ensure_note(vault, shelf, folder, note)
         memory = Memory(
             id=str(uuid.uuid4()),

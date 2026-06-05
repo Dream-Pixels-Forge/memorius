@@ -20,6 +20,11 @@ from typing import Any
 
 logger = logging.getLogger("memorius.llm_extract")
 
+# Input validation constants
+MAX_CONVERSATION_LENGTH = 50_000
+MAX_MEMORY_CONTENT_LENGTH = 1_000
+VALID_CATEGORIES = {"decision", "preference", "fact", "action_item", "relationship", "context"}
+
 
 @dataclass
 class ExtractedMemory:
@@ -29,6 +34,72 @@ class ExtractedMemory:
     confidence: float  # 0.0 - 1.0
     topics: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+
+
+def _sanitize_conversation(conversation: str) -> str:
+    """Sanitize conversation text before sending to LLM.
+
+    Strips prompt injection attempts while preserving legitimate content.
+    """
+    if not conversation:
+        return ""
+
+    # Truncate to prevent token overflow
+    conversation = conversation[:MAX_CONVERSATION_LENGTH]
+
+    # Remove common injection patterns that try to manipulate the extraction
+    injection_patterns = [
+        re.compile(r'(?i)ignore\s+(?:all\s+)?previous\s+instructions'),
+        re.compile(r'(?i)disregard\s+(?:all\s+)?previous'),
+        re.compile(r'(?i)you\s+are\s+now\s+'),
+        re.compile(r'(?i)new\s+instructions?:'),
+        re.compile(r'(?i)system\s*prompt:'),
+        re.compile(r'(?i)override\s+instructions'),
+    ]
+
+    sanitized = conversation
+    for pattern in injection_patterns:
+        sanitized = pattern.sub("[content]", sanitized)
+
+    return sanitized
+
+
+def _validate_extracted_memory(memory: dict) -> ExtractedMemory | None:
+    """Validate and sanitize an extracted memory before storage.
+
+    Returns None if the memory is invalid or suspicious.
+    """
+    content = memory.get("content", "")
+    if not content or not isinstance(content, str):
+        return None
+
+    # Sanitize content
+    content = content.strip()[:MAX_MEMORY_CONTENT_LENGTH]
+
+    # Validate category
+    category = memory.get("category", "context")
+    if category not in VALID_CATEGORIES:
+        category = "context"
+
+    # Validate confidence
+    try:
+        confidence = float(memory.get("confidence", 0.5))
+        confidence = max(0.0, min(1.0, confidence))
+    except (ValueError, TypeError):
+        confidence = 0.5
+
+    # Validate topics
+    topics = memory.get("topics", [])
+    if not isinstance(topics, list):
+        topics = []
+    topics = [str(t)[:50] for t in topics[:10]]  # Limit topic count and length
+
+    return ExtractedMemory(
+        content=content,
+        category=category,
+        confidence=confidence,
+        topics=topics,
+    )
 
 
 # ── Extraction prompts ────────────────────────────────────────────────────────
@@ -66,7 +137,9 @@ def _extract_with_openai(conversation: str, model: str = "gpt-4o-mini") -> list[
         from openai import OpenAI
         client = OpenAI()
 
-        prompt = EXTRACTION_PROMPT.format(conversation=conversation[:4000])
+        # Sanitize conversation before sending to LLM
+        sanitized = _sanitize_conversation(conversation)
+        prompt = EXTRACTION_PROMPT.format(conversation=sanitized[:4000])
         resp = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
@@ -78,16 +151,13 @@ def _extract_with_openai(conversation: str, model: str = "gpt-4o-mini") -> list[
         data = json.loads(content)
         memories = data if isinstance(data, list) else data.get("memories", [])
 
-        return [
-            ExtractedMemory(
-                content=m.get("content", ""),
-                category=m.get("category", "context"),
-                confidence=min(max(m.get("confidence", 0.5), 0.0), 1.0),
-                topics=m.get("topics", []),
-            )
-            for m in memories
-            if m.get("content")
-        ]
+        validated = []
+        for m in memories:
+            if m.get("content"):
+                validated_mem = _validate_extracted_memory(m)
+                if validated_mem:
+                    validated.append(validated_mem)
+        return validated
     except Exception as e:
         logger.warning(f"OpenAI extraction failed: {e}")
         return []
@@ -97,7 +167,9 @@ def _extract_with_ollama(conversation: str, model: str = "llama3.2") -> list[Ext
     """Extract memories using local Ollama."""
     try:
         import httpx
-        prompt = EXTRACTION_PROMPT.format(conversation=conversation[:4000])
+        # Sanitize conversation before sending to LLM
+        sanitized = _sanitize_conversation(conversation)
+        prompt = EXTRACTION_PROMPT.format(conversation=sanitized[:4000])
         resp = httpx.post(
             "http://localhost:11434/api/generate",
             json={"model": model, "prompt": prompt, "stream": False},
@@ -108,16 +180,13 @@ def _extract_with_ollama(conversation: str, model: str = "llama3.2") -> list[Ext
         match = re.search(r'\[.*\]', content, re.DOTALL)
         if match:
             memories = json.loads(match.group())
-            return [
-                ExtractedMemory(
-                    content=m.get("content", ""),
-                    category=m.get("category", "context"),
-                    confidence=min(max(m.get("confidence", 0.5), 0.0), 1.0),
-                    topics=m.get("topics", []),
-                )
-                for m in memories
-                if m.get("content")
-            ]
+            validated = []
+            for m in memories:
+                if m.get("content"):
+                    validated_mem = _validate_extracted_memory(m)
+                    if validated_mem:
+                        validated.append(validated_mem)
+            return validated
     except Exception as e:
         logger.warning(f"Ollama extraction failed: {e}")
     return []

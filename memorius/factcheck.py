@@ -170,7 +170,11 @@ def check_statement(
 def _detect_contradiction(text_a: str, text_b: str) -> bool:
     """Detect if two texts contradict each other.
 
-    Simple heuristic: check for negation patterns and opposing claims.
+    Checks for:
+    1. Negation patterns (is/is not, use/don't use)
+    2. Opposing pairs (yes/no, enable/disable)
+    3. Entity-slot conflicts — same structure, different entity values
+       e.g. "The project uses React" vs "The project uses Vue"
     """
     text_a_lower = text_a.lower()
     text_b_lower = text_b.lower()
@@ -201,6 +205,42 @@ def _detect_contradiction(text_a: str, text_b: str) -> bool:
             return True
         if b in text_a_lower and a in text_b_lower:
             return True
+
+    # Entity-slot conflict detection:
+    # If two sentences share the same template but differ in entity positions,
+    # they likely contradict (e.g. "uses React" vs "uses Vue").
+    words_a = text_a_lower.split()
+    words_b = text_b_lower.split()
+
+    if len(words_a) >= 3 and len(words_b) >= 3:
+        # Find positions where words differ
+        min_len = min(len(words_a), len(words_b))
+        diff_positions = [
+            i for i in range(min_len) if words_a[i] != words_b[i]
+        ]
+
+        # If most words match but a few differ (entity slots), it's a conflict
+        match_ratio = (min_len - len(diff_positions)) / min_len
+        if match_ratio >= 0.6 and 1 <= len(diff_positions) <= max(1, min_len // 3):
+            # The differing words are potential entity-slot conflicts
+            # Exclude common stop words from being counted as entity differences
+            stop_words = {
+                "the", "a", "an", "is", "are", "was", "were", "be", "been",
+                "being", "have", "has", "had", "do", "does", "did", "will",
+                "would", "could", "should", "may", "might", "can", "shall",
+                "to", "of", "in", "for", "on", "with", "at", "by", "from",
+                "as", "into", "about", "between", "through", "during", "before",
+                "after", "above", "below", "and", "but", "or", "not", "no",
+                "it", "its", "this", "that", "these", "those", "i", "we",
+                "our", "my", "your", "their", "he", "she", "they", "you",
+                "me", "him", "her", "us", "them",
+            }
+            entity_diffs = [
+                i for i in diff_positions if words_a[i] not in stop_words
+                                     and words_b[i] not in stop_words
+            ]
+            if entity_diffs:
+                return True
 
     return False
 

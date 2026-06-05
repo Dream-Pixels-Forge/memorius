@@ -4,12 +4,36 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sys
 from typing import Any
 
 from memorius import __version__ as _memorius_version
 
 logger = logging.getLogger("memorius.mcp")
+
+# Input validation constants
+MAX_CONTENT_LENGTH = 100_000  # 100KB
+MAX_FIELD_LENGTH = 1_000
+MAX_SEARCH_LIMIT = 100
+MAX_N_RESULTS = 100
+
+# Valid name pattern — prevents path traversal and injection
+VALID_NAME_RE = re.compile(r'^[a-zA-Z0-9_\-]+$')
+
+
+def _validate_name(name: str, field_name: str) -> str:
+    """Validate a vault/shelf/folder/note name."""
+    if not name:
+        return name
+    if len(name) > MAX_FIELD_LENGTH:
+        raise ValueError(f"{field_name} too long (max {MAX_FIELD_LENGTH} chars)")
+    if not VALID_NAME_RE.match(name):
+        raise ValueError(
+            f"{field_name} contains invalid characters. "
+            f"Only alphanumeric, hyphens, and underscores allowed."
+        )
+    return name
 
 
 class McpServer:
@@ -117,7 +141,7 @@ class McpServer:
                 "properties": {
                     "vault": {"type": "string", "description": "Filter by vault (default: all)"},
                     "similarity_threshold": {"type": "number", "description": "Similarity threshold 0-1 (default: 0.80)", "default": 0.80},
-                    "dry_run": {"type": "boolean", "description": "Preview without changes (default: false)", "default": false},
+                    "dry_run": {"type": "boolean", "description": "Preview without changes (default: false)", "default": False},
                 },
             },
         },
@@ -192,8 +216,14 @@ class McpServer:
     def run(self):
         """Run the MCP server over stdio (JSON-RPC)."""
         logger.info("MCP server starting (stdio)")
-        sys.stdout.reconfigure(encoding="utf-8")
-        sys.stdin.reconfigure(encoding="utf-8")
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass  # already configured or not reconfigurable (e.g. pipes)
+        try:
+            sys.stdin.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
 
         while True:
             try:
@@ -260,25 +290,45 @@ class McpServer:
         return self._engine.status()
 
     def tool_memorius_store(self, args: dict) -> dict:
-        content = args["content"]
+        content = args.get("content", "")
+        if not isinstance(content, str) or not content.strip():
+            return {"error": "Content must be a non-empty string"}
+        if len(content) > MAX_CONTENT_LENGTH:
+            return {"error": f"Content too long (max {MAX_CONTENT_LENGTH} chars)"}
+
+        vault = _validate_name(args.get("vault", "main"), "vault")
+        shelf = _validate_name(args.get("shelf", "default"), "shelf")
+        folder = _validate_name(args.get("folder", "default"), "folder")
+        note = _validate_name(args.get("note", "default"), "note")
+
         memory = self._engine.store(
             content=content,
-            vault=args.get("vault", "main"),
-            shelf=args.get("shelf", "default"),
-            folder=args.get("folder", "default"),
-            note=args.get("note", "default"),
+            vault=vault,
+            shelf=shelf,
+            folder=folder,
+            note=note,
         )
         return {"id": memory.id, "vault": memory.vault, "path": f"{memory.shelf}/{memory.folder}/{memory.note}"}
 
     def tool_memorius_search(self, args: dict) -> dict:
+        query = args.get("query", "")
+        if not isinstance(query, str) or not query.strip():
+            return {"error": "Query must be a non-empty string"}
+        if len(query) > MAX_FIELD_LENGTH:
+            return {"error": f"Query too long (max {MAX_FIELD_LENGTH} chars)"}
+
+        n_results = min(args.get("n_results", 10), MAX_SEARCH_LIMIT)
+        vault = _validate_name(args.get("vault"), "vault") if args.get("vault") else None
+        shelf = _validate_name(args.get("shelf"), "shelf") if args.get("shelf") else None
+
         results = self._engine.search(
-            query=args["query"],
-            vault=args.get("vault"),
-            shelf=args.get("shelf"),
-            limit=args.get("n_results", 10),
+            query=query,
+            vault=vault,
+            shelf=shelf,
+            limit=n_results,
         )
         return {
-            "query": args["query"],
+            "query": query,
             "count": len(results),
             "results": [m.to_dict() for m in results],
         }
@@ -295,9 +345,16 @@ class McpServer:
         return {"id": entry["id"], "session_id": entry["session_id"]}
 
     def tool_memorius_mine(self, args: dict) -> dict:
+        transcript = args.get("transcript", "")
+        if not isinstance(transcript, str) or not transcript.strip():
+            return {"error": "Transcript must be a non-empty string"}
+        if len(transcript) > MAX_CONTENT_LENGTH:
+            return {"error": f"Transcript too long (max {MAX_CONTENT_LENGTH} chars)"}
+
+        vault = _validate_name(args.get("vault", "main"), "vault")
         memories = self._engine.mine(
-            text=args["transcript"],
-            vault=args.get("vault", "main"),
+            text=transcript,
+            vault=vault,
         )
         return {"stored": len(memories), "memory_ids": [m.id for m in memories]}
 

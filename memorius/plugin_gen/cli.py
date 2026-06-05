@@ -554,7 +554,19 @@ See: {repository}
 
 def _generate_hook_script(name: str, event: str, agent: str = "claude-code") -> str:
     """Generate a hook shell script wrapper."""
+    import re as _re
+
     universal_hook = shutil.which("memorius-hook") or "memorius-hook"
+
+    # Sanitize values to prevent shell injection
+    # Only allow alphanumeric, hyphens, and underscores
+    _SAFE_RE = _re.compile(r'^[a-zA-Z0-9_\-]+$')
+    if not _SAFE_RE.match(name):
+        name = _SAFE_RE.sub('', name) or "unnamed"
+    if not _SAFE_RE.match(event):
+        event = _SAFE_RE.sub('', event) or "unknown"
+    if not _SAFE_RE.match(agent):
+        agent = _SAFE_RE.sub('', agent) or "unknown"
 
     return f"""#!/bin/bash
 # {name.title()} {event} hook — auto-generated for {agent}
@@ -579,7 +591,14 @@ echo "$INPUT" | $UNIVERSAL_HOOK run --event {event} --agent {agent}
 
 def _generate_codex_hook_script(name: str) -> str:
     """Generate a combined Codex hook script."""
+    import re as _re
+
     universal_hook = shutil.which("memorius-hook") or "memorius-hook"
+
+    # Sanitize name to prevent shell injection
+    _SAFE_RE = _re.compile(r'^[a-zA-Z0-9_\-]+$')
+    if not _SAFE_RE.match(name):
+        name = _SAFE_RE.sub('', name) or "unnamed"
 
     return f"""#!/usr/bin/env bash
 # {name.title()} hook — auto-generated for Codex CLI
