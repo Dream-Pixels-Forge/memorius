@@ -25,6 +25,7 @@ from . import (
     detect_agent,
 )
 from .engine import HookConfig, HookEngine
+from memorius import __version__ as _MEMORIUS_VERSION
 
 logger = logging.getLogger("memorius.hooks.cli")
 
@@ -199,12 +200,7 @@ def main():
     args = parser.parse_args()
 
     if args.version:
-        try:
-            from .. import __version__
-            v = __version__
-        except ImportError:
-            v = "0.1.0"
-        print(f"memorius-hook v{v}")
+        print(f"memorius-hook v{_MEMORIUS_VERSION}")
         return 0
 
     if args.command == "run":

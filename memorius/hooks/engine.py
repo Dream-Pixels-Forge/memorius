@@ -61,6 +61,26 @@ logger = logging.getLogger("memorius.hooks.engine")
 
 DEFAULT_SAVE_INTERVAL = 15
 
+
+def _substitute_templates(obj, subs: dict[str, str]):
+    """Recursively replace {key} placeholders with string values in a nested structure.
+
+    Walks dicts, lists, and scalars. Non-string scalars are passed through
+    unchanged. Substitution is done at config-load time so action configs
+    can reference top-level scalars like {save_interval}.
+    """
+    if isinstance(obj, dict):
+        return {k: _substitute_templates(v, subs) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_substitute_templates(v, subs) for v in obj]
+    if isinstance(obj, str):
+        out = obj
+        for key, val in subs.items():
+            out = out.replace("{" + key + "}", val)
+        return out
+    return obj
+
+
 DEFAULT_CONFIG_YAML = """
 # Memorius Universal Hook Lifecycle Configuration
 # One declarative config for every AI agent.
@@ -127,28 +147,7 @@ class HookConfig:
         with open(path) as f:
             raw = yaml.safe_load(f) or {}
 
-        save_interval = raw.get("save_interval", DEFAULT_SAVE_INTERVAL)
-        state_dir = raw.get("state_dir", "~/.memorius/hook_state")
-        hooks_raw = raw.get("hooks", {})
-
-        actions: dict[str, list[HookAction]] = {}
-        for event_name, event_config in hooks_raw.items():
-            action_list = []
-            for action in event_config.get("actions", []):
-                if isinstance(action, dict):
-                    action_list.append(HookAction(
-                        type=action.get("type", "unknown"),
-                        name=action.get("name", ""),
-                        config=action,
-                    ))
-            actions[event_name] = action_list
-
-        return cls(
-            save_interval=save_interval,
-            state_dir=state_dir,
-            actions=actions,
-            raw=raw,
-        )
+        return cls.from_dict(raw)
 
     @classmethod
     def default(cls) -> "HookConfig":
@@ -159,9 +158,17 @@ class HookConfig:
     @classmethod
     def from_dict(cls, raw: dict) -> "HookConfig":
         """Build from a parsed dict (for in-memory construction)."""
-        save_interval = raw.get("save_interval", DEFAULT_SAVE_INTERVAL)
+        save_interval = int(raw.get("save_interval", DEFAULT_SAVE_INTERVAL))
         state_dir = raw.get("state_dir", "~/.memorius/hook_state")
         hooks_raw = raw.get("hooks", {})
+
+        # Template substitution is done once at config load so that action
+        # configs can reference top-level scalars like {save_interval}
+        # without each action re-running the format pass. See issue:
+        # conditional_diary crashed on the default config because
+        # interval_exchanges: "{save_interval}" stayed a literal string.
+        subs = {"save_interval": str(save_interval)}
+        hooks_raw = _substitute_templates(hooks_raw, subs)
 
         actions: dict[str, list[HookAction]] = {}
         for event_name, event_config in hooks_raw.items():
@@ -269,7 +276,12 @@ class HookEngine:
                 results.append({"action": action.name, "error": str(e)})
 
         if results:
-            self.state_manager.save_checkpoint(event.session_id, int(time.time()))
+            # Persist a real exchange count so conditional_diary's
+            # (exchange_count - last_count) >= interval check works.
+            # Preference: agent supplies exchange_count in raw payload,
+            # otherwise we count hook events for this session.
+            exchange_count = self._resolve_exchange_count(event)
+            self.state_manager.save_checkpoint(event.session_id, exchange_count)
 
         if should_block and event.can_block:
             return HookResult(
@@ -284,6 +296,21 @@ class HookEngine:
             exit_code=0,
             metadata={"actions": results},
         )
+
+    def _resolve_exchange_count(self, event: HookEvent) -> int:
+        """Return the running exchange count for this session.
+
+        Agents that report a real exchange_count in their hook payload
+        (e.g. Pi, OpenCode) get exact numbers. Agents that don't (most of
+        them, today) get a per-session event count that grows by 1 per
+        hook event processed. Either way, conditional_diary's interval
+        check now works.
+        """
+        last_count = self.state_manager.get_exchange_count(event.session_id)
+        payload_count = event.raw_payload.get("exchange_count")
+        if isinstance(payload_count, (int, float)):
+            return max(int(payload_count), last_count)
+        return last_count + 1
 
     def _build_context(self, event: HookEvent) -> dict[str, Any]:
         context = {

@@ -248,16 +248,16 @@ def normalize_whatsapp(content: str, chat_name: str = "whatsapp-chat") -> str:
     transcript_lines.append("")
 
     # Try multiple WhatsApp patterns
-    pattern1 = re.compile(
-        r"^\[?(\d{1,2}[/-]\d{1,2}[/-]\d{2,4},?\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?)\]?\s*"
-        r"[-:]\s*"
-        r"([^:]+?):\s*"
-        r"(.*)"
-    )
-    pattern2 = re.compile(
-        r"^(\d{1,2}[/-]\d{1,2}[/-]\d{2,4},?\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?)\s*-\s*"
-        r"([^:]+?):\s*"
-        r"(.*)"
+    # Variant 1: [1/15/24, 12:00:00 PM] Alice: Hello!
+    # Variant 2: 1/15/24, 12:00 PM - Alice: Hello!
+    pattern = re.compile(
+        r"^\s*"
+        r"\[?"
+        r"(\d{1,2}[/-]\d{1,2}[/-]\d{2,4},?\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AaPp][Mm])?)"
+        r"\]?"
+        r"(?:\s+-\s+|\]\s+)"
+        r"([^\n:]+?):\s*"
+        r"(.*)$"
     )
 
     parsed_count = 0
@@ -269,16 +269,19 @@ def normalize_whatsapp(content: str, chat_name: str = "whatsapp-chat") -> str:
         # Skip system messages
         if "Messages and calls are end-to-end encrypted" in line:
             continue
-        if line.startswith("[" and "]"):
-            # System messages like "Alice joined using this group's invite link"
-            if ":" not in line[line.index("]")+1:]:
-                transcript_lines.append(f"> *{line}*")
-                transcript_lines.append("")
-                continue
+        # System messages are anything that doesn't begin with a date
+        # (i.e. fails the chat-message pattern). WhatsApp system notices
+        # come in three shapes — "[date] author joined", "date - author
+        # joined", and bare "author joined" — and none of them have a
+        # `:` separator, so we detect them by absence of the date prefix.
+        if not re.match(r"^\s*\[?\d{1,2}[/-]\d{1,2}[/-]\d{2,4}", line):
+            transcript_lines.append(f"> *{line}*")
+            transcript_lines.append("")
+            continue
 
-        match = pattern1.match(line) or pattern2.match(line)
+        match = pattern.match(line)
         if match:
-            timestamp = match.group(1).strip().strip("[]")
+            timestamp = match.group(1).strip()
             author = match.group(2).strip()
             text = match.group(3).strip()
             if text and not text.startswith("<Media omitted>"):

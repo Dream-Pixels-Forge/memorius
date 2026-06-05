@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from memorius import __version__ as _memorius_version
+
 logger = logging.getLogger("memorius.rest")
 
 
@@ -17,7 +19,7 @@ def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912):
         print("Error: REST server requires extra dependencies. Install: pip install memorius[rest]")
         return
 
-    app = FastAPI(title="Memorius API", version="0.1.0")
+    app = FastAPI(title="Memorius API", version=_memorius_version)
 
     @app.get("/health")
     async def health():
