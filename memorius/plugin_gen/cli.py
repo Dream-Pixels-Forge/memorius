@@ -21,7 +21,7 @@ Universal manifest format:
   name: memorius
   version: 0.1.0
   description: "Memorius — universal memory vault for any AI agent."
-  author: "Memorius Contributors"
+  author: "dimonapatrick243"
   license: MIT
   repository: https://github.com/Dream-Pixels-Forge/memorius
 
@@ -90,7 +90,7 @@ DEFAULT_MANIFEST = """\
 name: memorius
 version: "0.1.0"
 description: "Memorius — universal memory vault for any AI agent — hooks, MCP, and memory protocol."
-author: "Memorius Contributors"
+author: "dimonapatrick243"
 license: MIT
 repository: "https://github.com/Dream-Pixels-Forge/memorius"
 homepage: "https://github.com/Dream-Pixels-Forge/memorius"
