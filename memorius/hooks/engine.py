@@ -355,6 +355,12 @@ class HookEngine:
             result["status"] = "logged"
         elif action_type == "webhook":
             return self._action_webhook(action, event, context)
+        elif action_type == "inject_context":
+            return self._action_inject_context(action, event, context)
+        elif action_type == "consolidate":
+            return self._action_consolidate(action, event, context)
+        elif action_type == "factcheck":
+            return self._action_factcheck(action, event, context)
         else:
             logger.warning(f"Unknown action type: {action_type}")
 
@@ -470,3 +476,68 @@ class HookEngine:
         for key, value in context.items():
             result = result.replace(f"{{{key}}}", str(value))
         return result
+
+    # ── New v0.2.0 action handlers ──
+
+    def _action_inject_context(self, action: HookAction, event: HookEvent, context: dict) -> dict:
+        """Inject relevant memories into context."""
+        query_template = action.config.get("query_template", "{session_id}")
+        query = self._format_template(query_template, context)
+        max_memories = action.config.get("max_memories", 5)
+
+        try:
+            engine = self._get_engine()
+            context_text = engine.get_context(query, max_items=max_memories)
+            return {
+                "action": action.name,
+                "status": "done",
+                "has_context": bool(context_text),
+                "context_length": len(context_text),
+                "context_preview": context_text[:200] if context_text else "",
+            }
+        except Exception as e:
+            return {"action": action.name, "status": "error", "error": str(e)}
+
+    def _action_consolidate(self, action: HookAction, event: HookEvent, context: dict) -> dict:
+        """Run memory consolidation."""
+        try:
+            engine = self._get_engine()
+            threshold = action.config.get("similarity_threshold", 0.80)
+            dry_run = action.config.get("dry_run", False)
+            result = engine.consolidate(
+                similarity_threshold=threshold,
+                dry_run=dry_run,
+            )
+            return {
+                "action": action.name,
+                "status": "done",
+                "clusters_found": result.clusters_found,
+                "memories_merged": result.memories_merged,
+                "memories_archived": result.memories_archived,
+            }
+        except Exception as e:
+            return {"action": action.name, "status": "error", "error": str(e)}
+
+    def _action_factcheck(self, action: HookAction, event: HookEvent, context: dict) -> dict:
+        """Fact-check a statement from the event payload."""
+        statement_template = action.config.get("statement_template", "")
+        if statement_template:
+            statement = self._format_template(statement_template, context)
+        else:
+            statement = event.raw_payload.get("statement", "")
+
+        if not statement:
+            return {"action": action.name, "status": "skipped", "reason": "no statement to check"}
+
+        try:
+            engine = self._get_engine()
+            result = engine.check_fact(statement)
+            return {
+                "action": action.name,
+                "status": "done",
+                "verdict": result.verdict,
+                "confidence": result.confidence,
+                "explanation": result.explanation,
+            }
+        except Exception as e:
+            return {"action": action.name, "status": "error", "error": str(e)}

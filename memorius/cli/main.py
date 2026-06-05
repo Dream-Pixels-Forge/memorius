@@ -90,6 +90,34 @@ def main():
     config_p.add_argument("--show", action="store_true", default=True, help="Show config")
     config_p.add_argument("--path", action="store_true", help="Show config file path")
 
+    # ── New v0.2.0 commands ──
+    consolidate_p = subparsers.add_parser("consolidate", help="Consolidate similar memories")
+    consolidate_p.add_argument("--vault", default=None, help="Filter by vault")
+    consolidate_p.add_argument("--threshold", type=float, default=0.80, help="Similarity threshold (0-1)")
+    consolidate_p.add_argument("--dry-run", action="store_true", help="Preview without changes")
+
+    extract_p = subparsers.add_parser("extract", help="Extract memories from conversation")
+    extract_p.add_argument("file", nargs="?", default=None, help="Conversation file path")
+    extract_p.add_argument("--text", default=None, help="Conversation text (inline)")
+    extract_p.add_argument("--vault", default="main", help="Target vault")
+    extract_p.add_argument("--shelf", default="extracted", help="Target shelf")
+    extract_p.add_argument("--backend", default="auto", choices=["auto", "openai", "ollama", "regex"], help="LLM backend")
+
+    factcheck_p = subparsers.add_parser("factcheck", help="Fact-check against stored memories")
+    factcheck_p.add_argument("statement", nargs="?", default=None, help="Statement to verify")
+    factcheck_p.add_argument("--vault", default=None, help="Filter by vault")
+
+    context_p = subparsers.add_parser("context", help="Get memory context for injection")
+    context_p.add_argument("query", nargs="?", default=None, help="Topic to search for")
+    context_p.add_argument("--vault", default=None, help="Filter by vault")
+    context_p.add_argument("--max", type=int, default=5, help="Max items")
+
+    profile_p = subparsers.add_parser("profile", help="Build session memory profile")
+    profile_p.add_argument("session_id", nargs="?", default=None, help="Session ID")
+    profile_p.add_argument("--vault", default="main", help="Vault name")
+
+    subparsers.add_parser("stats", help="Show memory statistics")
+
     # ── Obsidian subcommands ──
     obsidian_p = subparsers.add_parser("obsidian", help="Interact with Obsidian vaults")
     obsidian_sub = obsidian_p.add_subparsers(dest="subcommand")
@@ -141,6 +169,12 @@ def main():
         "serve-rest": cmd_serve_rest,
         "config": cmd_config,
         "obsidian": cmd_obsidian,
+        "consolidate": cmd_consolidate,
+        "extract": cmd_extract,
+        "factcheck": cmd_factcheck,
+        "context": cmd_context,
+        "profile": cmd_profile,
+        "stats": cmd_stats,
     }
     handler = commands.get(args.command)
     if handler:
@@ -330,6 +364,133 @@ def cmd_obsidian(engine, args, config):
     """Dispatch obsidian subcommands."""
     from memorius.cli.obsidian import dispatch
     dispatch(engine, args, config)
+
+
+# ── New v0.2.0 commands ──
+
+
+def cmd_consolidate(engine, args, config):
+    """Consolidate similar memories."""
+    print("Consolidating memories...")
+    result = engine.consolidate(
+        vault=args.vault,
+        similarity_threshold=args.threshold,
+        dry_run=args.dry_run,
+    )
+    print(f"  Clusters found:    {result.clusters_found}")
+    print(f"  Memories merged:   {result.memories_merged}")
+    print(f"  Memories archived: {result.memories_archived}")
+    if result.details:
+        print("\n  Details:")
+        for d in result.details[:5]:
+            print(f"    - Cluster of {d['cluster_size']}: {d['insight_preview']}")
+
+
+def cmd_extract(engine, args, config):
+    """Extract memories from a conversation."""
+    text = args.text
+    if not text and args.file:
+        text = Path(args.file).read_text()
+    if not text:
+        text = sys.stdin.read().strip()
+    if not text:
+        print("Error: conversation required (--text, <file>, or stdin)")
+        return
+
+    print(f"Extracting memories (backend: {args.backend})...")
+    memories = engine.extract_memories(
+        conversation=text,
+        backend=args.backend,
+        vault=args.vault,
+        shelf=args.shelf,
+    )
+    print(f"Extracted {len(memories)} memories:")
+    for m in memories:
+        cat = m.metadata.get("category", "unknown")
+        conf = m.metadata.get("confidence", 0)
+        print(f"  [{cat}] ({conf:.0%}) {m.content[:80]}")
+
+
+def cmd_factcheck(engine, args, config):
+    """Fact-check a statement."""
+    statement = args.statement
+    if not statement:
+        statement = sys.stdin.read().strip()
+    if not statement:
+        print("Error: statement required (pass as argument or pipe to stdin)")
+        return
+
+    result = engine.check_fact(statement, vault=args.vault)
+    icons = {"verified": "✅", "contradicted": "❌", "uncertain": "⚠️", "no_match": "❓"}
+    icon = icons.get(result.verdict, "❓")
+    print(f"{icon} {result.verdict.upper()}")
+    print(f"  Statement: {result.statement}")
+    print(f"  Confidence: {result.confidence:.0%}")
+    print(f"  {result.explanation}")
+    if result.contradicting_memories:
+        print("  Contradicting memories:")
+        for m in result.contradicting_memories:
+            print(f"    - [{m['vault']}/{m['shelf']}] {m['content'][:100]}")
+
+
+def cmd_context(engine, args, config):
+    """Get memory context for injection."""
+    query = args.query
+    if not query:
+        query = sys.stdin.read().strip()
+    if not query:
+        print("Error: query required (pass as argument or pipe to stdin)")
+        return
+
+    context = engine.get_context(query, vault=args.vault, max_items=args.max)
+    if context:
+        print(context)
+    else:
+        print("No relevant memories found.")
+
+
+def cmd_profile(engine, args, config):
+    """Build session memory profile."""
+    session_id = args.session_id
+    if not session_id:
+        session_id = input("Session ID: ").strip()
+    if not session_id:
+        print("Error: session_id required")
+        return
+
+    from memorius.session import format_profile_for_context
+    profile = engine.get_session_profile(session_id, vault=args.vault)
+    print(format_profile_for_context(profile))
+
+
+def cmd_stats(engine, args, config):
+    """Show memory statistics."""
+    status = engine.status()
+    meta_stats = engine.get_memory_stats()
+    graph_stats = engine.get_graph_stats()
+
+    print("  Vault Status:")
+    print(f"    Vaults:       {status['vaults']}")
+    print(f"    Memories:     {status['memories']}")
+    print(f"    Embeddings:   {status['embedding_provider']} (dim={status['embedding_dimension']})")
+    print()
+    print("  Memory Tracking:")
+    print(f"    Total:        {meta_stats['total']}")
+    print(f"    Active:       {meta_stats['active']}")
+    print(f"    Archived:     {meta_stats['archived']}")
+    if meta_stats.get('by_vault'):
+        print("    By vault:")
+        for vault, count in meta_stats['by_vault'].items():
+            print(f"      {vault}: {count}")
+    print()
+    print("  Knowledge Graph:")
+    print(f"    Nodes:        {graph_stats.get('unique_nodes', 0)}")
+    print(f"    Edges:        {graph_stats.get('total_edges', 0)}")
+    relations = graph_stats.get('relations', {})
+    if relations:
+        print("    Relations:")
+        for rel, count in relations.items():
+            print(f"      {rel}: {count}")
 
 
 if __name__ == "__main__":

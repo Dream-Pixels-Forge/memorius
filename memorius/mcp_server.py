@@ -108,6 +108,79 @@ class McpServer:
                 },
             },
         },
+        # ── New v0.2.0 tools ──
+        {
+            "name": "memorius_consolidate",
+            "description": "Consolidate similar memories — merge duplicates, extract insights. Run periodically to keep vault clean.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "vault": {"type": "string", "description": "Filter by vault (default: all)"},
+                    "similarity_threshold": {"type": "number", "description": "Similarity threshold 0-1 (default: 0.80)", "default": 0.80},
+                    "dry_run": {"type": "boolean", "description": "Preview without changes (default: false)", "default": false},
+                },
+            },
+        },
+        {
+            "name": "memorius_extract",
+            "description": "Extract structured memories from a conversation using LLM. Identifies decisions, preferences, facts, action items.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "conversation": {"type": "string", "description": "Conversation text to extract from"},
+                    "vault": {"type": "string", "description": "Target vault (default: main)"},
+                    "shelf": {"type": "string", "description": "Target shelf (default: extracted)"},
+                },
+                "required": ["conversation"],
+            },
+        },
+        {
+            "name": "memorius_factcheck",
+            "description": "Fact-check a statement against stored memories. Detects contradictions.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "statement": {"type": "string", "description": "Statement to verify"},
+                    "vault": {"type": "string", "description": "Filter by vault"},
+                },
+                "required": ["statement"],
+            },
+        },
+        {
+            "name": "memorius_context",
+            "description": "Get formatted memory context for injection into agent context. Auto-searches and formats relevant memories.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Current topic/context to search for"},
+                    "vault": {"type": "string", "description": "Filter by vault"},
+                    "max_items": {"type": "number", "description": "Max memories to include (default: 5)", "default": 5},
+                },
+                "required": ["query"],
+            },
+        },
+        {
+            "name": "memorius_session_profile",
+            "description": "Build a memory profile for session inheritance. Get context from previous sessions.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session identifier"},
+                    "vault": {"type": "string", "description": "Vault name (default: main)"},
+                },
+                "required": ["session_id"],
+            },
+        },
+        {
+            "name": "memorius_graph_stats",
+            "description": "Get knowledge graph statistics — nodes, edges, relations.",
+            "inputSchema": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "memorius_memory_stats",
+            "description": "Get memory tracking statistics — total, active, archived, by vault.",
+            "inputSchema": {"type": "object", "properties": {}},
+        },
     ]
 
     # ── Tool dispatch ──
@@ -239,6 +312,80 @@ class McpServer:
             limit=args.get("limit", 10),
         )
         return {"count": len(diaries), "diaries": diaries}
+
+    # ── New v0.2.0 tool handlers ──
+
+    def tool_memorius_consolidate(self, args: dict) -> dict:
+        result = self._engine.consolidate(
+            vault=args.get("vault"),
+            similarity_threshold=args.get("similarity_threshold", 0.80),
+            dry_run=args.get("dry_run", False),
+        )
+        return {
+            "clusters_found": result.clusters_found,
+            "memories_merged": result.memories_merged,
+            "memories_archived": result.memories_archived,
+            "details": result.details[:10],
+        }
+
+    def tool_memorius_extract(self, args: dict) -> dict:
+        memories = self._engine.extract_memories(
+            conversation=args["conversation"],
+            vault=args.get("vault", "main"),
+            shelf=args.get("shelf", "extracted"),
+        )
+        return {
+            "extracted": len(memories),
+            "memory_ids": [m.id for m in memories],
+            "previews": [m.content[:100] for m in memories[:5]],
+        }
+
+    def tool_memorius_factcheck(self, args: dict) -> dict:
+        result = self._engine.check_fact(
+            statement=args["statement"],
+            vault=args.get("vault"),
+        )
+        return {
+            "statement": result.statement,
+            "verdict": result.verdict,
+            "confidence": result.confidence,
+            "explanation": result.explanation,
+            "matching_count": len(result.matching_memories),
+            "contradicting_count": len(result.contradicting_memories),
+        }
+
+    def tool_memorius_context(self, args: dict) -> dict:
+        context = self._engine.get_context(
+            query=args["query"],
+            vault=args.get("vault"),
+            max_items=args.get("max_items", 5),
+        )
+        return {
+            "query": args["query"],
+            "context": context,
+            "has_context": bool(context),
+        }
+
+    def tool_memorius_session_profile(self, args: dict) -> dict:
+        from memorius.session import format_profile_for_context
+        profile = self._engine.get_session_profile(
+            session_id=args["session_id"],
+            vault=args.get("vault", "main"),
+        )
+        return {
+            "session_id": profile.session_id,
+            "summary": profile.summary,
+            "key_decisions": profile.key_decisions[:5],
+            "ongoing_tasks": profile.ongoing_tasks[:5],
+            "recent_topics": profile.recent_topics[:5],
+            "formatted": format_profile_for_context(profile),
+        }
+
+    def tool_memorius_graph_stats(self, args: dict) -> dict:
+        return self._engine.get_graph_stats()
+
+    def tool_memorius_memory_stats(self, args: dict) -> dict:
+        return self._engine.get_memory_stats()
 
     # ── Response helpers ──
 

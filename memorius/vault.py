@@ -435,6 +435,20 @@ class SQLiteStore:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS memory_meta (
+                    id TEXT PRIMARY KEY,
+                    vault TEXT NOT NULL DEFAULT 'main',
+                    shelf TEXT DEFAULT 'default',
+                    folder TEXT DEFAULT 'default',
+                    note TEXT DEFAULT 'default',
+                    content TEXT DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    last_accessed TEXT,
+                    access_count INTEGER DEFAULT 0,
+                    archived INTEGER DEFAULT 0,
+                    metadata TEXT DEFAULT '{}',
+                    updated_at TEXT NOT NULL
+                );
             """)
             conn.commit()
 
@@ -447,6 +461,8 @@ class SQLiteStore:
                 CREATE INDEX IF NOT EXISTS idx_diaries_vault ON diaries(vault);
                 CREATE INDEX IF NOT EXISTS idx_folders_hierarchy ON folders(vault, shelf);
                 CREATE INDEX IF NOT EXISTS idx_notes_hierarchy ON notes(vault, shelf, folder);
+                CREATE INDEX IF NOT EXISTS idx_memory_meta_vault ON memory_meta(vault);
+                CREATE INDEX IF NOT EXISTS idx_memory_meta_archived ON memory_meta(archived);
             """)
             conn.commit()
 
@@ -601,6 +617,94 @@ class SQLiteStore:
             )
             conn.commit()
 
+    # ── Memory meta tracking (temporal, graph, archival) ──
+
+    def track_memory(self, memory_id: str, vault: str, shelf: str, folder: str,
+                     note: str, content: str, metadata: dict | None = None):
+        """Track a memory in the meta table for temporal/graph features."""
+        now = datetime.now(timezone.utc).isoformat()
+        conn = self._conn()
+        with self._lock:
+            conn.execute(
+                "INSERT OR REPLACE INTO memory_meta (id, vault, shelf, folder, note, content, created_at, last_accessed, access_count, archived, metadata, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)",
+                (memory_id, vault, shelf, folder, note, content, now, now,
+                 json.dumps(metadata or {}), now),
+            )
+            conn.commit()
+
+    def record_access(self, memory_id: str):
+        """Record that a memory was accessed (for temporal decay scoring)."""
+        now = datetime.now(timezone.utc).isoformat()
+        conn = self._conn()
+        with self._lock:
+            conn.execute(
+                "UPDATE memory_meta SET last_accessed = ?, access_count = access_count + 1, updated_at = ? WHERE id = ?",
+                (now, now, memory_id),
+            )
+            conn.commit()
+
+    def get_memory_meta(self, memory_id: str) -> dict | None:
+        """Get metadata for a memory."""
+        conn = self._conn()
+        row = conn.execute("SELECT * FROM memory_meta WHERE id = ?", (memory_id,)).fetchone()
+        return dict(row) if row else None
+
+    def list_memories_meta(self, vault: str | None = None, limit: int = 100,
+                           include_archived: bool = False) -> list[dict]:
+        """List memory metadata with optional vault filter."""
+        conn = self._conn()
+        if vault:
+            if include_archived:
+                rows = conn.execute(
+                    "SELECT * FROM memory_meta WHERE vault = ? ORDER BY created_at DESC LIMIT ?",
+                    (vault, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM memory_meta WHERE vault = ? AND archived = 0 ORDER BY created_at DESC LIMIT ?",
+                    (vault, limit),
+                ).fetchall()
+        else:
+            if include_archived:
+                rows = conn.execute(
+                    "SELECT * FROM memory_meta ORDER BY created_at DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM memory_meta WHERE archived = 0 ORDER BY created_at DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+        return [dict(r) for r in rows]
+
+    def archive_memory(self, memory_id: str):
+        """Soft-delete a memory (mark as archived)."""
+        now = datetime.now(timezone.utc).isoformat()
+        conn = self._conn()
+        with self._lock:
+            conn.execute(
+                "UPDATE memory_meta SET archived = 1, updated_at = ? WHERE id = ?",
+                (now, memory_id),
+            )
+            conn.commit()
+
+    def get_memory_stats(self) -> dict:
+        """Get statistics about tracked memories."""
+        conn = self._conn()
+        total = conn.execute("SELECT COUNT(*) FROM memory_meta").fetchone()[0]
+        archived = conn.execute("SELECT COUNT(*) FROM memory_meta WHERE archived = 1").fetchone()[0]
+        active = total - archived
+        by_vault = conn.execute(
+            "SELECT vault, COUNT(*) FROM memory_meta WHERE archived = 0 GROUP BY vault"
+        ).fetchall()
+        return {
+            "total": total,
+            "active": active,
+            "archived": archived,
+            "by_vault": {r[0]: r[1] for r in by_vault},
+        }
+
     def close(self):
         """Close the current thread's connection."""
         _close_thread_conn()
@@ -677,12 +781,24 @@ class VaultEngine:
         )
         self._vector.add(memory)
         self._meta.increment_note_count(vault, shelf, folder, note)
+        # Track in meta table for temporal/graph features
+        self._meta.track_memory(
+            memory_id=memory.id, vault=vault, shelf=shelf,
+            folder=folder, note=note, content=content, metadata=metadata,
+        )
         return memory
 
     def search(self, query: str, vault: str | None = None,
                shelf: str | None = None, limit: int = 10) -> list[Memory]:
         """Search vault contents by semantic similarity."""
-        return self._vector.search(query, vault=vault, shelf=shelf, n_results=limit)
+        results = self._vector.search(query, vault=vault, shelf=shelf, n_results=limit)
+        # Record access for temporal decay scoring
+        for mem in results:
+            try:
+                self._meta.record_access(mem.id)
+            except Exception:
+                pass
+        return results
 
     def mine(self, text: str, vault: str = "main", shelf: str = "conversations",
              folder: str = "mined", note: str = "transcript") -> list[Memory]:
@@ -724,3 +840,50 @@ class VaultEngine:
 
     def get_hierarchy(self, vault: str) -> dict[str, Any]:
         return self._meta.get_hierarchy(vault)
+
+    # ── New feature methods (v0.2.0) ──
+
+    def consolidate(self, vault: str | None = None, similarity_threshold: float = 0.80,
+                    dry_run: bool = False):
+        """Run memory consolidation — merge duplicates, extract insights."""
+        from memorius.consolidation import consolidate as _consolidate
+        return _consolidate(self, vault=vault, similarity_threshold=similarity_threshold,
+                           dry_run=dry_run)
+
+    def extract_memories(self, conversation: str, backend: str = "auto",
+                         vault: str = "main", shelf: str = "extracted"):
+        """Extract structured memories from a conversation using LLM."""
+        from memorius.llm_extract import extract_memories as _extract, format_for_storage
+        extracted = _extract(conversation, backend=backend)
+        stored = []
+        for item in format_for_storage(extracted):
+            mem = self.store(item["content"], vault=vault, shelf=shelf,
+                           metadata=item["metadata"])
+            stored.append(mem)
+        return stored
+
+    def check_fact(self, statement: str, vault: str | None = None):
+        """Fact-check a statement against stored memories."""
+        from memorius.factcheck import check_statement
+        return check_statement(self, statement, vault=vault)
+
+    def get_context(self, query: str, vault: str | None = None,
+                    max_items: int = 5) -> str:
+        """Get formatted memory context for injection."""
+        from memorius.context_inject import ContextInjector
+        injector = ContextInjector(self)
+        return injector.inject(query, vault=vault, max_items=max_items)
+
+    def get_session_profile(self, session_id: str, vault: str = "main"):
+        """Build a session memory profile for inheritance."""
+        from memorius.session import build_session_profile
+        return build_session_profile(self, session_id, vault)
+
+    def get_graph_stats(self) -> dict:
+        """Get knowledge graph statistics."""
+        from memorius.graph import get_graph_stats
+        return get_graph_stats(self._meta._conn())
+
+    def get_memory_stats(self) -> dict:
+        """Get memory tracking statistics."""
+        return self._meta.get_memory_stats()
