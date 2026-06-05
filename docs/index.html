@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Memorius — Universal memory vault for any AI agent</title>
+<meta name="description" content="Memorius is a self-contained, agent-agnostic memory system that gives LLMs and AI agents persistent, searchable memory with hierarchical knowledge organization. MCP, REST, hooks for 7 agents." />
+<meta name="theme-color" content="#7C3AED" />
+<meta property="og:title" content="Memorius — Universal memory vault for any AI agent" />
+<meta property="og:description" content="Drop-in persistent memory for any AI agent. MCP + REST + hooks for 7 agents. Pluggable embeddings, multi-backend vector storage." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://dream-pixels-forge.github.io/memorius/" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237C3AED'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='ui-monospace,SFMono-Regular,monospace' font-size='34' font-weight='700' fill='white'%3EM%3C/text%3E%3C/svg%3E" />
+<style>
+  :root {
+    --bg: #0b0a14;
+    --bg-elev: #14121f;
+    --bg-card: #1a1726;
+    --border: #2a2640;
+    --fg: #ece9f7;
+    --fg-dim: #a39cb8;
+    --fg-mute: #6e6783;
+    --accent: #7C3AED;
+    --accent-hi: #a78bfa;
+    --accent-soft: rgba(124, 58, 237, 0.15);
+    --green: #34d399;
+    --code-bg: #0f0d18;
+    --code-border: #231e35;
+    --radius: 14px;
+    --radius-sm: 8px;
+    --maxw: 1120px;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #faf9fc;
+      --bg-elev: #ffffff;
+      --bg-card: #ffffff;
+      --border: #e6e2ee;
+      --fg: #1a1726;
+      --fg-dim: #4b4561;
+      --fg-mute: #807a96;
+      --accent-soft: rgba(124, 58, 237, 0.08);
+      --code-bg: #f4f1f8;
+      --code-border: #e6e2ee;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  a { color: var(--accent-hi); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre { font-family: var(--mono); }
+  code {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    padding: 0.12em 0.4em;
+    border-radius: 6px;
+    font-size: 0.9em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    overflow-x: auto;
+    font-size: 13.5px;
+    line-height: 1.55;
+  }
+  pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: inherit;
+  }
+  .container { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+
+  /* Nav */
+  .nav {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: saturate(180%) blur(10px);
+    -webkit-backdrop-filter: saturate(180%) blur(10px);
+    background: color-mix(in srgb, var(--bg) 80%, transparent);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-inner {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 60px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 700; color: var(--fg);
+  }
+  .brand-mark {
+    width: 28px; height: 28px; border-radius: 7px;
+    background: linear-gradient(135deg, #7C3AED, #a78bfa);
+    display: grid; place-items: center;
+    color: white; font-family: var(--mono); font-weight: 700; font-size: 14px;
+  }
+  .nav-links { display: flex; gap: 22px; align-items: center; }
+  .nav-links a { color: var(--fg-dim); font-size: 14px; font-weight: 500; }
+  .nav-links a:hover { color: var(--fg); text-decoration: none; }
+  .nav-cta {
+    background: var(--accent); color: white !important;
+    padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  }
+  .nav-cta:hover { background: var(--accent-hi); }
+
+  @media (max-width: 720px) {
+    .nav-links .nav-hide { display: none; }
+  }
+
+  /* Hero */
+  .hero {
+    padding: 96px 0 64px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: "";
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(800px 400px at 50% -10%, var(--accent-soft), transparent 70%);
+    pointer-events: none;
+  }
+  .hero-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px; border-radius: 999px;
+    background: var(--accent-soft);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    color: var(--accent-hi);
+    font-size: 13px; font-weight: 500;
+    margin-bottom: 20px;
+  }
+  .hero h1 {
+    font-size: clamp(40px, 6vw, 64px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin: 0 0 18px;
+    font-weight: 800;
+  }
+  .hero h1 .accent {
+    background: linear-gradient(135deg, #7C3AED, #a78bfa 60%, #c4b5fd);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero p.lead {
+    font-size: clamp(17px, 2.2vw, 21px);
+    color: var(--fg-dim);
+    max-width: 700px; margin: 0 auto 32px;
+  }
+  .install {
+    display: inline-flex; align-items: stretch;
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 12px;
+    overflow: hidden;
+    max-width: 100%;
+  }
+  .install-prompt {
+    padding: 14px 14px 14px 18px;
+    color: var(--accent-hi);
+    font-family: var(--mono);
+    font-size: 15px;
+    user-select: none;
+  }
+  .install code {
+    background: none; border: none; padding: 14px 12px 14px 0;
+    color: var(--fg); font-size: 15px;
+  }
+  .install button {
+    background: transparent;
+    border: none; border-left: 1px solid var(--code-border);
+    color: var(--fg-dim);
+    padding: 0 16px;
+    cursor: pointer;
+    font-family: var(--sans); font-size: 13px; font-weight: 500;
+    transition: color 0.15s;
+  }
+  .install button:hover { color: var(--accent-hi); }
+  .install button.copied { color: var(--green); }
+  .hero-actions {
+    display: flex; gap: 12px; justify-content: center; margin-top: 28px; flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 11px 20px; border-radius: 10px;
+    font-weight: 600; font-size: 14px;
+    transition: transform 0.15s, background 0.15s, border-color 0.15s;
+  }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: var(--accent-hi); text-decoration: none; }
+  .btn-ghost {
+    background: transparent; color: var(--fg);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent-hi); text-decoration: none; }
+  .hero-badges {
+    display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 26px;
+  }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    font-size: 12px; color: var(--fg-dim);
+    font-weight: 500;
+  }
+  .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+
+  /* Sections */
+  section { padding: 80px 0; border-top: 1px solid var(--border); }
+  section h2 {
+    font-size: clamp(28px, 4vw, 38px);
+    letter-spacing: -0.02em;
+    margin: 0 0 12px; font-weight: 700;
+  }
+  section .sub {
+    color: var(--fg-dim);
+    font-size: 17px;
+    max-width: 640px; margin: 0 0 48px;
+  }
+
+  /* Features */
+  .features {
+    display: grid; gap: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+  .feature {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .feature:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+  .feature .icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    color: var(--accent-hi);
+    display: grid; place-items: center;
+    margin-bottom: 14px;
+    font-size: 20px;
+  }
+  .feature h3 { margin: 0 0 8px; font-size: 17px; }
+  .feature p { margin: 0; color: var(--fg-dim); font-size: 14.5px; line-height: 1.55; }
+
+  /* Architecture */
+  .arch-wrap { display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; align-items: start; }
+  @media (max-width: 880px) { .arch-wrap { grid-template-columns: 1fr; } }
+  .arch-diagram {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: var(--radius);
+    padding: 24px;
+    overflow-x: auto;
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.45;
+    color: var(--fg-dim);
+    white-space: pre;
+  }
+  .arch-diagram .hl { color: var(--accent-hi); font-weight: 600; }
+  .arch-notes li { margin-bottom: 10px; color: var(--fg-dim); }
+  .arch-notes ul { padding-left: 20px; }
+
+  /* Agents */
+  .agents {
+    display: grid; gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+  .agent {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    transition: border-color 0.2s;
+  }
+  .agent:hover { border-color: var(--accent); }
+  .agent .logo {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    display: grid; place-items: center;
+    font-family: var(--mono); font-weight: 700;
+    color: white; flex: 0 0 auto;
+    font-size: 14px;
+  }
+  .agent .name { font-weight: 600; font-size: 14.5px; }
+  .agent .meta { font-size: 12px; color: var(--fg-mute); }
+
+  /* CLI Reference */
+  .cli-grid {
+    display: grid; gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  }
+  .cli-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .cli-card h4 {
+    margin: 0 0 12px; font-size: 15px;
+    color: var(--accent-hi);
+    font-family: var(--mono);
+  }
+  .cli-card .row {
+    display: flex; gap: 8px; align-items: baseline;
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--code-border);
+    font-size: 13.5px;
+  }
+  .cli-card .row:last-child { border-bottom: none; }
+  .cli-card .cmd { font-family: var(--mono); color: var(--fg); white-space: nowrap; }
+  .cli-card .desc { color: var(--fg-dim); font-size: 13px; }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 36px 0;
+    color: var(--fg-mute);
+    font-size: 14px;
+  }
+  .footer-inner {
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;
+  }
+  .footer-links { display: flex; gap: 18px; }
+  .footer-links a { color: var(--fg-dim); }
+  .footer-links a:hover { color: var(--accent-hi); }
+
+  /* Smooth anchor scroll */
+  html { scroll-behavior: smooth; scroll-padding-top: 70px; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="container nav-inner">
+    <a href="#top" class="brand">
+      <span class="brand-mark">M</span>
+      <span>Memorius</span>
+    </a>
+    <div class="nav-links">
+      <a href="#features" class="nav-hide">Features</a>
+      <a href="#quickstart" class="nav-hide">Quick Start</a>
+      <a href="#architecture" class="nav-hide">Architecture</a>
+      <a href="#agents" class="nav-hide">Agents</a>
+      <a href="#cli" class="nav-hide">CLI</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius" class="nav-cta">View on GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="container">
+    <span class="hero-eyebrow">
+      <span>Universal memory for any AI agent</span>
+    </span>
+    <h1>Give your AI agent a<br /><span class="accent">memory that persists</span></h1>
+    <p class="lead">
+      Memorius is a self-contained, agent-agnostic memory system with hierarchical
+      knowledge organization, pluggable embeddings, multi-backend vector storage,
+      and built-in MCP + REST servers. Works with 7 AI coding agents out of the box.
+    </p>
+
+    <div class="install" role="group" aria-label="Install command">
+      <span class="install-prompt">$</span>
+      <code id="install-cmd">pip install memorius</code>
+      <button id="copy-btn" type="button" aria-label="Copy install command">Copy</button>
+    </div>
+
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="https://github.com/Dream-Pixels-Forge/memorius">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.7 5.5.7 11.9c0 5 3.3 9.3 7.8 10.8.6.1.8-.2.8-.6v-2.1c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2 1-.3 2-.4 3-.4s2 .1 3 .4c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.8.1 3.1.7.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.2c0 .3.2.7.8.6 4.5-1.5 7.8-5.8 7.8-10.8C23.3 5.5 18.3.5 12 .5z"/></svg>
+        Star on GitHub
+      </a>
+      <a class="btn btn-ghost" href="https://pypi.org/project/memorius/">
+        View on PyPI
+      </a>
+    </div>
+
+    <div class="hero-badges">
+      <span class="badge"><span class="dot"></span> MIT licensed</span>
+      <span class="badge">Python 3.9+</span>
+      <span class="badge">7 agent integrations</span>
+      <span class="badge">MCP + REST + Hooks</span>
+    </div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="container">
+    <h2>Built for the way agents actually work</h2>
+    <p class="sub">
+      Drop-in memory that any agent can use. No lock-in, no per-agent
+      rewrites — one vault, many frontends.
+    </p>
+
+    <div class="features">
+      <div class="feature">
+        <div class="icon" aria-hidden="true">⚡</div>
+        <h3>Drop-in for any MCP client</h3>
+        <p>Point any MCP-compatible client at <code>memorius serve</code> and you instantly get memory, semantic search, and diary tools. No SDK to embed.</p>
+      </div>
+      <div class="feature">
+        <div class="icon" aria-hidden="true">🧠</div>
+        <h3>Hierarchical knowledge</h3>
+        <p>Organize memory with a <strong>Vault → Shelf → Folder → Note</strong> hierarchy. Mine conversation transcripts into structured memories automatically.</p>
+      </div>
+      <div class="feature">
+        <div class="icon" aria-hidden="true">🔌</div>
+        <h3>Pluggable embeddings</h3>
+        <p>ChromaDB default (bundled ONNX), sentence-transformers for higher quality, or OpenAI for production. Swap with one config change.</p>
+      </div>
+      <div class="feature">
+        <div class="icon" aria-hidden="true">🤖</div>
+        <h3>7 agent integrations</h3>
+        <p>Claude Code, Codex CLI, Gemini CLI, OpenCode, Pi, OpenClaude, OpenClaw — auto-detected from hook payloads, no config needed.</p>
+      </div>
+      <div class="feature">
+        <div class="icon" aria-hidden="true">🌐</div>
+        <h3>REST API included</h3>
+        <p>FastAPI HTTP server for any non-MCP client. <code>GET /health</code>, <code>POST /store</code>, <code>POST /search</code>, <code>POST /mine</code>, and more.</p>
+      </div>
+      <div class="feature">
+        <div class="icon" aria-hidden="true">📓</div>
+        <h3>Obsidian integration</h3>
+        <p>Bidirectional sync with Obsidian vaults. YAML frontmatter parsed, folder hierarchy preserved. <code>memorius obsidian import/export</code>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="quickstart">
+  <div class="container">
+    <h2>Up and running in 30 seconds</h2>
+    <p class="sub">Install, initialize, store, search. That's it.</p>
+<pre><code><span style="color:#a78bfa"># Install</span>
+pip install memorius
+
+<span style="color:#a78bfa"># Initialize a vault</span>
+memorius init
+
+<span style="color:#a78bfa"># Store a memory</span>
+memorius store "The sky is blue because Rayleigh scattering scatters shorter wavelengths more" \
+  --vault main --shelf science --folder physics
+
+<span style="color:#a78bfa"># Semantic search</span>
+memorius search "why is the sky blue"
+
+<span style="color:#a78bfa"># Mine memories from a transcript</span>
+memorius mine transcript.txt --vault conversations
+
+<span style="color:#a78bfa"># Write a diary entry</span>
+memorius diary --session "session-001" --title "Research findings"
+
+<span style="color:#a78bfa"># Check vault status</span>
+memorius status</code></pre>
+  </div>
+</section>
+
+<section id="architecture">
+  <div class="container">
+    <h2>Architecture</h2>
+    <p class="sub">A single Python package, four entry points, two storage backends.</p>
+
+    <div class="arch-wrap">
+<pre class="arch-diagram"><span class="hl">┌────────────────────────────────────────────────────────────┐
+│                       Memorius                             │
+├────────────────────────────────────────────────────────────┤
+│  CLI        memorius init | store | search | mine | ...    │
+│  MCP        JSON-RPC protocol server (stdin/stdout)        │
+│  REST       FastAPI HTTP server (optional)                 │
+│  Hooks      Auto-detect: Claude Code, Codex, Gemini, ...   │
+│  Obsidian   Import / export notes from Obsidian vaults     │
+├────────────────────────────────────────────────────────────┤
+│  Vault Engine                                              │
+│  ├── ChromaStore    Vector search (ChromaDB)               │
+│  ├── SQLiteStore    Metadata & hierarchy (SQLite)          │
+│  └── Embeddings     Pluggable providers (ONNX / SF / OA)   │
+├────────────────────────────────────────────────────────────┤
+│  Vault  &gt;  Shelf  &gt;  Folder  &gt;  Note  hierarchy           │
+│  Diaries          Session diary entries                    │
+│  Mine             Extract memories from transcripts        │
+├────────────────────────────────────────────────────────────┤
+│  Plugin Gen    →  Generate per-agent plugins               │
+│  Normalizers   →  Import Discord/Telegram/WhatsApp/etc     │
+│  Obsidian      →  Bidirectional vault sync                 │
+└────────────────────────────────────────────────────────────┘</span></pre>
+
+      <ul class="arch-notes">
+        <li><strong>Vault engine</strong> is the single source of truth — CLI, MCP, REST, and hooks all route through it.</li>
+        <li><strong>ChromaDB</strong> handles vector search; <strong>SQLite</strong> handles metadata and the hierarchy.</li>
+        <li><strong>Embeddings</strong> are swappable: bundled ONNX (default, no extra deps), <code>sentence-transformers</code> for higher quality, or OpenAI for production.</li>
+        <li><strong>Hooks</strong> auto-detect which agent sent the event from the JSON payload — no <code>--agent</code> flag required.</li>
+        <li><strong>Plugin generator</strong> writes per-agent plugin files from one universal manifest.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="agents">
+  <div class="container">
+    <h2>Works with the agents you already use</h2>
+    <p class="sub">
+      Hooks are auto-detected from the event payload — pipe JSON in, get
+      memories out. No per-agent config to maintain.
+    </p>
+
+    <div class="agents">
+      <div class="agent"><div class="logo" style="background:#cc785c">C</div><div><div class="name">Claude Code</div><div class="meta">Anthropic · stop, precompact</div></div></div>
+      <div class="agent"><div class="logo" style="background:#10a37f">X</div><div><div class="name">Codex CLI</div><div class="meta">OpenAI · session_start, stop</div></div></div>
+      <div class="agent"><div class="logo" style="background:#4285f4">G</div><div><div class="name">Gemini CLI</div><div class="meta">Google · stop, session_start</div></div></div>
+      <div class="agent"><div class="logo" style="background:#7C3AED">O</div><div><div class="name">OpenCode</div><div class="meta">anomalyco/sst · stop, precompact</div></div></div>
+      <div class="agent"><div class="logo" style="background:#f59e0b">π</div><div><div class="name">Pi</div><div class="meta">kachow-compatible · tool_call, turn_end</div></div></div>
+      <div class="agent"><div class="logo" style="background:#ec4899">O</div><div><div class="name">OpenClaude</div><div class="meta">stop, precompact</div></div></div>
+      <div class="agent"><div class="logo" style="background:#64748b">O</div><div><div class="name">OpenClaw</div><div class="meta">openclaw marker · session_start</div></div></div>
+    </div>
+
+    <p style="color: var(--fg-dim); margin-top: 24px; font-size: 14.5px;">
+      Detection priority: <code>OpenClaude → Claude Code → Codex → Gemini CLI → OpenClaw → OpenCode → Pi → Generic</code>.
+    </p>
+  </div>
+</section>
+
+<section id="cli">
+  <div class="container">
+    <h2>CLI reference</h2>
+    <p class="sub">Every command you'll need on day one. Full reference in the README.</p>
+
+    <div class="cli-grid">
+      <div class="cli-card">
+        <h4>Core</h4>
+        <div class="row"><span class="cmd">memorius init</span><span class="desc">Initialize a new vault</span></div>
+        <div class="row"><span class="cmd">memorius status</span><span class="desc">Show vault status</span></div>
+        <div class="row"><span class="cmd">memorius store &lt;text&gt;</span><span class="desc">Store a memory</span></div>
+        <div class="row"><span class="cmd">memorius search &lt;q&gt;</span><span class="desc">Semantic search</span></div>
+        <div class="row"><span class="cmd">memorius mine &lt;file&gt;</span><span class="desc">Extract memories from transcript</span></div>
+        <div class="row"><span class="cmd">memorius ls</span><span class="desc">Browse vault hierarchy</span></div>
+      </div>
+
+      <div class="cli-card">
+        <h4>Diaries</h4>
+        <div class="row"><span class="cmd">memorius diary &lt;session&gt;</span><span class="desc">Write a diary entry</span></div>
+        <div class="row"><span class="cmd">memorius diaries</span><span class="desc">List recent entries</span></div>
+      </div>
+
+      <div class="cli-card">
+        <h4>Servers</h4>
+        <div class="row"><span class="cmd">memorius serve</span><span class="desc">Start MCP server (stdio)</span></div>
+        <div class="row"><span class="cmd">memorius serve-rest</span><span class="desc">Start REST API server</span></div>
+      </div>
+
+      <div class="cli-card">
+        <h4>Obsidian</h4>
+        <div class="row"><span class="cmd">memorius obsidian list</span><span class="desc">Explore vault structure</span></div>
+        <div class="row"><span class="cmd">memorius obsidian import</span><span class="desc">Import notes as memories</span></div>
+        <div class="row"><span class="cmd">memorius obsidian export</span><span class="desc">Export memories as notes</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container footer-inner">
+    <div>© Memorius · MIT licensed · Built for agents that need to remember.</div>
+    <div class="footer-links">
+      <a href="https://github.com/Dream-Pixels-Forge/memorius">GitHub</a>
+      <a href="https://pypi.org/project/memorius/">PyPI</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius/blob/main/README.md">README</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius/issues">Issues</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Copy-to-clipboard for the install command
+  (function () {
+    var btn = document.getElementById('copy-btn');
+    var cmd = document.getElementById('install-cmd');
+    if (!btn || !cmd) return;
+    btn.addEventListener('click', function () {
+      var text = cmd.textContent.trim();
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(markCopied);
+      } else {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); markCopied(); } catch (e) {}
+        document.body.removeChild(ta);
+      }
+    });
+    function markCopied() {
+      var prev = btn.textContent;
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(function () {
+        btn.textContent = prev;
+        btn.classList.remove('copied');
+      }, 1400);
+    }
+  })();
+</script>
+
+</body>
+</html>

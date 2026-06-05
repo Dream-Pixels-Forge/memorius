@@ -2,6 +2,8 @@
 
 **Universal memory vault for any AI agent.**
 
+> 🌐 **Landing page:** https://dream-pixels-forge.github.io/memorius/
+
 Memorius is a self-contained, agent-agnostic memory system that gives LLMs and AI
 agents persistent, searchable memory with a hierarchical knowledge organization.
 Drop-in with multi-backend vector storage, pluggable embeddings, built-in MCP + REST
