@@ -9,6 +9,7 @@ Hierarchy: Vault > Shelf > Folder > Note
 
 from __future__ import annotations
 
+import atexit
 import json
 import logging
 import sqlite3
@@ -25,6 +26,19 @@ from memorius.config import load_config
 logger = logging.getLogger("memorius")
 
 local = threading.local()
+
+
+def _close_thread_conn():
+    """Close the current thread's SQLite connection if open."""
+    if hasattr(local, "memorius_conn") and local.memorius_conn:
+        try:
+            local.memorius_conn.close()
+        except Exception:
+            pass
+        local.memorius_conn = None
+
+
+atexit.register(_close_thread_conn)
 
 
 # ── Data models ──────────────────────────────────────────────────────────────
@@ -187,15 +201,38 @@ class ChromaStore:
         return results[:n_results]
 
     def _resolve_collections(self, vault: str | None, shelf: str | None) -> list[str]:
-        """Resolve collections to search based on filters."""
+        """Resolve collections to search based on filters.
+        
+        Loads all collections from ChromaDB if the in-memory cache is empty.
+        """
+        # Lazy-load all collections from ChromaDB if cache is empty
+        if not self._collections:
+            self._load_all_collections()
+
         if vault and shelf:
             name = self._collection_name(vault, shelf)
             if name in self._collections:
                 return [name]
-            return []
+            # Collection might exist in ChromaDB but not in cache yet
+            try:
+                client = self._lazy_client()
+                client.get_collection(name)
+                return [name]
+            except Exception:
+                return []
         if vault:
             return [n for n in self._collections if n.startswith(vault + "_")]
         return list(self._collections.keys())
+
+    def _load_all_collections(self):
+        """Load all collections from ChromaDB into the in-memory cache."""
+        try:
+            client = self._lazy_client()
+            for col in client.list_collections():
+                if col.name not in self._collections:
+                    self._collections[col.name] = col
+        except Exception:
+            pass
 
     def get_collections(self) -> list[dict[str, str]]:
         """List all collections (vault_shelf combos) with counts."""
@@ -244,9 +281,111 @@ class SQLiteStore:
             local.memorius_conn = conn
         return local.memorius_conn
 
+    # ── Migration helpers ──
+
+    @staticmethod
+    def _get_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+        """Return column names for a table."""
+        cur = conn.execute(f"PRAGMA table_info({table})")
+        return {row["name"] for row in cur.fetchall()}
+
+    def _migrate_diaries_table(self, conn: sqlite3.Connection):
+        """Rename diaries.palace -> diaries.vault if old schema detected."""
+        cols = self._get_columns(conn, "diaries")
+        if "palace" in cols and "vault" not in cols:
+            logger.warning("Detected old diaries schema (palace column) — migrating...")
+            conn.executescript("""
+                PRAGMA foreign_keys=OFF;
+                CREATE TABLE diaries_new (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    vault TEXT NOT NULL DEFAULT 'main',
+                    title TEXT DEFAULT '',
+                    summary TEXT DEFAULT '',
+                    content TEXT DEFAULT '',
+                    exchange_count INTEGER DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                INSERT INTO diaries_new
+                    SELECT id, session_id, palace, title, summary,
+                           content, exchange_count, created_at, updated_at
+                    FROM diaries;
+                DROP TABLE diaries;
+                ALTER TABLE diaries_new RENAME TO diaries;
+                PRAGMA foreign_keys=ON;
+            """)
+            conn.commit()
+            logger.info("Migrated diaries table: palace -> vault")
+
+    def _migrate_hierarchy(self, conn: sqlite3.Connection):
+        """Migrate old palaces/wings/rooms/drawers to vaults/shelves/folders/notes."""
+        cur = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='palaces'"
+        )
+        if not cur.fetchone():
+            return  # already on new schema or fresh install
+
+        logger.warning("Detected old hierarchy (palaces/wings/rooms/drawers) — migrating...")
+
+        for p in conn.execute("SELECT * FROM palaces"):
+            conn.execute(
+                "INSERT OR IGNORE INTO vaults (name, description, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                (p["name"], p["description"], p["created_at"], p["updated_at"]),
+            )
+            vault_name = p["name"]
+
+            for w in conn.execute("SELECT * FROM wings WHERE palace = ?", (vault_name,)):
+                conn.execute(
+                    "INSERT OR IGNORE INTO shelves (vault, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                    (vault_name, w["name"], w["description"], w["created_at"], w["updated_at"]),
+                )
+                shelf_name = w["name"]
+
+                for r in conn.execute(
+                    "SELECT * FROM rooms WHERE palace = ? AND wing = ?",
+                    (vault_name, shelf_name),
+                ):
+                    conn.execute(
+                        "INSERT OR IGNORE INTO folders (vault, shelf, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                        (vault_name, shelf_name, r["name"], r["description"], r["created_at"], r["updated_at"]),
+                    )
+                    folder_name = r["name"]
+
+                    for d in conn.execute(
+                        "SELECT * FROM drawers WHERE palace = ? AND wing = ? AND room = ?",
+                        (vault_name, shelf_name, folder_name),
+                    ):
+                        conn.execute(
+                            "INSERT OR IGNORE INTO notes (vault, shelf, folder, name, description, created_at, updated_at, memory_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            (vault_name, shelf_name, folder_name, d["name"], d["description"],
+                             d["created_at"], d["updated_at"], d["memory_count"]),
+                        )
+
+        conn.commit()
+
+        # Drop old tables after successful migration
+        try:
+            conn.executescript("""
+                DROP TABLE IF EXISTS drawers;
+                DROP TABLE IF EXISTS rooms;
+                DROP TABLE IF EXISTS wings;
+                DROP TABLE IF EXISTS palaces;
+                DROP INDEX IF EXISTS idx_diaries_palace;
+            """)
+            conn.commit()
+        except Exception as e:
+            logger.warning(f"Could not drop old tables: {e}")
+
+        logger.info("Migrated hierarchy: palaces/wings/rooms/drawers -> vaults/shelves/folders/notes")
+
     def _init_db(self):
         conn = self._conn()
         with self._lock:
+            # Step 1: Detect and migrate old diaries schema
+            self._migrate_diaries_table(conn)
+
+            # Step 2: Create new tables (no-op if already exist)
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS vaults (
                     name TEXT PRIMARY KEY,
@@ -296,6 +435,14 @@ class SQLiteStore:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+            """)
+            conn.commit()
+
+            # Step 3: Migrate old hierarchy data
+            self._migrate_hierarchy(conn)
+
+            # Step 4: Create indexes (safe after migration)
+            conn.executescript("""
                 CREATE INDEX IF NOT EXISTS idx_diaries_session ON diaries(session_id);
                 CREATE INDEX IF NOT EXISTS idx_diaries_vault ON diaries(vault);
                 CREATE INDEX IF NOT EXISTS idx_folders_hierarchy ON folders(vault, shelf);
@@ -455,16 +602,22 @@ class SQLiteStore:
             conn.commit()
 
     def close(self):
-        if hasattr(local, "memorius_conn") and local.memorius_conn:
-            local.memorius_conn.close()
-            local.memorius_conn = None
+        """Close the current thread's connection."""
+        _close_thread_conn()
 
 
 # ── Vault Engine ────────────────────────────────────────────────────────────
 
 
 class VaultEngine:
-    """High-level vault operations combining vector + metadata stores."""
+    """High-level vault operations combining vector + metadata stores.
+
+    Supports use as a context manager for clean resource cleanup:
+
+        with VaultEngine(config) as engine:
+            engine.store("hello")
+        # connections closed automatically
+    """
 
     def __init__(self, config: dict[str, Any] | None = None):
         self._config = config or load_config()
@@ -475,6 +628,24 @@ class VaultEngine:
         storage_path = Path(storage_cfg.get("path", "~/.memorius/data")).expanduser()
         self._vector = ChromaStore(storage_path / "vectors", self._embed)
         self._meta = SQLiteStore(storage_path)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
+    def close(self):
+        """Release all resources (DB connections, ChromaDB client)."""
+        try:
+            self._meta.close()
+        except Exception:
+            pass
+        self._vector = None  # release ChromaDB reference
+
+    def __del__(self):
+        self.close()
 
     @property
     def embed(self) -> EmbeddingProvider:

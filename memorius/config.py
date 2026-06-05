@@ -125,8 +125,12 @@ def _apply_env_overrides(config: dict[str, Any]):
         emb.setdefault("openai", {})["api_key"] = openai_key
 
 
-def _coerce(val: str) -> int | str:
-    """Coerce string to int if possible, else return as-is."""
+def _coerce(val: str) -> int | bool | str:
+    """Coerce string to int, bool, or leave as string."""
+    if val.lower() in ("true", "yes", "1"):
+        return True
+    if val.lower() in ("false", "no", "0"):
+        return False
     try:
         return int(val)
     except ValueError:

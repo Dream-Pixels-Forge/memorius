@@ -114,7 +114,14 @@ class ChromaDefaultProvider(EmbeddingProvider):
     No extra dependencies — ChromaDB ships its own ONNX runtime.
     """
     def __init__(self):
-        import chromadb.utils.embedding_functions as ef
+        try:
+            import chromadb.utils.embedding_functions as ef
+        except ImportError:
+            raise ImportError(
+                "chromadb not installed. Install:\n"
+                "  pip install memorius  (includes chromadb)\n"
+                "  or: pip install chromadb"
+            )
         self._fn = ef.DefaultEmbeddingFunction()
         self._dim = 384
 

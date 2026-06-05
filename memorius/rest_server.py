@@ -80,4 +80,9 @@ def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912):
         return engine._meta.list_diaries(vault=vault, limit=limit)
 
     print(f"Memorius REST API running on http://{host}:{port}")
-    uvicorn.run(app, host=host, port=port, log_level="info")
+    try:
+        uvicorn.run(app, host=host, port=port, log_level="info")
+    except KeyboardInterrupt:
+        logger.info("Shutting down REST server")
+    finally:
+        engine.close()

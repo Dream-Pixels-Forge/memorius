@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -10,9 +11,6 @@ import time
 from pathlib import Path
 
 import pytest
-
-
-BIN_DIR = Path(sys.executable).parent
 
 
 @pytest.fixture
@@ -40,7 +38,10 @@ def isolated_env():
 
 def run_memorius(*args, env=None, input_text=None, timeout=120):
     """Run the memorius CLI and return stdout, stderr, exit_code."""
-    cmd = [str(BIN_DIR / "memorius")] + list(args)
+    memorius_bin = shutil.which("memorius")
+    if not memorius_bin:
+        pytest.skip("memorius not found in PATH")
+    cmd = [memorius_bin] + list(args)
     proc = subprocess.run(
         cmd,
         capture_output=True,

@@ -38,15 +38,8 @@ def _init_logging(verbose: bool = False):
     )
 
 
-def cmd_detect(args: list[str]):
+def cmd_detect(parsed: argparse.Namespace):
     """Detect the format of one or more files."""
-    import argparse
-
-    parser = argparse.ArgumentParser("memorius-normalize detect")
-    parser.add_argument("files", nargs="+", help="Files to detect")
-    parser.add_argument("--verbose", "-v", action="store_true")
-
-    parsed = parser.parse_args(args)
     _init_logging(parsed.verbose)
 
     for filepath in parsed.files:
@@ -62,20 +55,8 @@ def cmd_detect(args: list[str]):
             print(f"{filepath}: unknown format")
 
 
-def cmd_convert(args: list[str]):
+def cmd_convert(parsed: argparse.Namespace):
     """Convert a single file to Memorius transcript format."""
-    import argparse
-
-    parser = argparse.ArgumentParser("memorius-normalize convert")
-    parser.add_argument("file", help="File to convert")
-    parser.add_argument("--format", "-f", default=None,
-                        choices=list(NORMALIZERS.keys()) + [None],
-                        help="Force format (auto-detect if omitted)")
-    parser.add_argument("--output", "-o", default=None,
-                        help="Output path (default: stdout)")
-    parser.add_argument("--verbose", "-v", action="store_true")
-
-    parsed = parser.parse_args(args)
     _init_logging(parsed.verbose)
 
     path = Path(parsed.file)
@@ -95,20 +76,8 @@ def cmd_convert(args: list[str]):
         print(result)
 
 
-def cmd_batch(args: list[str]):
+def cmd_batch(parsed: argparse.Namespace):
     """Batch convert a directory of chat exports."""
-    import argparse
-
-    parser = argparse.ArgumentParser("memorius-normalize batch")
-    parser.add_argument("directory", help="Directory of chat exports")
-    parser.add_argument("--output", "-o", default=None,
-                        help="Output directory (default: <dir>/normalized/)")
-    parser.add_argument("--format", "-f", default=None,
-                        choices=list(NORMALIZERS.keys()) + [None],
-                        help="Force format for all files")
-    parser.add_argument("--verbose", "-v", action="store_true")
-
-    parsed = parser.parse_args(args)
     _init_logging(parsed.verbose)
 
     input_dir = Path(parsed.directory)
@@ -158,19 +127,8 @@ def cmd_batch(args: list[str]):
     print(f"Output: {output_dir}")
 
 
-def cmd_pipe(args: list[str]):
+def cmd_pipe(parsed: argparse.Namespace):
     """Read from stdin, write normalized transcript to stdout."""
-    import argparse
-
-    parser = argparse.ArgumentParser("memorius-normalize pipe")
-    parser.add_argument("--format", "-f", default=None,
-                        choices=list(NORMALIZERS.keys()) + [None],
-                        help="Force format (auto-detect if omitted)")
-    parser.add_argument("--name", "-n", default="stdin",
-                        help="Source name (for transcript header)")
-    parser.add_argument("--verbose", "-v", action="store_true")
-
-    parsed = parser.parse_args(args)
     _init_logging(parsed.verbose)
 
     content = sys.stdin.read()
@@ -189,10 +147,34 @@ def main():
     parser.add_argument("--version", action="store_true", help="Show version and exit")
     subparsers = parser.add_subparsers(dest="command")
 
-    subparsers.add_parser("detect", help="Detect format of chat export files")
-    subparsers.add_parser("convert", help="Convert a single file to transcript format")
-    subparsers.add_parser("batch", help="Batch convert a directory of chat exports")
-    subparsers.add_parser("pipe", help="Read from stdin, write normalized transcript to stdout")
+    detect_p = subparsers.add_parser("detect", help="Detect format of chat export files")
+    detect_p.add_argument("files", nargs="+", help="Files to detect")
+    detect_p.add_argument("--verbose", "-v", action="store_true")
+
+    convert_p = subparsers.add_parser("convert", help="Convert a single file to transcript format")
+    convert_p.add_argument("file", help="File to convert")
+    convert_p.add_argument("--format", "-f", default=None,
+                           choices=list(NORMALIZERS.keys()) + [None],
+                           help="Force format (auto-detect if omitted)")
+    convert_p.add_argument("--output", "-o", default=None, help="Output path (default: stdout)")
+    convert_p.add_argument("--verbose", "-v", action="store_true")
+
+    batch_p = subparsers.add_parser("batch", help="Batch convert a directory of chat exports")
+    batch_p.add_argument("directory", help="Directory of chat exports")
+    batch_p.add_argument("--output", "-o", default=None,
+                         help="Output directory (default: <dir>/normalized/)")
+    batch_p.add_argument("--format", "-f", default=None,
+                         choices=list(NORMALIZERS.keys()) + [None],
+                         help="Force format for all files")
+    batch_p.add_argument("--verbose", "-v", action="store_true")
+
+    pipe_p = subparsers.add_parser("pipe", help="Read from stdin, write normalized transcript to stdout")
+    pipe_p.add_argument("--format", "-f", default=None,
+                        choices=list(NORMALIZERS.keys()) + [None],
+                        help="Force format (auto-detect if omitted)")
+    pipe_p.add_argument("--name", "-n", default="stdin",
+                        help="Source name (for transcript header)")
+    pipe_p.add_argument("--verbose", "-v", action="store_true")
 
     args = parser.parse_args()
 
@@ -202,13 +184,13 @@ def main():
         return 0
 
     if args.command == "detect":
-        return cmd_detect(sys.argv[2:])
+        return cmd_detect(args)
     elif args.command == "convert":
-        return cmd_convert(sys.argv[2:])
+        return cmd_convert(args)
     elif args.command == "batch":
-        return cmd_batch(sys.argv[2:])
+        return cmd_batch(args)
     elif args.command == "pipe":
-        return cmd_pipe(sys.argv[2:])
+        return cmd_pipe(args)
     else:
         parser.print_help()
         return 1

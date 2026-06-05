@@ -328,8 +328,8 @@ def cmd_config(engine, args, config):
 
 def cmd_obsidian(engine, args, config):
     """Dispatch obsidian subcommands."""
-    from memorius.cli.obsidian import cmd_obsidian as _dispatch
-    _dispatch(engine, args, config)
+    from memorius.cli.obsidian import dispatch
+    dispatch(engine, args, config)
 
 
 if __name__ == "__main__":

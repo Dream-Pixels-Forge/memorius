@@ -299,9 +299,14 @@ def export_memories(
 # ── CLI dispatch ─────────────────────────────────────────────────────────────
 
 
-def cmd_obsidian(engine: VaultEngine, args: Any, config: dict[str, Any]) -> int:
-    """Dispatch obsidian subcommands."""
-    vault_path = _resolve_vault_path(args.obsidian_vault)
+def dispatch(engine: VaultEngine, args: Any, config: dict[str, Any]) -> int:
+    """Main entry point — called from CLI main()."""
+    if not args.subcommand:
+        print("Usage: memorius obsidian {list|import|export} [--vault <path>]")
+        print(f"  {OBSIDIAN_VAULT_HINT}")
+        return 1
+
+    vault_path = _resolve_vault_path(getattr(args, 'obsidian_vault', None))
 
     if args.subcommand == "list":
         notes = list_notes(vault_path)
@@ -352,4 +357,5 @@ def cmd_obsidian(engine: VaultEngine, args: Any, config: dict[str, Any]) -> int:
 
     else:
         print(f"Unknown obsidian subcommand: {args.subcommand}")
+        print("Usage: memorius obsidian {list|import|export} [--vault <path>]")
         return 1

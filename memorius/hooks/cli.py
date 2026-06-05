@@ -44,33 +44,9 @@ def _init_logging(verbose: bool = False):
     )
 
 
-def cmd_run(args):
+def cmd_run(parsed):
     """Run the hook lifecycle: read stdin, detect agent, process event, output result."""
-    import argparse
-
-    # Accept either a Namespace (from main) or raw args (for testing)
-    if isinstance(args, argparse.Namespace):
-        parsed = args
-        # When called from main's subparser, verbose is already parsed if it exists
-        if not hasattr(parsed, 'verbose'):
-            parsed.verbose = False
-        if not hasattr(parsed, 'mock_input'):
-            parsed.mock_input = None
-    else:
-        parser = argparse.ArgumentParser("memorius-hook run")
-        parser.add_argument("--agent", choices=["auto", "claude-code", "codex", "gemini-cli", "openclaw", "opencode", "pi", "openclaude"], default="auto",
-                            help="AI agent to emulate (auto-detect from stdin if omitted)")
-        parser.add_argument("--config", default="~/.memorius/hooks.yaml",
-                            help="Path to hooks lifecycle YAML config")
-        parser.add_argument("--event", default=None,
-                            help="Force a specific event type (session_start, session_stop, pre_compress)")
-        parser.add_argument("--verbose", "-v", action="store_true",
-                            help="Enable debug logging")
-        parser.add_argument("--mock-input", default=None,
-                            help="Path to mock JSON input file (for testing without real agent)")
-        parsed = parser.parse_args(args)
-
-    _init_logging(parsed.verbose)
+    _init_logging(getattr(parsed, 'verbose', False))
 
     # Read input
     if parsed.mock_input:
@@ -93,7 +69,6 @@ def cmd_run(args):
         print("{}")
         return 1
 
-    # Log raw input for debugging
     logger.debug(f"Raw input keys: {list(data.keys()) if isinstance(data, dict) else 'list'}")
 
     # Detect agent (auto-detect always, --agent flag is advisory/documentation)
@@ -132,7 +107,7 @@ def cmd_run(args):
     return 0
 
 
-def cmd_init_config(args: list[str]):
+def cmd_init_config(parsed=None):
     """Generate the default hooks.yaml configuration."""
     from .engine import DEFAULT_CONFIG_YAML
 
@@ -148,7 +123,7 @@ def cmd_init_config(args: list[str]):
     return 0
 
 
-def cmd_status(args: list[str]):
+def cmd_status(parsed=None):
     """Show hook state summary."""
     state_dir = Path("~/.memorius/hook_state").expanduser()
     if not state_dir.exists():
@@ -206,9 +181,9 @@ def main():
     if args.command == "run":
         sys.exit(cmd_run(args))
     elif args.command == "init-config":
-        sys.exit(cmd_init_config(sys.argv[2:]))
+        sys.exit(cmd_init_config(args))
     elif args.command == "status":
-        sys.exit(cmd_status(sys.argv[2:]))
+        sys.exit(cmd_status(args))
     else:
         parser.print_help()
         return 1

@@ -7,6 +7,7 @@ together so future cleanup passes can run them as a single suite.
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -242,11 +243,13 @@ def test_cli_version_flags_print_running_version():
     """memorius --version, memorius-hook --version, memorius-plugin-gen --version
     should all print the actual __version__, not a stale literal."""
     from memorius import __version__
-    bin_dir = Path(sys.executable).parent
 
     for script in ("memorius", "memorius-hook", "memorius-plugin-gen"):
+        script_path = shutil.which(script)
+        if not script_path:
+            pytest.skip(f"{script} not found in PATH")
         proc = subprocess.run(
-            [str(bin_dir / script), "--version"],
+            [script_path, "--version"],
             capture_output=True, text=True, timeout=30,
         )
         combined = proc.stdout + proc.stderr

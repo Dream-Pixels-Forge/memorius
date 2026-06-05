@@ -372,6 +372,7 @@ class HookEngine:
         if not path.exists():
             return {"action": action.name, "status": "skipped", "reason": f"path not found: {path}"}
 
+        vault = action.config.get("vault", "main")
         synchronous = action.config.get("synchronous", False)
         engine = self._get_engine()
 
@@ -380,28 +381,25 @@ class HookEngine:
                 text = path.read_text(encoding="utf-8", errors="replace")
             else:
                 # Directory mode: mine all transcript files in dir
-                text = ""
+                texts = []
                 for f in sorted(path.glob("*.txt")) + sorted(path.glob("*.md")) + sorted(path.glob("*.json")):
-                    text += f.read_text(encoding="utf-8", errors="replace") + "\n"
+                    try:
+                        texts.append(f.read_text(encoding="utf-8", errors="replace"))
+                    except (OSError, PermissionError) as e:
+                        logger.warning(f"Skipping {f.name}: {e}")
+                        continue
+                text = "\n".join(texts)
 
-            if synchronous:
-                memories = engine.mine(text=text, vault="main")
-                return {
-                    "action": action.name,
-                    "status": "done",
-                    "memory_count": len(memories),
-                    "memory_ids": [m.id for m in memories],
-                }
-            else:
-                # Fire and forget — still synchronous here since engine uses
-                # ChromaDB which is fast; no subprocess needed
-                memories = engine.mine(text=text, vault="main")
-                return {
-                    "action": action.name,
-                    "status": "done",
-                    "memory_count": len(memories),
-                    "dispatched": True,
-                }
+            if not text.strip():
+                return {"action": action.name, "status": "skipped", "reason": "no content found"}
+
+            memories = engine.mine(text=text, vault=vault)
+            return {
+                "action": action.name,
+                "status": "done",
+                "memory_count": len(memories),
+                "memory_ids": [m.id for m in memories],
+            }
         except Exception as e:
             return {"action": action.name, "status": "error", "error": str(e)}
 
