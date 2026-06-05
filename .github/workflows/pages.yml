@@ -32,6 +32,9 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
+        with:
+          # Bootstrap Pages on first run; the action will no-op once enabled.
+          enablement: true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
