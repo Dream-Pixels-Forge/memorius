@@ -714,7 +714,34 @@ def cmd_generate(args: list[str]):
     print(f"\nDone. Generated plugins for {len(targets)} agent(s).")
 
     if parsed.watch:
-        print("Watch mode not yet implemented (use entr or similar).")
+        print("\nWatch mode: Monitoring manifest for changes (Ctrl+C to stop)...")
+        import time
+        last_mtime = manifest_path.stat().st_mtime
+        try:
+            while True:
+                time.sleep(2)
+                current_mtime = manifest_path.stat().st_mtime
+                if current_mtime != last_mtime:
+                    print(f"\n[{time.strftime('%H:%M:%S')}] Manifest changed, regenerating...")
+                    manifest = _load_manifest(manifest_path)
+                    targets = parsed.targets or list(manifest.get("agents", {}).keys())
+                    all_targets = list(manifest.get("agents", {}).keys())
+                    
+                    for agent in targets:
+                        gen = generators.get(agent)
+                        if gen:
+                            print(f"[{agent}]")
+                            gen(manifest, output_dir)
+                        else:
+                            print(f"[{agent}] (generator not available — config guide only)")
+                    
+                    if "codex" in all_targets or "claude-code" in all_targets:
+                        generate_agents_plugin(manifest, output_dir)
+                    generate_readme(manifest, output_dir)
+                    print(f"Done. Regenerated plugins for {len(targets)} agent(s).")
+                    last_mtime = current_mtime
+        except KeyboardInterrupt:
+            print("\nWatch mode stopped.")
 
 
 def main():

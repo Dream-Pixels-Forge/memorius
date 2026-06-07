@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import sys
 from typing import Any
 
 from memorius import __version__ as _memorius_version
+from .utils import validate_name as _validate_name, MAX_NAME_LENGTH
 
 logger = logging.getLogger("memorius.mcp")
 
@@ -17,23 +17,6 @@ MAX_CONTENT_LENGTH = 100_000  # 100KB
 MAX_FIELD_LENGTH = 1_000
 MAX_SEARCH_LIMIT = 100
 MAX_N_RESULTS = 100
-
-# Valid name pattern — prevents path traversal and injection
-VALID_NAME_RE = re.compile(r'^[a-zA-Z0-9_\-]+$')
-
-
-def _validate_name(name: str, field_name: str) -> str:
-    """Validate a vault/shelf/folder/note name."""
-    if not name:
-        return name
-    if len(name) > MAX_FIELD_LENGTH:
-        raise ValueError(f"{field_name} too long (max {MAX_FIELD_LENGTH} chars)")
-    if not VALID_NAME_RE.match(name):
-        raise ValueError(
-            f"{field_name} contains invalid characters. "
-            f"Only alphanumeric, hyphens, and underscores allowed."
-        )
-    return name
 
 
 class McpServer:
@@ -259,7 +242,7 @@ class McpServer:
         elif method == "tools/call":
             return self._handle_call_tool(msg_id, msg.get("params", {}))
         else:
-            return self._make_response(msg_id, {})
+            return self._make_error(msg_id, -32601, f"Method not found: {method}")
 
     def _handle_initialize(self, msg_id):
         return self._make_response(msg_id, {

@@ -22,30 +22,11 @@ from typing import Any
 
 from memorius.embeddings import EmbeddingFactory, EmbeddingProvider
 from memorius.config import load_config
+from .utils import validate_name as _validate_name
 
 logger = logging.getLogger("memorius")
 
 local = threading.local()
-
-# Name validation — prevents path traversal and injection
-_VALID_NAME_RE = __import__("re").compile(r'^[a-zA-Z0-9_\-]+$')
-_MAX_NAME_LENGTH = 1000
-
-
-def _validate_name(name: str, field: str = "name") -> str:
-    """Validate and sanitize a vault/shelf/folder/note name."""
-    if not name:
-        return name
-    if not isinstance(name, str):
-        name = str(name)
-    if len(name) > _MAX_NAME_LENGTH:
-        raise ValueError(f"{field} too long (max {_MAX_NAME_LENGTH} chars)")
-    if not _VALID_NAME_RE.match(name):
-        raise ValueError(
-            f"{field} contains invalid characters. "
-            f"Only alphanumeric, hyphens, and underscores allowed."
-        )
-    return name
 
 
 def _close_thread_conn():

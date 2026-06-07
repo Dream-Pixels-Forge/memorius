@@ -168,6 +168,7 @@ def main():
     run_parser.add_argument("--event", required=True, help="Hook event name (stop, precompact, session-start, etc.)")
     run_parser.add_argument("--agent", default="auto", help="Agent harness (auto-detect, claude-code, codex, gemini-cli, openclaw, opencode, pi, openclaude)")
     run_parser.add_argument("--config", default="~/.memorius/hooks.yaml", help="Path to hooks.yaml config")
+    run_parser.add_argument("--mock-input", default=None, help="Path to mock JSON input file (for testing)")
 
     subparsers.add_parser("init-config", help="Generate default hooks.yaml")
     subparsers.add_parser("status", help="Show hook state")

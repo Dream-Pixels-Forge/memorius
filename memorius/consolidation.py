@@ -14,13 +14,12 @@ from __future__ import annotations
 
 import json
 import logging
-import re
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
 from memorius.temporal import calculate_decay_score, archive_memories
+from .utils import cosine_similarity
 
 logger = logging.getLogger("memorius.consolidation")
 
@@ -67,7 +66,7 @@ def find_similar_clusters(
             if vec_j is None:
                 continue
 
-            sim = _cosine_similarity(vec_i, vec_j)
+            sim = cosine_similarity(vec_i, vec_j)
             if sim >= similarity_threshold:
                 cluster.append(mem_j)
                 assigned.add(j)
@@ -76,18 +75,6 @@ def find_similar_clusters(
             clusters.append(cluster)
 
     return clusters
-
-
-def _cosine_similarity(a: list[float], b: list[float]) -> float:
-    """Compute cosine similarity between two vectors."""
-    if len(a) != len(b):
-        return 0.0
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = sum(x * x for x in a) ** 0.5
-    norm_b = sum(x * x for x in b) ** 0.5
-    if norm_a == 0 or norm_b == 0:
-        return 0.0
-    return dot / (norm_a * norm_b)
 
 
 def extract_insight(cluster: list[dict[str, Any]]) -> dict[str, Any]:
