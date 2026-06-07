@@ -1,13 +1,33 @@
 # Memorius
 
-**Universal memory vault for any AI agent.**
+<p align="center">
+  <strong>Universal memory vault for any AI agent.</strong>
+</p>
 
+<p align="center">
+  <a href="https://pypi.org/project/memorius/"><img src="https://img.shields.io/pypi/v/memorius?color=blue" alt="PyPI version"></a>
+  <a href="https://github.com/Dream-Pixels-Forge/memorius/actions/workflows/test.yml"><img src="https://github.com/Dream-Pixels-Forge/memorius/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
+  <a href="https://github.com/Dream-Pixels-Forge/memorius/actions/workflows/publish.yml"><img src="https://github.com/Dream-Pixels-Forge/memorius/actions/workflows/publish.yml/badge.svg" alt="PyPI publish"></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
+  <a href="https://python.org"><img src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue" alt="Python 3.11 | 3.12"></a>
+</p>
+
+> 🧠 **Works with Claude Code, Codex CLI, Gemini CLI, OpenClaude, OpenCode, Pi, and any MCP-compatible agent.**
+>
 > 🌐 **Landing page:** https://dream-pixels-forge.github.io/memorius/
 
-Memorius is a self-contained, agent-agnostic memory system that gives LLMs and AI
-agents persistent, searchable memory with a hierarchical knowledge organization.
-Drop-in with multi-backend vector storage, pluggable embeddings, built-in MCP + REST
-servers, and auto-detecting agent hooks for **7 different AI coding agents**.
+## Why Memorius?
+
+Most AI memory tools lock you into one agent ecosystem. Memorius is **agent-agnostic by design** — the same memory vault works whether you use Claude Code, Codex CLI, Gemini CLI, or any MCP-compatible agent. No vendor lock-in.
+
+| Feature | Memorius | Others |
+|---------|----------|--------|
+| Agent support | **7 agents** (auto-detected) | Usually 1-3 |
+| Protocol | **Open MCP standard** | Proprietary plugins |
+| Memory hierarchy | Vault → Shelf → Folder → Note | Flat |
+| Obsidian integration | Native import/export | ❌ |
+| Self-hosted | ✅ No cloud dependency | Often SaaS |
+| Open source | ✅ MIT license | Varies |
 
 ```bash
 pip install memorius
