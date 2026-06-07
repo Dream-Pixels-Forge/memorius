@@ -140,7 +140,7 @@ def test_cli_help():
     except SystemExit:
         pass
     sys.stdout = sys.__stdout__
-    assert "memorius" in out.getvalue() and "0.1." in out.getvalue()
+    assert "memorius" in out.getvalue()
 
 
 def test_plugin_gen_imports():

@@ -1,6 +1,5 @@
 """Quick-start example: store, search, and retrieve memories."""
 
-import os
 import tempfile
 from pathlib import Path
 from memorius.config import load_config

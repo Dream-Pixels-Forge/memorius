@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -412,8 +411,9 @@ def normalize_plain_text(content: str, source_name: str = "chat-transcript") -> 
         if not line:
             continue
         if ":" in line and len(line.split(":", 1)[0]) < 30:
-            # Likely a speaker line
-            transcript_lines.append(f"> {line}")
+            # Likely a speaker line — format as "Speaker: message"
+            speaker, message = line.split(":", 1)
+            transcript_lines.append(f"> **{speaker.strip()}**: {message.strip()}")
         else:
             transcript_lines.append(f"> {line}")
 

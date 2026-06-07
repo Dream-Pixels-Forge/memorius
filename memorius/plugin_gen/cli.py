@@ -554,7 +554,19 @@ See: {repository}
 
 def _generate_hook_script(name: str, event: str, agent: str = "claude-code") -> str:
     """Generate a hook shell script wrapper."""
+    import re as _re
+
     universal_hook = shutil.which("memorius-hook") or "memorius-hook"
+
+    # Sanitize values to prevent shell injection
+    # Only allow alphanumeric, hyphens, and underscores
+    _SAFE_RE = _re.compile(r'^[a-zA-Z0-9_\-]+$')
+    if not _SAFE_RE.match(name):
+        name = _SAFE_RE.sub('', name) or "unnamed"
+    if not _SAFE_RE.match(event):
+        event = _SAFE_RE.sub('', event) or "unknown"
+    if not _SAFE_RE.match(agent):
+        agent = _SAFE_RE.sub('', agent) or "unknown"
 
     return f"""#!/bin/bash
 # {name.title()} {event} hook — auto-generated for {agent}
@@ -579,7 +591,14 @@ echo "$INPUT" | $UNIVERSAL_HOOK run --event {event} --agent {agent}
 
 def _generate_codex_hook_script(name: str) -> str:
     """Generate a combined Codex hook script."""
+    import re as _re
+
     universal_hook = shutil.which("memorius-hook") or "memorius-hook"
+
+    # Sanitize name to prevent shell injection
+    _SAFE_RE = _re.compile(r'^[a-zA-Z0-9_\-]+$')
+    if not _SAFE_RE.match(name):
+        name = _SAFE_RE.sub('', name) or "unnamed"
 
     return f"""#!/usr/bin/env bash
 # {name.title()} hook — auto-generated for Codex CLI
@@ -695,7 +714,34 @@ def cmd_generate(args: list[str]):
     print(f"\nDone. Generated plugins for {len(targets)} agent(s).")
 
     if parsed.watch:
-        print("Watch mode not yet implemented (use entr or similar).")
+        print("\nWatch mode: Monitoring manifest for changes (Ctrl+C to stop)...")
+        import time
+        last_mtime = manifest_path.stat().st_mtime
+        try:
+            while True:
+                time.sleep(2)
+                current_mtime = manifest_path.stat().st_mtime
+                if current_mtime != last_mtime:
+                    print(f"\n[{time.strftime('%H:%M:%S')}] Manifest changed, regenerating...")
+                    manifest = _load_manifest(manifest_path)
+                    targets = parsed.targets or list(manifest.get("agents", {}).keys())
+                    all_targets = list(manifest.get("agents", {}).keys())
+                    
+                    for agent in targets:
+                        gen = generators.get(agent)
+                        if gen:
+                            print(f"[{agent}]")
+                            gen(manifest, output_dir)
+                        else:
+                            print(f"[{agent}] (generator not available — config guide only)")
+                    
+                    if "codex" in all_targets or "claude-code" in all_targets:
+                        generate_agents_plugin(manifest, output_dir)
+                    generate_readme(manifest, output_dir)
+                    print(f"Done. Regenerated plugins for {len(targets)} agent(s).")
+                    last_mtime = current_mtime
+        except KeyboardInterrupt:
+            print("\nWatch mode stopped.")
 
 
 def main():

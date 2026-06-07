@@ -8,8 +8,15 @@ import sys
 from typing import Any
 
 from memorius import __version__ as _memorius_version
+from .utils import validate_name as _validate_name, MAX_NAME_LENGTH
 
 logger = logging.getLogger("memorius.mcp")
+
+# Input validation constants
+MAX_CONTENT_LENGTH = 100_000  # 100KB
+MAX_FIELD_LENGTH = 1_000
+MAX_SEARCH_LIMIT = 100
+MAX_N_RESULTS = 100
 
 
 class McpServer:
@@ -108,6 +115,79 @@ class McpServer:
                 },
             },
         },
+        # ── New v0.2.0 tools ──
+        {
+            "name": "memorius_consolidate",
+            "description": "Consolidate similar memories — merge duplicates, extract insights. Run periodically to keep vault clean.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "vault": {"type": "string", "description": "Filter by vault (default: all)"},
+                    "similarity_threshold": {"type": "number", "description": "Similarity threshold 0-1 (default: 0.80)", "default": 0.80},
+                    "dry_run": {"type": "boolean", "description": "Preview without changes (default: false)", "default": False},
+                },
+            },
+        },
+        {
+            "name": "memorius_extract",
+            "description": "Extract structured memories from a conversation using LLM. Identifies decisions, preferences, facts, action items.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "conversation": {"type": "string", "description": "Conversation text to extract from"},
+                    "vault": {"type": "string", "description": "Target vault (default: main)"},
+                    "shelf": {"type": "string", "description": "Target shelf (default: extracted)"},
+                },
+                "required": ["conversation"],
+            },
+        },
+        {
+            "name": "memorius_factcheck",
+            "description": "Fact-check a statement against stored memories. Detects contradictions.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "statement": {"type": "string", "description": "Statement to verify"},
+                    "vault": {"type": "string", "description": "Filter by vault"},
+                },
+                "required": ["statement"],
+            },
+        },
+        {
+            "name": "memorius_context",
+            "description": "Get formatted memory context for injection into agent context. Auto-searches and formats relevant memories.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Current topic/context to search for"},
+                    "vault": {"type": "string", "description": "Filter by vault"},
+                    "max_items": {"type": "number", "description": "Max memories to include (default: 5)", "default": 5},
+                },
+                "required": ["query"],
+            },
+        },
+        {
+            "name": "memorius_session_profile",
+            "description": "Build a memory profile for session inheritance. Get context from previous sessions.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session identifier"},
+                    "vault": {"type": "string", "description": "Vault name (default: main)"},
+                },
+                "required": ["session_id"],
+            },
+        },
+        {
+            "name": "memorius_graph_stats",
+            "description": "Get knowledge graph statistics — nodes, edges, relations.",
+            "inputSchema": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "memorius_memory_stats",
+            "description": "Get memory tracking statistics — total, active, archived, by vault.",
+            "inputSchema": {"type": "object", "properties": {}},
+        },
     ]
 
     # ── Tool dispatch ──
@@ -119,8 +199,14 @@ class McpServer:
     def run(self):
         """Run the MCP server over stdio (JSON-RPC)."""
         logger.info("MCP server starting (stdio)")
-        sys.stdout.reconfigure(encoding="utf-8")
-        sys.stdin.reconfigure(encoding="utf-8")
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass  # already configured or not reconfigurable (e.g. pipes)
+        try:
+            sys.stdin.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
 
         while True:
             try:
@@ -156,7 +242,7 @@ class McpServer:
         elif method == "tools/call":
             return self._handle_call_tool(msg_id, msg.get("params", {}))
         else:
-            return self._make_response(msg_id, {})
+            return self._make_error(msg_id, -32601, f"Method not found: {method}")
 
     def _handle_initialize(self, msg_id):
         return self._make_response(msg_id, {
@@ -187,25 +273,45 @@ class McpServer:
         return self._engine.status()
 
     def tool_memorius_store(self, args: dict) -> dict:
-        content = args["content"]
+        content = args.get("content", "")
+        if not isinstance(content, str) or not content.strip():
+            return {"error": "Content must be a non-empty string"}
+        if len(content) > MAX_CONTENT_LENGTH:
+            return {"error": f"Content too long (max {MAX_CONTENT_LENGTH} chars)"}
+
+        vault = _validate_name(args.get("vault", "main"), "vault")
+        shelf = _validate_name(args.get("shelf", "default"), "shelf")
+        folder = _validate_name(args.get("folder", "default"), "folder")
+        note = _validate_name(args.get("note", "default"), "note")
+
         memory = self._engine.store(
             content=content,
-            vault=args.get("vault", "main"),
-            shelf=args.get("shelf", "default"),
-            folder=args.get("folder", "default"),
-            note=args.get("note", "default"),
+            vault=vault,
+            shelf=shelf,
+            folder=folder,
+            note=note,
         )
         return {"id": memory.id, "vault": memory.vault, "path": f"{memory.shelf}/{memory.folder}/{memory.note}"}
 
     def tool_memorius_search(self, args: dict) -> dict:
+        query = args.get("query", "")
+        if not isinstance(query, str) or not query.strip():
+            return {"error": "Query must be a non-empty string"}
+        if len(query) > MAX_FIELD_LENGTH:
+            return {"error": f"Query too long (max {MAX_FIELD_LENGTH} chars)"}
+
+        n_results = min(args.get("n_results", 10), MAX_SEARCH_LIMIT)
+        vault = _validate_name(args.get("vault"), "vault") if args.get("vault") else None
+        shelf = _validate_name(args.get("shelf"), "shelf") if args.get("shelf") else None
+
         results = self._engine.search(
-            query=args["query"],
-            vault=args.get("vault"),
-            shelf=args.get("shelf"),
-            limit=args.get("n_results", 10),
+            query=query,
+            vault=vault,
+            shelf=shelf,
+            limit=n_results,
         )
         return {
-            "query": args["query"],
+            "query": query,
             "count": len(results),
             "results": [m.to_dict() for m in results],
         }
@@ -222,9 +328,16 @@ class McpServer:
         return {"id": entry["id"], "session_id": entry["session_id"]}
 
     def tool_memorius_mine(self, args: dict) -> dict:
+        transcript = args.get("transcript", "")
+        if not isinstance(transcript, str) or not transcript.strip():
+            return {"error": "Transcript must be a non-empty string"}
+        if len(transcript) > MAX_CONTENT_LENGTH:
+            return {"error": f"Transcript too long (max {MAX_CONTENT_LENGTH} chars)"}
+
+        vault = _validate_name(args.get("vault", "main"), "vault")
         memories = self._engine.mine(
-            text=args["transcript"],
-            vault=args.get("vault", "main"),
+            text=transcript,
+            vault=vault,
         )
         return {"stored": len(memories), "memory_ids": [m.id for m in memories]}
 
@@ -239,6 +352,80 @@ class McpServer:
             limit=args.get("limit", 10),
         )
         return {"count": len(diaries), "diaries": diaries}
+
+    # ── New v0.2.0 tool handlers ──
+
+    def tool_memorius_consolidate(self, args: dict) -> dict:
+        result = self._engine.consolidate(
+            vault=args.get("vault"),
+            similarity_threshold=args.get("similarity_threshold", 0.80),
+            dry_run=args.get("dry_run", False),
+        )
+        return {
+            "clusters_found": result.clusters_found,
+            "memories_merged": result.memories_merged,
+            "memories_archived": result.memories_archived,
+            "details": result.details[:10],
+        }
+
+    def tool_memorius_extract(self, args: dict) -> dict:
+        memories = self._engine.extract_memories(
+            conversation=args["conversation"],
+            vault=args.get("vault", "main"),
+            shelf=args.get("shelf", "extracted"),
+        )
+        return {
+            "extracted": len(memories),
+            "memory_ids": [m.id for m in memories],
+            "previews": [m.content[:100] for m in memories[:5]],
+        }
+
+    def tool_memorius_factcheck(self, args: dict) -> dict:
+        result = self._engine.check_fact(
+            statement=args["statement"],
+            vault=args.get("vault"),
+        )
+        return {
+            "statement": result.statement,
+            "verdict": result.verdict,
+            "confidence": result.confidence,
+            "explanation": result.explanation,
+            "matching_count": len(result.matching_memories),
+            "contradicting_count": len(result.contradicting_memories),
+        }
+
+    def tool_memorius_context(self, args: dict) -> dict:
+        context = self._engine.get_context(
+            query=args["query"],
+            vault=args.get("vault"),
+            max_items=args.get("max_items", 5),
+        )
+        return {
+            "query": args["query"],
+            "context": context,
+            "has_context": bool(context),
+        }
+
+    def tool_memorius_session_profile(self, args: dict) -> dict:
+        from memorius.session import format_profile_for_context
+        profile = self._engine.get_session_profile(
+            session_id=args["session_id"],
+            vault=args.get("vault", "main"),
+        )
+        return {
+            "session_id": profile.session_id,
+            "summary": profile.summary,
+            "key_decisions": profile.key_decisions[:5],
+            "ongoing_tasks": profile.ongoing_tasks[:5],
+            "recent_topics": profile.recent_topics[:5],
+            "formatted": format_profile_for_context(profile),
+        }
+
+    def tool_memorius_graph_stats(self, args: dict) -> dict:
+        return self._engine.get_graph_stats()
+
+    def tool_memorius_memory_stats(self, args: dict) -> dict:
+        return self._engine.get_memory_stats()
 
     # ── Response helpers ──
 

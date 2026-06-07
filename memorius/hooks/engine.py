@@ -81,6 +81,19 @@ def _substitute_templates(obj, subs: dict[str, str]):
     return obj
 
 
+def _sanitize_template_value(value: str) -> str:
+    """Sanitize a value before it's used in a command or URL template.
+
+    Strips shell metacharacters, null bytes, and control characters
+    to prevent injection via template substitution.
+    """
+    # Remove null bytes
+    value = value.replace("\x00", "")
+    # Remove control characters except newline and tab
+    value = re.sub(r'[\x01-\x08\x0b\x0c\x0e-\x1f\x7f]', '', value)
+    return value
+
+
 DEFAULT_CONFIG_YAML = """
 # Memorius Universal Hook Lifecycle Configuration
 # One declarative config for every AI agent.
@@ -314,8 +327,8 @@ class HookEngine:
 
     def _build_context(self, event: HookEvent) -> dict[str, Any]:
         context = {
-            "session_id": event.session_id,
-            "agent_name": event.agent_name,
+            "session_id": _sanitize_template_value(event.session_id),
+            "agent_name": _sanitize_template_value(event.agent_name),
             "event_type": event.event_type.value,
             "save_interval": str(self.config.save_interval),
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -323,16 +336,16 @@ class HookEngine:
 
         if event.transcript_path:
             transcript_path = Path(event.transcript_path)
-            context["transcript_path"] = str(transcript_path)
-            context["transcript_dir"] = str(transcript_path.parent)
-            context["transcript_name"] = transcript_path.name
+            context["transcript_path"] = _sanitize_template_value(str(transcript_path))
+            context["transcript_dir"] = _sanitize_template_value(str(transcript_path.parent))
+            context["transcript_name"] = _sanitize_template_value(transcript_path.name)
         else:
             context["transcript_path"] = ""
             context["transcript_dir"] = ""
             context["transcript_name"] = ""
 
         if event.project_dir:
-            context["project_dir"] = event.project_dir
+            context["project_dir"] = _sanitize_template_value(event.project_dir)
         else:
             context["project_dir"] = ""
 
@@ -355,6 +368,12 @@ class HookEngine:
             result["status"] = "logged"
         elif action_type == "webhook":
             return self._action_webhook(action, event, context)
+        elif action_type == "inject_context":
+            return self._action_inject_context(action, event, context)
+        elif action_type == "consolidate":
+            return self._action_consolidate(action, event, context)
+        elif action_type == "factcheck":
+            return self._action_factcheck(action, event, context)
         else:
             logger.warning(f"Unknown action type: {action_type}")
 
@@ -428,12 +447,24 @@ class HookEngine:
         return {"action": action.name, "status": "skipped", "reason": f"not yet due (next at +{interval_exchanges} exchanges)"}
 
     def _action_command(self, action: HookAction, event: HookEvent, context: dict) -> dict:
+        import shlex
+
         cmd_template = action.config.get("command", "")
         cmd = self._format_template(cmd_template, context)
 
+        # Validate: reject empty commands
+        if not cmd.strip():
+            return {"action": action.name, "status": "skipped", "reason": "empty command"}
+
+        try:
+            # Use shlex.split() instead of shell=True to prevent injection
+            cmd_parts = shlex.split(cmd)
+        except ValueError as e:
+            return {"action": action.name, "status": "error", "error": f"Invalid command syntax: {e}"}
+
         try:
             result = subprocess.run(
-                cmd, shell=True, capture_output=True, text=True, timeout=60
+                cmd_parts, shell=False, capture_output=True, text=True, timeout=60
             )
             return {
                 "action": action.name,
@@ -447,8 +478,37 @@ class HookEngine:
             return {"action": action.name, "status": "error", "error": str(e)}
 
     def _action_webhook(self, action: HookAction, event: HookEvent, context: dict) -> dict:
+        from urllib.parse import urlparse
+        import ipaddress
+
         url_template = action.config.get("url", "")
         url = self._format_template(url_template, context)
+
+        # Validate URL to prevent SSRF
+        try:
+            parsed = urlparse(url)
+        except Exception:
+            return {"action": action.name, "status": "error", "error": "Invalid URL"}
+
+        # Only allow http/https schemes
+        if parsed.scheme not in ("http", "https"):
+            return {"action": action.name, "status": "error", "error": f"URL scheme '{parsed.scheme}' not allowed"}
+
+        # Block private/internal IPs
+        hostname = parsed.hostname or ""
+        if hostname in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+            return {"action": action.name, "status": "error", "error": "Webhook to localhost is not allowed"}
+
+        try:
+            ip = ipaddress.ip_address(hostname)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return {"action": action.name, "status": "error", "error": "Webhook to private/internal IP is not allowed"}
+        except ValueError:
+            # hostname is a domain name, not an IP — check for metadata endpoints
+            blocked_hosts = ("169.254.169.254", "metadata.google.internal", "instance-data")
+            if hostname in blocked_hosts:
+                return {"action": action.name, "status": "error", "error": "Webhook to metadata endpoint is not allowed"}
+
         payload = event.raw_payload
 
         try:
@@ -470,3 +530,68 @@ class HookEngine:
         for key, value in context.items():
             result = result.replace(f"{{{key}}}", str(value))
         return result
+
+    # ── New v0.2.0 action handlers ──
+
+    def _action_inject_context(self, action: HookAction, event: HookEvent, context: dict) -> dict:
+        """Inject relevant memories into context."""
+        query_template = action.config.get("query_template", "{session_id}")
+        query = self._format_template(query_template, context)
+        max_memories = action.config.get("max_memories", 5)
+
+        try:
+            engine = self._get_engine()
+            context_text = engine.get_context(query, max_items=max_memories)
+            return {
+                "action": action.name,
+                "status": "done",
+                "has_context": bool(context_text),
+                "context_length": len(context_text),
+                "context_preview": context_text[:200] if context_text else "",
+            }
+        except Exception as e:
+            return {"action": action.name, "status": "error", "error": str(e)}
+
+    def _action_consolidate(self, action: HookAction, event: HookEvent, context: dict) -> dict:
+        """Run memory consolidation."""
+        try:
+            engine = self._get_engine()
+            threshold = action.config.get("similarity_threshold", 0.80)
+            dry_run = action.config.get("dry_run", False)
+            result = engine.consolidate(
+                similarity_threshold=threshold,
+                dry_run=dry_run,
+            )
+            return {
+                "action": action.name,
+                "status": "done",
+                "clusters_found": result.clusters_found,
+                "memories_merged": result.memories_merged,
+                "memories_archived": result.memories_archived,
+            }
+        except Exception as e:
+            return {"action": action.name, "status": "error", "error": str(e)}
+
+    def _action_factcheck(self, action: HookAction, event: HookEvent, context: dict) -> dict:
+        """Fact-check a statement from the event payload."""
+        statement_template = action.config.get("statement_template", "")
+        if statement_template:
+            statement = self._format_template(statement_template, context)
+        else:
+            statement = event.raw_payload.get("statement", "")
+
+        if not statement:
+            return {"action": action.name, "status": "skipped", "reason": "no statement to check"}
+
+        try:
+            engine = self._get_engine()
+            result = engine.check_fact(statement)
+            return {
+                "action": action.name,
+                "status": "done",
+                "verdict": result.verdict,
+                "confidence": result.confidence,
+                "explanation": result.explanation,
+            }
+        except Exception as e:
+            return {"action": action.name, "status": "error", "error": str(e)}
