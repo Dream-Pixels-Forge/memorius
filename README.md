@@ -208,6 +208,52 @@ Available MCP tools:
 | `memorius_diary_list` | List diary entries |
 | `memorius_vault_ls` | Browse vault hierarchy |
 
+## Agent Skill Installation
+
+Memorius ships with a ready-to-use agent skill (`skills/memorius/SKILL.md`) for agents that support the Hermes Agent skill format. The skill provides auto-capture rules, smart context injection, session diary templates, and workflow patterns — so agents can use memorius proactively without being told.
+
+### Skill Structure
+
+```
+skills/
+  memorius/
+    SKILL.md              # Full skill definition (auto-capture, context injection, diary rules)
+    README.md             # Quick command reference
+    .memorius_version     # Version tracker
+```
+
+### Installing for Hermes Agent
+
+The skill is designed for [Hermes Agent](https://hermes-agent.nousresearch.com) — copy it into your Hermes skills directory:
+
+```bash
+# Copy the skill
+cp -r skills/memorius ~/.hermes/skills/
+
+# Verify it's loaded
+hermes skills list | grep memorius
+```
+
+Once installed, Hermes will automatically detect it and follow the skill's workflows.
+
+### Installing for Other Agents
+
+Agents that don't use the Hermes skill format can still use memorius via MCP or CLI:
+
+| Agent | Install Command |
+|-------|----------------|
+| Claude Code | `claude mcp add memorius -- memorius serve` |
+| Codex CLI | `codex mcp add memorius -- memorius serve` |
+| Gemini CLI | `gemini mcp add memorius $(which memorius) serve` |
+| Cursor | Add to `.cursor/mcp.json`: `{"mcpServers": {"memorius": {"command": "memorius", "args": ["serve"]}}}` |
+| Aider | `aider --mcp-servers memorius=memorius serve` |
+| Continue | Add memorius to `.continue/config.json` MCP servers |
+| OpenClaw | `openclaw mcp set memorius '{"command":"memorius","args":["serve"]}'` |
+
+See `manifest.yaml` for the full list of supported agents and their install commands.
+
+Copying the SKILL.md file directly may also work for agents with their own skills directory (e.g. `~/.claude/skills/`, `~/.codex/skills/`) — check your agent's documentation.
+
 ## REST API
 
 ```bash
