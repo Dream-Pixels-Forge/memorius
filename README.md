@@ -1,4 +1,5 @@
 # Memorius
+<img width="1584" height="672" alt="memorius" src="https://github.com/user-attachments/assets/1a62163d-1ff5-4112-8b8f-1a6b19afab7a" />
 
 <p align="center">
   <strong>Universal memory vault for any AI agent.</strong>
