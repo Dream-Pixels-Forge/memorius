@@ -42,13 +42,25 @@ def run_memorius(*args, env=None, input_text=None, timeout=120):
     if not memorius_bin:
         pytest.skip("memorius not found in PATH")
     cmd = [memorius_bin] + list(args)
+    # Ensure memorius source dir AND user site-packages are on PYTHONPATH.
+    # When HOME is overridden in tests, Python's user site-packages shifts
+    # to the fake HOME, breaking imports of dependencies like chromadb.
+    src_dir = str(Path(__file__).resolve().parent.parent)
+    import site
+    user_site = site.getusersitepackages()
+    merged_env = {**os.environ, **(env or {})}
+    existing_pp = merged_env.get("PYTHONPATH", "")
+    extra = os.pathsep.join([src_dir, user_site])
+    merged_env["PYTHONPATH"] = (
+        extra + os.pathsep + existing_pp if existing_pp else extra
+    )
     proc = subprocess.run(
         cmd,
         capture_output=True,
         text=True,
         input=input_text,
         timeout=timeout,
-        env={**os.environ, **(env or {})},
+        env=merged_env,
     )
     return proc.stdout, proc.stderr, proc.returncode
 
