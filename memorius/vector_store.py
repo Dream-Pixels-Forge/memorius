@@ -118,7 +118,7 @@ class ChromaStore:
         filter_metadata: dict[str, str] | None = None,
     ) -> list:
         """Search memories by semantic similarity."""
-        from memorius.vault import Memory
+        from memorius.models import Memory
 
         query_vector = self._embed.embed([query])[0]
 

@@ -428,10 +428,14 @@ class SQLiteStore:
         if not memory_ids:
             return {}
         conn = self._conn()
-        placeholders = ",".join("?" * len(memory_ids))
+        # Validate all IDs are non-empty strings to prevent injection
+        safe_ids = [str(mid) for mid in memory_ids if mid]
+        if not safe_ids:
+            return {}
+        placeholders = ",".join("?" * len(safe_ids))
         rows = conn.execute(
-            f"SELECT * FROM memory_meta WHERE id IN ({placeholders})",
-            memory_ids,
+            "SELECT * FROM memory_meta WHERE id IN (" + placeholders + ")",
+            safe_ids,
         ).fetchall()
         return {row["id"]: dict(row) for row in rows}
 

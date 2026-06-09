@@ -11,54 +11,19 @@ Hierarchy: Vault > Shelf > Folder > Note
 from __future__ import annotations
 
 import logging
-import threading
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from memorius.embeddings import EmbeddingFactory, EmbeddingProvider
 from memorius.config import load_config
 from memorius.validation import validate_name as _validate_name
+from memorius.models import Memory  # noqa: F401
 from memorius.vector_store import ChromaStore
 from memorius.meta_store import SQLiteStore
 
 logger = logging.getLogger("memorius")
 
-
-# ── Data model ───────────────────────────────────────────────────────────────
-
-
-@dataclass
-class Memory:
-    """A single memory item stored in a note."""
-    id: str
-    vault: str
-    shelf: str
-    folder: str
-    note: str
-    content: str
-    metadata: dict[str, Any] = field(default_factory=dict)
-    vector: list[float] | None = None
-    created_at: str = ""
-    updated_at: str = ""
-
-    def to_dict(self) -> dict[str, Any]:
-        d = {
-            "id": self.id,
-            "vault": self.vault,
-            "shelf": self.shelf,
-            "folder": self.folder,
-            "note": self.note,
-            "content": self.content,
-            "metadata": self.metadata,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at,
-        }
-        if self.vector is not None:
-            d["vector"] = self.vector
-        return d
 
 
 # ── Vault Engine ────────────────────────────────────────────────────────────

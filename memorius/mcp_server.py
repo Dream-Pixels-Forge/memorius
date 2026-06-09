@@ -236,7 +236,11 @@ class McpServer:
             except Exception as e:
                 consecutive_errors += 1
                 logger.exception("MCP handler error (%d/%d)", consecutive_errors, max_consecutive_errors)
-                self._send_error(-32603, str(e))
+                # Sanitize error message to avoid leaking internals
+                err_msg = str(e)
+                if len(err_msg) > 200:
+                    err_msg = err_msg[:200] + "..."
+                self._send_error(-32603, err_msg)
                 if consecutive_errors >= max_consecutive_errors:
                     logger.error("Too many consecutive errors, shutting down")
                     break

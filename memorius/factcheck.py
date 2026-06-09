@@ -14,6 +14,15 @@ from typing import Any
 
 logger = logging.getLogger("memorius.factcheck")
 
+# Confidence scoring constants
+DEFAULT_SIMILARITY_THRESHOLD = 0.7
+CONTRADICTION_CONFIDENCE_PER_ITEM = 0.3
+MAX_CONTRADICTION_CONFIDENCE = 0.9
+VERIFICATION_CONFIDENCE_PER_ITEM = 0.25
+MAX_VERIFICATION_CONFIDENCE = 0.95
+UNCERTAIN_CONFIDENCE = 0.3
+ENTITY_SLOT_MATCH_RATIO = 0.6
+
 
 @dataclass
 class FactCheckResult:
@@ -89,7 +98,7 @@ def check_statement(
     engine,
     statement: str,
     vault: str | None = None,
-    similarity_threshold: float = 0.7,
+    similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
 ) -> FactCheckResult:
     """Check a statement against stored memories.
 
@@ -144,15 +153,15 @@ def check_statement(
     # Determine verdict
     if contradicting:
         verdict = "contradicted"
-        confidence = min(len(contradicting) * 0.3, 0.9)
+        confidence = min(len(contradicting) * CONTRADICTION_CONFIDENCE_PER_ITEM, MAX_CONTRADICTION_CONFIDENCE)
         explanation = f"Found {len(contradicting)} contradicting memor{'y' if len(contradicting) == 1 else 'ies'}"
     elif matching:
         verdict = "verified"
-        confidence = min(len(matching) * 0.25, 0.95)
+        confidence = min(len(matching) * VERIFICATION_CONFIDENCE_PER_ITEM, MAX_VERIFICATION_CONFIDENCE)
         explanation = f"Found {len(matching)} supporting memor{'y' if len(matching) == 1 else 'ies'}"
     else:
         verdict = "uncertain"
-        confidence = 0.3
+        confidence = UNCERTAIN_CONFIDENCE
         explanation = "Found related memories but none strongly match or contradict"
 
     return FactCheckResult(
@@ -220,7 +229,7 @@ def _detect_contradiction(text_a: str, text_b: str) -> bool:
 
         # If most words match but a few differ (entity slots), it's a conflict
         match_ratio = (min_len - len(diff_positions)) / min_len
-        if match_ratio >= 0.6 and 1 <= len(diff_positions) <= max(1, min_len // 3):
+        if match_ratio >= ENTITY_SLOT_MATCH_RATIO and 1 <= len(diff_positions) <= max(1, min_len // 3):
             # The differing words are potential entity-slot conflicts
             # Exclude common stop words from being counted as entity differences
             stop_words = {
