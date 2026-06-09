@@ -207,6 +207,13 @@ Available MCP tools:
 | `memorius_diary_write` | Write session diary entry |
 | `memorius_diary_list` | List diary entries |
 | `memorius_vault_ls` | Browse vault hierarchy |
+| `memorius_consolidate` | Merge duplicate memories, extract insights |
+| `memorius_extract` | Extract structured memories from conversation (LLM) |
+| `memorius_factcheck` | Fact-check a statement against stored memories |
+| `memorius_context` | Get formatted memory context for injection |
+| `memorius_session_profile` | Build session memory profile for inheritance |
+| `memorius_graph_stats` | Knowledge graph statistics |
+| `memorius_memory_stats` | Memory tracking statistics |
 
 ## Agent Skill Installation
 
@@ -263,12 +270,21 @@ memorius serve-rest
 | Method | Path | Description |
 |---|---|---|
 | GET | `/health` | Health check |
+| GET | `/status` | System status |
+| GET | `/stats` | Full vault + memory + graph stats |
 | POST | `/store` | Store a memory |
 | POST | `/search` | Semantic search |
-| POST | `/mine` | Extract memories |
-| GET | `/status` | System status |
+| POST | `/mine` | Extract memories from transcript |
 | POST | `/diary` | Write diary entry |
-| GET | `/palace` | Browse hierarchy |
+| GET | `/vault` | Browse vault hierarchy |
+| GET | `/diaries` | List recent diary entries |
+| POST | `/consolidate` | Merge duplicate memories |
+| POST | `/extract` | Extract memories from conversation (LLM) |
+| POST | `/factcheck` | Fact-check statement against vault |
+| POST | `/context` | Get formatted memory context for injection |
+| GET | `/obsidian` | List notes in Obsidian vault |
+| POST | `/obsidian/import` | Import Obsidian notes as memories |
+| POST | `/obsidian/export` | Export memories as Obsidian notes |
 
 ## Agent Hooks
 

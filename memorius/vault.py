@@ -801,12 +801,51 @@ class VaultEngine:
             memory_id=memory.id, vault=vault, shelf=shelf,
             folder=folder, note=note, content=content, metadata=metadata,
         )
+        # Auto-link to related memories via embedding proximity
+        try:
+            from memorius.graph import auto_link_by_proximity, init_graph_schema
+            conn = self._meta._conn()
+            init_graph_schema(conn)
+            # Get recent memories from same vault for proximity linking
+            recent = self._meta.list_memories_meta(vault=vault, limit=50)
+            auto_link_by_proximity(conn, memory.id, recent)
+        except Exception:
+            pass  # graph linking is best-effort
         return memory
 
     def search(self, query: str, vault: str | None = None,
                shelf: str | None = None, limit: int = 10) -> list[Memory]:
-        """Search vault contents by semantic similarity."""
-        results = self._vector.search(query, vault=vault, shelf=shelf, n_results=limit)
+        """Search vault contents by semantic similarity with temporal decay ranking."""
+        results = self._vector.search(query, vault=vault, shelf=shelf, n_results=limit * 2)
+        # Apply temporal decay scoring to re-rank results
+        try:
+            from memorius.temporal import calculate_decay_score, calculate_search_score
+            scored = []
+            for mem in results:
+                meta = self._meta.get_memory_meta(mem.id)
+                decay = 1.0
+                access_count = 0
+                if meta:
+                    decay = calculate_decay_score(
+                        created_at=meta.get("created_at", ""),
+                        last_accessed=meta.get("last_accessed"),
+                        access_count=meta.get("access_count", 0),
+                    )
+                    access_count = meta.get("access_count", 0)
+                # Semantic similarity is approximated by rank position (1.0 for first, decreasing)
+                rank_pos = results.index(mem)
+                semantic_sim = max(0.1, 1.0 - (rank_pos * 0.05))
+                final_score = calculate_search_score(
+                    semantic_similarity=semantic_sim,
+                    decay_score=decay,
+                    access_count=access_count,
+                )
+                scored.append((mem, final_score))
+            # Sort by combined score descending
+            scored.sort(key=lambda x: x[1], reverse=True)
+            results = [m for m, _ in scored[:limit]]
+        except Exception:
+            results = results[:limit]
         # Record access for temporal decay scoring
         for mem in results:
             try:

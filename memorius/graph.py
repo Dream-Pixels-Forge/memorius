@@ -178,12 +178,13 @@ def auto_link_by_proximity(
     conn: sqlite3.Connection,
     memory_id: str,
     all_memories: list[dict[str, Any]],
-    threshold: float = 0.75,
+    threshold: float = 0.3,
     max_links: int = 10,
 ):
-    """Automatically create links based on embedding proximity.
+    """Automatically create links based on content similarity.
 
     For a given memory, find the most similar others and link them.
+    Uses word overlap (Jaccard) when vectors are not available.
     """
     source = None
     for m in all_memories:
@@ -191,23 +192,41 @@ def auto_link_by_proximity(
             source = m
             break
 
-    if not source or not source.get("vector"):
+    if not source:
         return
+
+    source_content = (source.get("content") or "").lower()
+    if not source_content:
+        return
+    source_words = set(source_content.split())
 
     scored = []
     for m in all_memories:
         if m.get("id") == memory_id:
             continue
-        if not m.get("vector"):
-            continue
-        sim = _cosine_similarity(source["vector"], m["vector"])
+
+        # Prefer vector cosine similarity if available
+        if source.get("vector") and m.get("vector"):
+            sim = _cosine_similarity(source["vector"], m["vector"])
+        else:
+            # Fall back to word overlap (Jaccard)
+            target_content = (m.get("content") or "").lower()
+            if not target_content:
+                continue
+            target_words = set(target_content.split())
+            if not source_words or not target_words:
+                continue
+            intersection = source_words & target_words
+            union = source_words | target_words
+            sim = len(intersection) / len(union) if union else 0.0
+
         if sim >= threshold:
             scored.append((m["id"], sim))
 
     scored.sort(key=lambda x: x[1], reverse=True)
 
     for target_id, sim in scored[:max_links]:
-        link_memories(conn, memory_id, target_id, weight=sim, relation="related")
+        link_memories(conn, memory_id, target_id, weight=round(sim, 4), relation="related")
 
 
 def get_graph_stats(conn: sqlite3.Connection) -> dict[str, Any]:

@@ -162,6 +162,161 @@ def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912):
         limit = min(limit, MAX_SEARCH_LIMIT)
         return engine._meta.list_diaries(vault=vault, limit=limit)
 
+    # ── New v0.2.0 endpoints ──
+
+    @app.post("/consolidate")
+    async def consolidate(payload: dict[str, Any]):
+        vault = _validate_name(payload.get("vault"), "vault") if payload.get("vault") else None
+        threshold = min(max(payload.get("threshold", 0.80), 0.0), 1.0)
+        dry_run = payload.get("dry_run", False)
+
+        result = engine.consolidate(
+            vault=vault,
+            similarity_threshold=threshold,
+            dry_run=dry_run,
+        )
+        return {
+            "clusters_found": result.clusters_found,
+            "memories_merged": result.memories_merged,
+            "memories_archived": result.memories_archived,
+            "details": result.details[:10] if result.details else [],
+        }
+
+    @app.post("/extract")
+    async def extract(payload: dict[str, Any]):
+        text = payload.get("text", "")
+        if not text or not isinstance(text, str):
+            raise HTTPException(status_code=400, detail="Text is required")
+        if len(text) > MAX_CONTENT_LENGTH:
+            raise HTTPException(status_code=400, detail="Text too long")
+
+        vault = _validate_name(payload.get("vault", "main"), "vault")
+        shelf = _validate_name(payload.get("shelf", "extracted"), "shelf")
+        backend = payload.get("backend", "auto")
+
+        memories = engine.extract_memories(
+            conversation=text,
+            backend=backend,
+            vault=vault,
+            shelf=shelf,
+        )
+        return {
+            "extracted": len(memories),
+            "memories": [
+                {
+                    "id": m.id,
+                    "content": m.content[:300],
+                    "category": m.metadata.get("category", "unknown"),
+                    "confidence": m.metadata.get("confidence", 0),
+                }
+                for m in memories
+            ],
+        }
+
+    @app.post("/factcheck")
+    async def factcheck(payload: dict[str, Any]):
+        statement = payload.get("statement", "")
+        if not statement or not isinstance(statement, str):
+            raise HTTPException(status_code=400, detail="Statement is required")
+
+        vault = _validate_name(payload.get("vault"), "vault") if payload.get("vault") else None
+        result = engine.check_fact(statement, vault=vault)
+        return {
+            "verdict": result.verdict,
+            "statement": result.statement,
+            "confidence": result.confidence,
+            "explanation": result.explanation,
+            "matching_memories": result.matching_memories,
+            "contradicting_memories": result.contradicting_memories,
+        }
+
+    @app.post("/context")
+    async def context(payload: dict[str, Any]):
+        query = payload.get("query", "")
+        if not query or not isinstance(query, str):
+            raise HTTPException(status_code=400, detail="Query is required")
+
+        vault = _validate_name(payload.get("vault"), "vault") if payload.get("vault") else None
+        max_items = min(payload.get("max_items", 5), MAX_SEARCH_LIMIT)
+        context_text = engine.get_context(query=query, vault=vault, max_items=max_items)
+        return {"context": context_text, "query": query}
+
+    @app.get("/obsidian")
+    async def obsidian_list(vault: str | None = None):
+        """List notes in an Obsidian vault."""
+        from memorius.cli.obsidian import _resolve_vault_path, _scan_vault
+        path = _resolve_vault_path(vault)
+        if not path.exists():
+            raise HTTPException(status_code=404, detail=f"Vault not found: {path}")
+        notes = _scan_vault(path)
+        return {"vault": str(path), "count": len(notes), "notes": notes}
+
+    @app.post("/obsidian/import")
+    async def obsidian_import(payload: dict[str, Any]):
+        """Import Obsidian notes as memories."""
+        from memorius.cli.obsidian import _resolve_vault_path, _scan_vault, _parse_note
+        vault_path = _resolve_vault_path(payload.get("vault"))
+        if not vault_path.exists():
+            raise HTTPException(status_code=404, detail=f"Vault not found: {vault_path}")
+
+        target_vault = _validate_name(payload.get("target_vault", "main"), "vault")
+        target_shelf = _validate_name(payload.get("target_shelf", "obsidian"), "shelf")
+        dry_run = payload.get("dry_run", False)
+        tag_filter = payload.get("tag")
+
+        notes = _scan_vault(vault_path)
+        imported = 0
+        skipped = 0
+        for note in notes:
+            if tag_filter and tag_filter not in note.get("tags", []):
+                skipped += 1
+                continue
+            if not dry_run:
+                body = _parse_note(note["path"])
+                engine.store(
+                    content=body,
+                    vault=target_vault,
+                    shelf=target_shelf,
+                    folder=note.get("folder", "default"),
+                    note=note["name"],
+                    metadata={"source": "obsidian", "tags": note.get("tags", [])},
+                )
+            imported += 1
+
+        return {"imported": imported, "skipped": skipped, "dry_run": dry_run}
+
+    @app.post("/obsidian/export")
+    async def obsidian_export(payload: dict[str, Any]):
+        """Export memorius memories as Obsidian notes."""
+        from memorius.cli.obsidian import _resolve_vault_path
+        vault_path = _resolve_vault_path(payload.get("vault"))
+        source_vault = _validate_name(payload.get("source_vault", "main"), "vault")
+        source_shelf = payload.get("source_shelf")
+        dry_run = payload.get("dry_run", False)
+
+        # Get memories from vault
+        results = engine.search(query="", vault=source_vault, shelf=source_shelf, limit=1000)
+        exported = 0
+        for mem in results:
+            note_path = vault_path / mem.vault / mem.shelf / mem.folder / f"{mem.note}.md"
+            if not dry_run:
+                note_path.parent.mkdir(parents=True, exist_ok=True)
+                note_path.write_text(mem.content)
+            exported += 1
+
+        return {"exported": exported, "dry_run": dry_run, "vault": str(vault_path)}
+
+    @app.get("/stats")
+    async def stats():
+        status = engine.status()
+        meta_stats = engine.get_memory_stats()
+        graph_stats = engine.get_graph_stats()
+        return {
+            "vault": status,
+            "memory_tracking": meta_stats,
+            "knowledge_graph": graph_stats,
+        }
+
     print(f"Memorius REST API running on http://{host}:{port}")
     if api_key:
         print("  API key authentication: enabled")

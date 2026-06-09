@@ -245,17 +245,45 @@ def _detect_contradiction(text_a: str, text_b: str) -> bool:
 
 
 def _text_similarity(text_a: str, text_b: str) -> float:
-    """Simple text similarity using word overlap (Jaccard)."""
-    words_a = set(text_a.lower().split())
-    words_b = set(text_b.lower().split())
+    """Text similarity using TF-IDF-like weighted word overlap.
+
+    Words that are rarer (appear in fewer of the two texts) get higher weight,
+    making the similarity more meaningful than plain Jaccard.
+    """
+    words_a = text_a.lower().split()
+    words_b = text_b.lower().split()
 
     if not words_a or not words_b:
         return 0.0
 
-    intersection = words_a & words_b
-    union = words_a | words_b
+    set_a = set(words_a)
+    set_b = set(words_b)
 
-    return len(intersection) / len(union) if union else 0.0
+    # Term frequency: how often each word appears in its source
+    tf_a = {w: words_a.count(w) / len(words_a) for w in set_a}
+    tf_b = {w: words_b.count(w) / len(words_b) for w in set_b}
+
+    # Inverse document frequency: words appearing in both texts get lower weight
+    all_words = set_a | set_b
+    idf = {}
+    for w in all_words:
+        in_a = 1 if w in set_a else 0
+        in_b = 1 if w in set_b else 0
+        # IDF-like: rare in one text = higher weight
+        idf[w] = 1.0 / (1.0 + in_a + in_b)
+
+    # Weighted overlap
+    intersection = set_a & set_b
+    if not intersection:
+        return 0.0
+
+    weighted_sim = sum(tf_a.get(w, 0) * idf[w] + tf_b.get(w, 0) * idf[w]
+                       for w in intersection)
+    # Normalize by max possible (union)
+    max_sim = sum(tf_a.get(w, 0) * idf[w] + tf_b.get(w, 0) * idf[w]
+                   for w in all_words)
+
+    return min(weighted_sim / max_sim, 1.0) if max_sim else 0.0
 
 
 def batch_factcheck(
