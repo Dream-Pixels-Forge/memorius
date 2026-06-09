@@ -8,15 +8,15 @@ import sys
 from typing import Any
 
 from memorius import __version__ as _memorius_version
-from .utils import validate_name as _validate_name, MAX_NAME_LENGTH
+from memorius.validation import (
+    validate_name as _validate_name,
+    MAX_NAME_LENGTH,
+    MAX_CONTENT_LENGTH,
+    MAX_FIELD_LENGTH,
+    MAX_SEARCH_LIMIT,
+)
 
 logger = logging.getLogger("memorius.mcp")
-
-# Input validation constants
-MAX_CONTENT_LENGTH = 100_000  # 100KB
-MAX_FIELD_LENGTH = 1_000
-MAX_SEARCH_LIMIT = 100
-MAX_N_RESULTS = 100
 
 
 class McpServer:

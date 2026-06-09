@@ -22,7 +22,7 @@ from typing import Any
 
 from memorius.embeddings import EmbeddingFactory, EmbeddingProvider
 from memorius.config import load_config
-from .utils import validate_name as _validate_name
+from memorius.validation import validate_name as _validate_name
 
 logger = logging.getLogger("memorius")
 

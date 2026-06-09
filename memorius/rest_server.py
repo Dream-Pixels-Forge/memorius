@@ -7,26 +7,17 @@ import os
 from typing import Any
 
 from memorius import __version__ as _memorius_version
-from .utils import validate_name as _validate_name, MAX_NAME_LENGTH
+from memorius.validation import (
+    validate_name as _validate_name,
+    validate_content as _validate_content,
+    MAX_NAME_LENGTH,
+    MAX_CONTENT_LENGTH,
+    MAX_FIELD_LENGTH,
+    MAX_SEARCH_LIMIT,
+    MAX_DIARY_CONTENT,
+)
 
 logger = logging.getLogger("memorius.rest")
-
-# Input validation constants
-MAX_CONTENT_LENGTH = 100_000  # 100KB
-MAX_FIELD_LENGTH = 1_000
-MAX_SEARCH_LIMIT = 100
-MAX_DIARY_CONTENT = 50_000
-
-
-def _validate_content(content: str) -> str:
-    """Validate content field. Raises ValueError if invalid."""
-    if not isinstance(content, str):
-        raise ValueError("Content must be a string")
-    if not content.strip():
-        raise ValueError("Content cannot be empty")
-    if len(content) > MAX_CONTENT_LENGTH:
-        raise ValueError(f"Content too long (max {MAX_CONTENT_LENGTH} chars)")
-    return content
 
 
 def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912):

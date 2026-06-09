@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -34,7 +35,11 @@ OBSIDIAN_VAULT_HINT = (
 
 def _resolve_vault_path(vault_arg: str | None) -> Path:
     """Resolve the Obsidian vault path from arg, env var, or default."""
-    raw = vault_arg or Path.home().as_posix() + "/Documents/Obsidian Vault"
+    raw = (
+        vault_arg
+        or os.environ.get("OBSIDIAN_VAULT_PATH")
+        or Path.home().as_posix() + "/Documents/Obsidian Vault"
+    )
     path = Path(raw).expanduser().resolve()
     return path
 
