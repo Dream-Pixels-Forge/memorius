@@ -180,6 +180,7 @@ class ChromaStore:
                     include=["embeddings", "documents", "metadatas"],
                 )
             except Exception:
+                logger.debug("ChromaDB query failed for collection %s, skipping", col_name)
                 continue
 
             if not res["ids"] or not res["ids"][0]:
@@ -237,7 +238,7 @@ class ChromaStore:
                 if col.name not in self._collections:
                     self._collections[col.name] = col
         except Exception:
-            pass
+            logger.debug("Failed to load collections from ChromaDB")
 
     def get_collections(self) -> list[dict[str, str]]:
         """List all collections (vault_shelf combos) with counts."""
@@ -846,13 +847,14 @@ class VaultEngine:
             scored.sort(key=lambda x: x[1], reverse=True)
             results = [m for m, _ in scored[:limit]]
         except Exception:
+            logger.debug("Temporal decay scoring failed, using rank order")
             results = results[:limit]
         # Record access for temporal decay scoring
         for mem in results:
             try:
                 self._meta.record_access(mem.id)
             except Exception:
-                pass
+                logger.debug("Failed to record access for %s", mem.id)
         return results
 
     def mine(self, text: str, vault: str = "main", shelf: str = "conversations",
