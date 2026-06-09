@@ -661,6 +661,18 @@ class SQLiteStore:
         row = conn.execute("SELECT * FROM memory_meta WHERE id = ?", (memory_id,)).fetchone()
         return dict(row) if row else None
 
+    def get_memory_meta_batch(self, memory_ids: list[str]) -> dict[str, dict]:
+        """Get metadata for multiple memories in a single query."""
+        if not memory_ids:
+            return {}
+        conn = self._conn()
+        placeholders = ",".join("?" * len(memory_ids))
+        rows = conn.execute(
+            f"SELECT * FROM memory_meta WHERE id IN ({placeholders})",
+            memory_ids,
+        ).fetchall()
+        return {row["id"]: dict(row) for row in rows}
+
     def list_memories_meta(self, vault: str | None = None, limit: int = 100,
                            include_archived: bool = False) -> list[dict]:
         """List memory metadata with optional vault filter."""
@@ -822,9 +834,11 @@ class VaultEngine:
         # Apply temporal decay scoring to re-rank results
         try:
             from memorius.temporal import calculate_decay_score, calculate_search_score
+            # Batch-fetch all metadata in one query (not N+1)
+            meta_map = self._meta.get_memory_meta_batch([m.id for m in results])
             scored = []
-            for mem in results:
-                meta = self._meta.get_memory_meta(mem.id)
+            for rank_pos, mem in enumerate(results):
+                meta = meta_map.get(mem.id)
                 decay = 1.0
                 access_count = 0
                 if meta:
@@ -834,8 +848,6 @@ class VaultEngine:
                         access_count=meta.get("access_count", 0),
                     )
                     access_count = meta.get("access_count", 0)
-                # Semantic similarity is approximated by rank position (1.0 for first, decreasing)
-                rank_pos = results.index(mem)
                 semantic_sim = max(0.1, 1.0 - (rank_pos * 0.05))
                 final_score = calculate_search_score(
                     semantic_similarity=semantic_sim,
@@ -843,7 +855,6 @@ class VaultEngine:
                     access_count=access_count,
                 )
                 scored.append((mem, final_score))
-            # Sort by combined score descending
             scored.sort(key=lambda x: x[1], reverse=True)
             results = [m for m, _ in scored[:limit]]
         except Exception:

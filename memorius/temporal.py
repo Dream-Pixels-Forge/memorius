@@ -20,6 +20,14 @@ MIN_DECAY_SCORE = 0.05          # floor — memories never fully vanish
 REINFORCEMENT_LOG_BASE = 2.0    # logarithmic reinforcement scaling
 ARCHIVE_THRESHOLD = 0.1         # below this → auto-archive
 
+# Search scoring weights
+WEIGHT_AGE_DECAY = 0.4          # weight for age-based decay
+WEIGHT_RECENCY = 0.4            # weight for recency boost
+WEIGHT_REINFORCEMENT = 0.2      # weight for access frequency
+WEIGHT_SEMANTIC = 0.6           # weight for semantic similarity in search
+WEIGHT_TEMPORAL = 0.25          # weight for temporal decay in search
+WEIGHT_ACCESS = 0.15            # weight for access count in search
+
 
 def calculate_decay_score(
     created_at: str,
@@ -64,7 +72,7 @@ def calculate_decay_score(
     reinforcement = min(reinforcement, 5.0)  # cap at 5x
 
     # Combine: age decay weighted 40%, recency 40%, reinforcement 20%
-    score = (age_decay * 0.4 + recency_boost * 0.4) * (reinforcement * 0.2 + 1.0)
+    score = (age_decay * WEIGHT_AGE_DECAY + recency_boost * WEIGHT_RECENCY) * (reinforcement * WEIGHT_REINFORCEMENT + 1.0)
     score = max(score, MIN_DECAY_SCORE)
     score = min(score, 1.0)
 
@@ -75,9 +83,9 @@ def calculate_search_score(
     semantic_similarity: float,
     decay_score: float,
     access_count: int = 0,
-    semantic_weight: float = 0.6,
-    decay_weight: float = 0.25,
-    access_weight: float = 0.15,
+    semantic_weight: float = WEIGHT_SEMANTIC,
+    decay_weight: float = WEIGHT_TEMPORAL,
+    access_weight: float = WEIGHT_ACCESS,
 ) -> float:
     """Calculate final search ranking score.
 
