@@ -202,11 +202,14 @@ class McpServer:
         try:
             sys.stdout.reconfigure(encoding="utf-8")
         except Exception:
-            pass  # already configured or not reconfigurable (e.g. pipes)
+            pass
         try:
             sys.stdin.reconfigure(encoding="utf-8")
         except Exception:
             pass
+
+        consecutive_errors = 0
+        max_consecutive_errors = 10
 
         while True:
             try:
@@ -220,13 +223,23 @@ class McpServer:
                 if response is not None:
                     sys.stdout.write(json.dumps(response) + "\n")
                     sys.stdout.flush()
+                consecutive_errors = 0  # reset on success
             except EOFError:
                 break
-            except json.JSONDecodeError:
-                self._send_error(-32700, "Parse error")
+            except json.JSONDecodeError as e:
+                consecutive_errors += 1
+                logger.warning("MCP parse error (%d/%d): %s", consecutive_errors, max_consecutive_errors, e)
+                self._send_error(-32700, f"Parse error: {e}")
+                if consecutive_errors >= max_consecutive_errors:
+                    logger.error("Too many consecutive parse errors, shutting down")
+                    break
             except Exception as e:
-                logger.exception("MCP handler error")
+                consecutive_errors += 1
+                logger.exception("MCP handler error (%d/%d)", consecutive_errors, max_consecutive_errors)
                 self._send_error(-32603, str(e))
+                if consecutive_errors >= max_consecutive_errors:
+                    logger.error("Too many consecutive errors, shutting down")
+                    break
 
     def _handle_request(self, msg: dict) -> dict | None:
         """Handle a single JSON-RPC message."""

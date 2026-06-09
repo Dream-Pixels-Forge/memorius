@@ -306,8 +306,18 @@ def extract_memories(
     # 2. Try Ollama if available
     try:
         import httpx
-        resp = httpx.get("http://localhost:11434/api/tags", timeout=3)
-        if resp.status_code == 200:
+        ollama_available = False
+        for attempt in range(3):
+            try:
+                resp = httpx.get("http://localhost:11434/api/tags", timeout=3)
+                if resp.status_code == 200:
+                    ollama_available = True
+                    break
+            except Exception:
+                if attempt < 2:
+                    import time
+                    time.sleep(0.5 * (attempt + 1))
+        if ollama_available:
             results = _extract_with_ollama(conversation, model or "llama3.2")
             if results:
                 return results
