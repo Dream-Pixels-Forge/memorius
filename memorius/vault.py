@@ -295,7 +295,8 @@ class SQLiteStore:
         _VALID_TABLES = {"diaries", "memories", "hierarchy", "graph_edges", "memory_meta"}
         if table not in _VALID_TABLES:
             raise ValueError(f"Invalid table name: {table}")
-        cur = conn.execute(f"PRAGMA table_info({table})")
+        # Use string concatenation (not f-string) — table is validated by whitelist above
+        cur = conn.execute("PRAGMA table_info(" + table + ")")
         return {row["name"] for row in cur.fetchall()}
 
     def _migrate_diaries_table(self, conn: sqlite3.Connection):

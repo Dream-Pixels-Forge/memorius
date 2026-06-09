@@ -37,7 +37,7 @@ def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912):
         CORSMiddleware,
         allow_origins=["http://127.0.0.1", "http://localhost"],
         allow_methods=["GET", "POST"],
-        allow_headers=["*"],
+        allow_headers=["Content-Type", "Authorization"],
     )
 
     # API key authentication
@@ -280,7 +280,7 @@ def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912):
     async def obsidian_export(payload: dict[str, Any]):
         """Export memorius memories as Obsidian notes."""
         from memorius.cli.obsidian import _resolve_vault_path
-        vault_path = _resolve_vault_path(payload.get("vault"))
+        vault_path = _resolve_vault_path(payload.get("vault")).resolve()
         source_vault = _validate_name(payload.get("source_vault", "main"), "vault")
         source_shelf = payload.get("source_shelf")
         dry_run = payload.get("dry_run", False)
@@ -289,7 +289,10 @@ def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912):
         results = engine.search(query="", vault=source_vault, shelf=source_shelf, limit=1000)
         exported = 0
         for mem in results:
-            note_path = vault_path / mem.vault / mem.shelf / mem.folder / f"{mem.note}.md"
+            note_path = (vault_path / mem.vault / mem.shelf / mem.folder / f"{mem.note}.md").resolve()
+            # Path traversal guard: ensure resolved path is within vault_path
+            if not str(note_path).startswith(str(vault_path)):
+                raise HTTPException(status_code=400, detail="Path traversal detected")
             if not dry_run:
                 note_path.parent.mkdir(parents=True, exist_ok=True)
                 note_path.write_text(mem.content)
