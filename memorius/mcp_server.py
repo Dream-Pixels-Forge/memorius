@@ -327,10 +327,11 @@ class McpServer:
             shelf=shelf,
             limit=n_results,
         )
+        # Exclude vector from response — it's large and not useful to callers
         return {
             "query": query,
             "count": len(results),
-            "results": [m.to_dict() for m in results],
+            "results": [{k: v for k, v in m.to_dict().items() if k != "vector"} for m in results],
         }
 
     def tool_memorius_diary_write(self, args: dict) -> dict:

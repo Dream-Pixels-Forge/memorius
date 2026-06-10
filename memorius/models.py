@@ -33,5 +33,13 @@ class Memory:
             "updated_at": self.updated_at,
         }
         if self.vector is not None:
-            d["vector"] = self.vector
+            # Convert numpy arrays to plain lists for JSON serialization
+            try:
+                import numpy as np
+                if isinstance(self.vector, np.ndarray):
+                    d["vector"] = self.vector.tolist()
+                else:
+                    d["vector"] = self.vector
+            except ImportError:
+                d["vector"] = self.vector
         return d
