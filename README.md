@@ -26,6 +26,9 @@ Most AI memory tools lock you into one agent ecosystem. Memorius is **agent-agno
 | Agent support | **7 agents** (auto-detected) | Usually 1-3 |
 | Protocol | **Open MCP standard** | Proprietary plugins |
 | Memory hierarchy | Vault → Shelf → Folder → Note | Flat |
+| Temporal decay | ✅ Ebbinghaus forgetting curve | ❌ |
+| Knowledge graph | ✅ Auto-linked memories | ❌ |
+| Fact-checking | ✅ Contradiction detection | ❌ |
 | Obsidian integration | Native import/export | ❌ |
 | Self-hosted | ✅ No cloud dependency | Often SaaS |
 | Open source | ✅ MIT license | Varies |
@@ -139,7 +142,7 @@ memorius store <text>        Store a memory
 memorius search <query>      Semantic search
   --vault, -v                  Filter by vault
   --shelf, -s                  Filter by shelf
-  --limit, -l                  Max results (default: 10)
+  --n                          Max results (default: 10)
 memorius mine <file|text>    Extract memories from transcript
   --vault, -v                  Target vault (default: main)
 memorius diary <session>     Write a diary entry
@@ -148,7 +151,23 @@ memorius diary <session>     Write a diary entry
   --vault, -v                  Vault name (default: main)
 memorius diaries              List recent diary entries
 memorius ls                   Explore vault hierarchy
-memorius serve                Start MCP server (stdio)
+memorius consolidate         Merge duplicate memories
+  --vault                      Filter by vault
+  --threshold                  Similarity threshold 0-1 (default: 0.80)
+  --dry-run                    Preview without changes
+memorius extract <file|text> Extract memories from conversation (LLM)
+  --vault                      Target vault (default: main)
+  --shelf                      Target shelf (default: extracted)
+  --backend                    LLM backend: auto|openai|ollama|regex
+memorius factcheck <stmt>    Fact-check against stored memories
+  --vault                      Filter by vault
+memorius context <query>     Get formatted memory context for injection
+  --vault                      Filter by vault
+  --max                        Max items (default: 5)
+memorius profile <session>   Build session memory profile
+  --vault                      Vault name (default: main)
+memorius stats               Show vault + memory + graph statistics
+memorius serve               Start MCP server (stdio)
 memorius serve-rest           Start REST API server
 memorius --version            Show version
 memorius config               Show current configuration
