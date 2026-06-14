@@ -37,6 +37,9 @@ Most AI memory tools lock you into one agent ecosystem. Memorius is **agent-agno
 pip install memorius
 ```
 
+> **REST API server is included by default** — `fastapi`, `uvicorn`, `pydantic`,
+> and `sse-starlette` are now core dependencies. No extra `[rest]` install flag needed.
+
 ## Quick Start
 
 ```bash
@@ -67,7 +70,7 @@ memorius diary --session "session-001" --title "Research findings"
 ├────────────────────────────────────────────────────────────┤
 │  CLI        memorius init | store | search | mine | ...    │
 │  MCP        JSON-RPC protocol server (stdin/stdout)        │
-│  REST       FastAPI HTTP server (optional)                 │
+│  REST       FastAPI HTTP server                 │
 │  Hooks      Auto-detect: Claude Code, Codex, Gemini, ...  │
 │  Obsidian   Import / export notes from Obsidian vaults     │
 ├────────────────────────────────────────────────────────────┤
@@ -282,9 +285,13 @@ Copying the SKILL.md file directly may also work for agents with their own skill
 
 ## REST API
 
+The REST server is always available (no extra install flags needed):
+
 ```bash
 memorius serve-rest
 ```
+
+Starts a FastAPI server on `http://127.0.0.1:8912` by default.
 
 | Method | Path | Description |
 |---|---|---|
@@ -383,6 +390,7 @@ pytest
 memorius init
 memorius store "test memory"
 memorius search "test"
+memorius serve-rest         # REST server available out of the box
 ```
 
 ## License

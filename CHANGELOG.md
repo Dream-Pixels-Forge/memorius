@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.4.0 (2026-06-14)
+
+### Breaking Changes
+- **REST dependencies promoted to core** — `fastapi`, `uvicorn`, `pydantic`, and
+  `sse-starlette` moved from `[project.optional-dependencies] rest = [...]` to
+  `[project.dependencies]`. The `[rest]` extra is removed. After upgrading:
+  ```bash
+  pip install --upgrade memorius
+  ```
+  The REST server (`memorius serve-rest`) now works without any extra install flags.
+  Existing installs with `[rest]` extra will continue to work — just switch to
+  `pip install memorius` on the next clean install.
+
+### Removed
+- `[project.optional-dependencies] rest` extra (no longer needed — all REST deps are core)
+- `memorius[rest]` from `all` meta-extra (now just `memorius[local-embeddings,openai]`)
+
 ## v0.3.1 (2026-06-10)
 
 ### Bug Fixes
