@@ -16,6 +16,10 @@
 > 🧠 **Works with Claude Code, Codex CLI, Gemini CLI, OpenClaude, OpenCode, Pi, and any MCP-compatible agent.**
 >
 > 🌐 **Landing page:** https://dream-pixels-forge.github.io/memorius/
+>
+> If you find them useful, leaving a star ⭐ on the repository is the best way to support my work!
+
+
 
 ## Why Memorius?
 
