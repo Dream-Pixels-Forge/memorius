@@ -17,7 +17,7 @@
 >
 > 🌐 **Landing page:** https://dream-pixels-forge.github.io/memorius/
 >
-> If you find them useful, leaving a star ⭐ on the repository is the best way to support my work!
+> If you find this project useful, leaving a star ⭐ on the repository is the best way to support my work!
 
 
 
