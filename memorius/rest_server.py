@@ -28,7 +28,7 @@ class MemoriusAPI:
     def __init__(self, engine):
         self._engine = engine
         self._request_counts: dict[str, list[float]] = {}  # IP -> [timestamps]
-        self._rate_limit_max = 100  # requests per minute
+        self._rate_limit_max = 500  # requests per minute
         self._rate_limit_window = 60  # seconds
 
     def create_app(self):
@@ -46,9 +46,10 @@ class MemoriusAPI:
         # CORS — restrictive by default
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=["http://127.0.0.1", "http://localhost"],
-            allow_methods=["GET", "POST"],
+            allow_origins=["http://127.0.0.1", "http://localhost", "http://127.0.0.1:*", "http://localhost:*", "app://obsidian.md", "file://"],
+            allow_methods=["GET", "POST", "OPTIONS"],
             allow_headers=["Content-Type", "Authorization"],
+            allow_credentials=True,
         )
 
         # API key authentication

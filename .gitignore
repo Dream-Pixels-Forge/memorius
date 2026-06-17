@@ -33,3 +33,4 @@ pip-delete-this-directory.txt
 # Project specific
 *.mementos
 .pypirc
+AGENTS.md
