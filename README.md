@@ -66,6 +66,9 @@ memorius status
 memorius diary --session "session-001" --title "Research findings"
 ```
 
+<img width="979" height="632" alt="Screenshot from 2026-06-18 15-14-39" src="https://github.com/user-attachments/assets/6cbca59b-1a3c-4b1d-85e8-dd5b256b9061" />
+
+
 ## Architecture
 
 ```
