@@ -6,11 +6,27 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import threading
 import time
 from pathlib import Path
 
 import pytest
+
+
+def _safe_rmtree(path):
+    """rmtree tolerant of Windows file locks.
+
+    On Windows, chroma keeps its index/data .bin files memory-mapped
+    open, so a naive cleanup races with the OS lock and raises
+    PermissionError (WinError 32). Retry briefly to let the lock
+    release, then force-ignore any stragglers (temp dir — safe to drop).
+    """
+    for _ in range(5):
+        try:
+            shutil.rmtree(path)
+            return
+        except PermissionError:
+            time.sleep(0.3)
+    shutil.rmtree(path, ignore_errors=True)
 
 
 @pytest.fixture
@@ -19,7 +35,8 @@ def isolated_env():
     old_home = os.environ.get("HOME", "")
     old_storage = os.environ.pop("MEMORIUS_STORAGE_PATH", None)
 
-    with tempfile.TemporaryDirectory() as tmpdir:
+    tmpdir = tempfile.mkdtemp()
+    try:
         # Sandbox HOME so memorius init writes to ~/.memorius inside tmpdir
         fake_home = Path(tmpdir) / "home"
         fake_home.mkdir()
@@ -27,13 +44,14 @@ def isolated_env():
         os.environ["MEMORIUS_STORAGE_PATH"] = str(Path(tmpdir) / "data")
 
         yield Path(tmpdir)
-
-    # Restore env
-    os.environ["HOME"] = old_home
-    if old_storage:
-        os.environ["MEMORIUS_STORAGE_PATH"] = old_storage
-    else:
-        os.environ.pop("MEMORIUS_STORAGE_PATH", None)
+    finally:
+        # Restore env
+        os.environ["HOME"] = old_home
+        if old_storage:
+            os.environ["MEMORIUS_STORAGE_PATH"] = old_storage
+        else:
+            os.environ.pop("MEMORIUS_STORAGE_PATH", None)
+        _safe_rmtree(tmpdir)
 
 
 def run_memorius(*args, env=None, input_text=None, timeout=120):
