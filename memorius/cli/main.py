@@ -2,6 +2,7 @@
 
 Usage:
   memorius init              Initialize a new vault
+  memorius setup             Download ONNX model and initialize vault
   memorius status            Show vault status
   memorius store <text>      Store a memory
   memorius search <query>    Semantic search across memories
@@ -62,6 +63,11 @@ def main():
     subparsers = parser.add_subparsers(dest="command")
 
     subparsers.add_parser("init", help="Initialize a new vault")
+    
+    setup_p = subparsers.add_parser("setup", help="Download ONNX model and initialize vault")
+    setup_p.add_argument("--force", action="store_true", help="Re-download model even if exists")
+    setup_p.add_argument("--skip-model", action="store_true", help="Skip model download, only init vault")
+    
     subparsers.add_parser("status", help="Show vault status")
 
     store_p = subparsers.add_parser("store", help="Store a memory")
@@ -172,6 +178,7 @@ def main():
     # Dispatch
     commands = {
         "init": cmd_init,
+        "setup": cmd_setup,
         "status": cmd_status,
         "store": cmd_store,
         "search": cmd_search,
@@ -211,6 +218,56 @@ def cmd_init(engine, args, config):
     print("Vault initialized: main")
     print(f"Storage: {config.get('storage', {}).get('path', '~/.memorius/data')}")
     print(f"Embeddings: {config.get('embeddings', {}).get('provider', 'chroma-default')}")
+
+
+def cmd_setup(engine, args, config):
+    """Download ONNX model and initialize vault."""
+    from memorius.model_download import is_model_downloaded, setup_model, get_model_path
+    
+    print("memorius setup")
+    print("=" * 50)
+    
+    # Step 1: Initialize vault
+    print("\n1. Initializing vault...")
+    DEFAULT_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    if not DEFAULT_CONFIG_PATH.exists():
+        from memorius.config import DEFAULT_CONFIG_YAML
+        DEFAULT_CONFIG_PATH.write_text(DEFAULT_CONFIG_YAML)
+        print(f"   Created config: {DEFAULT_CONFIG_PATH}")
+    else:
+        print(f"   Config exists: {DEFAULT_CONFIG_PATH}")
+    
+    engine._meta.ensure_vault("main", "Main vault")
+    print("   Vault initialized: main")
+    
+    # Step 2: Download ONNX model
+    if args.skip_model:
+        print("\n2. Skipping model download (--skip-model)")
+    else:
+        print("\n2. Setting up ONNX model...")
+        if is_model_downloaded() and not args.force:
+            print(f"   Model already downloaded: {get_model_path()}")
+        else:
+            if args.force:
+                print("   Force mode: re-downloading model...")
+            success = setup_model(force=args.force)
+            if not success:
+                print("\nSetup completed with errors.")
+                print("The vault is ready, but the ONNX model failed to download.")
+                print("You can try again later with: memorius setup --force")
+                return
+    
+    # Step 3: Verify
+    print("\n3. Verification...")
+    status = engine.status()
+    print(f"   Embeddings: {status['embedding_provider']} (dim={status['embedding_dimension']})")
+    
+    print("\n" + "=" * 50)
+    print("Setup complete!")
+    print("\nNext steps:")
+    print("  memorius store 'My first memory'  # Store a memory")
+    print("  memorius search 'first memory'    # Search for it")
+    print("  memorius status                   # Check vault status")
 
 
 def cmd_status(engine, args, config):

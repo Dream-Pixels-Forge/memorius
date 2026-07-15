@@ -112,6 +112,7 @@ class ChromaDefaultProvider(EmbeddingProvider):
     """ChromaDB's built-in embedding function (ONNX all-MiniLM-L6-v2).
     
     No extra dependencies — ChromaDB ships its own ONNX runtime.
+    Auto-downloads the ONNX model on first use if not already present.
     """
     def __init__(self):
         try:
@@ -122,8 +123,30 @@ class ChromaDefaultProvider(EmbeddingProvider):
                 "  pip install memorius  (includes chromadb)\n"
                 "  or: pip install chromadb"
             )
+        
+        # Auto-download ONNX model if not present
+        self._ensure_model_downloaded()
+        
         self._fn = ef.DefaultEmbeddingFunction()
         self._dim = 384
+
+    def _ensure_model_downloaded(self):
+        """Ensure the ONNX model is downloaded before initializing.
+
+        Non-fatal: if the pre-download fails (e.g. no network), we warn
+        and continue — chromadb's DefaultEmbeddingFunction fetches its own
+        copy on first use.
+        """
+        from memorius.model_download import is_model_downloaded, setup_model
+
+        if not is_model_downloaded():
+            print("ONNX model not found. Downloading now...")
+            if not setup_model():
+                print(
+                    "Warning: could not pre-download the ONNX model via "
+                    "'memorius setup'. chromadb will attempt its own "
+                    "download on first use — ensure network access."
+                )
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         result = self._fn(texts)
