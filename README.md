@@ -115,6 +115,13 @@ server:
   mcp_port: 8910
   rest_port: 8912
   host: 127.0.0.1
+
+retrieval:
+  web_fallback: false        # opt-in: augment thin local recall with web
+  web_provider: duckduckgo   # duckduckgo (keyless) | tavily (keyed) | mock (tests)
+  tavily_api_key: null       # or set TAVILY_API_KEY env var
+  web_min_results: 1         # if ZERO local hits, fall back to web
+  web_max_results: 5         # max web results to return
 ```
 
 Environment variable overrides:
@@ -128,6 +135,51 @@ Environment variable overrides:
 | `MEMORIUS_REST_PORT` | `server.rest_port` |
 | `MEMORIUS_HOST` | `server.host` |
 | `MEMORIUS_OPENAI_API_KEY` | `embeddings.openai.api_key` |
+| `MEMORIUS_WEB_PROVIDER` | `retrieval.web_provider` |
+| `MEMORIUS_WEB_FALLBACK` | `retrieval.web_fallback` |
+| `MEMORIUS_TAVILY_API_KEY` | `retrieval.tavily_api_key` |
+
+## Web Search
+
+When local recall is thin, Memorius can optionally augment retrieval with
+live web results. This is **local-first and opt-in** — web search never runs
+unless you ask for it: the `memorius web` command, the `--web` flag on
+`search` / `context` / `factcheck`, or `retrieval.web_fallback: true`.
+
+```bash
+# Live web search (keyless DuckDuckGo by default)
+memorius web "python 3.13 changelog"
+
+# Use the keyed Tavily provider for higher signal-to-noise
+memorius web "python 3.13 changelog" --provider tavily
+
+# Augment a local search with web when local hits are thin
+memorius search "latest rust release" --web
+```
+
+### Providers
+
+| Provider | Key | Notes |
+|---|---|---|
+| `duckduckgo` (default) | none | Keyless, stdlib-only scraper. Works out of the box. |
+| `tavily` | `TAVILY_API_KEY` or `MEMORIUS_TAVILY_API_KEY` | Agent-grade signal-to-noise. Missing key warns and returns `[]` — never crashes. |
+| `mock` | n/a | Test double for offline testing. |
+
+### Configuration
+
+```yaml
+retrieval:
+  web_fallback: false        # opt-in: augment thin local recall with web
+  web_provider: duckduckgo   # duckduckgo (keyless) | tavily (keyed) | mock (tests)
+  tavily_api_key: null       # or set TAVILY_API_KEY / MEMORIUS_TAVILY_API_KEY
+  web_min_results: 1         # fall back to web only when local hits < this
+  web_max_results: 5         # max web results to return
+```
+
+`MEMORIUS_WEB_PROVIDER`, `MEMORIUS_WEB_FALLBACK`, and `MEMORIUS_TAVILY_API_KEY`
+override the corresponding config keys (the raw `TAVILY_API_KEY` is also read
+directly). A missing Tavily key never crashes the CLI — it logs a warning and
+returns no web results.
 
 ## Embedding Providers
 
@@ -179,6 +231,9 @@ memorius profile <session>   Build session memory profile
 memorius stats               Show vault + memory + graph statistics
 memorius serve               Start MCP server (stdio)
 memorius serve-rest           Start REST API server
+memorius web <query>          Live web search (keyless DuckDuckGo by default)
+  --provider                  duckduckgo (keyless) | tavily (keyed via TAVILY_API_KEY)
+  --max                       Max results (default: 5)
 memorius --version            Show version
 memorius config               Show current configuration
 ```
