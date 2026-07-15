@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.5 (2026-07-15)
 
 ### Features
 - **`memorius delete <id>`** — remove a memory by UUID. Validates the ID
