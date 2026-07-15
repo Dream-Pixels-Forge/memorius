@@ -26,4 +26,4 @@ Architecture:
     memorius:  Main CLI — init, mine, search, diary, status, serve, hook
 """
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"

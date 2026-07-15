@@ -315,6 +315,7 @@ Based on user intent, route to the correct command:
 | "merge duplicates" / "clean up" | `consolidate` | `memorius consolidate --dry-run` |
 | "show my vault" / "what's stored" | `ls` or `stats` | `memorius ls` / `memorius stats` |
 | "sync with Obsidian" | `obsidian import/export` | `memorius obsidian import` |
+| "search the web" / "look this up" / no local match | `web` (+ `--web` on search/context/factcheck) | `memorius web "python 3.13 changelog"` |
 
 **After every command, always report what was created/returned:**
 

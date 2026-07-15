@@ -16,6 +16,7 @@ Usage:
   memorius obsidian list     List notes in an Obsidian vault
   memorius obsidian import   Import Obsidian notes as memories
   memorius obsidian export   Export memories as Obsidian notes
+  memorius web <query>     Search the internet (web fallback)
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from pathlib import Path
 from memorius import __version__
 from memorius.config import load_config, DEFAULT_CONFIG_DIR, DEFAULT_CONFIG_PATH
 from memorius.vault import VaultEngine
+from memorius.web_search import web_fallback_enabled, should_fallback
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -82,6 +84,7 @@ def main():
     search_p.add_argument("--n", type=int, default=10, help="Number of results")
     search_p.add_argument("--vault", default=None, help="Filter by vault")
     search_p.add_argument("--shelf", default=None, help="Filter by shelf")
+    search_p.add_argument("--web", action="store_true", help="Fall back to web search if local recall is thin")
 
     mine_p = subparsers.add_parser("mine", help="Mine memories from a transcript")
     mine_p.add_argument("file", nargs="?", default=None, help="Transcript file path")
@@ -126,11 +129,18 @@ def main():
     factcheck_p = subparsers.add_parser("factcheck", help="Fact-check against stored memories")
     factcheck_p.add_argument("statement", nargs="?", default=None, help="Statement to verify")
     factcheck_p.add_argument("--vault", default=None, help="Filter by vault")
+    factcheck_p.add_argument("--web", action="store_true", help="Cross-check uncertain claims against the web")
 
     context_p = subparsers.add_parser("context", help="Get memory context for injection")
     context_p.add_argument("query", nargs="?", default=None, help="Topic to search for")
     context_p.add_argument("--vault", default=None, help="Filter by vault")
     context_p.add_argument("--max", type=int, default=5, help="Max items")
+    context_p.add_argument("--web", action="store_true", help="Augment with web results if no local context")
+
+    web_p = subparsers.add_parser("web", help="Search the internet (web fallback)")
+    web_p.add_argument("query", nargs="?", default=None, help="Search query")
+    web_p.add_argument("--max", type=int, default=5, help="Max results")
+    web_p.add_argument("--provider", default=None, help="Provider override (duckduckgo|mock)")
 
     profile_p = subparsers.add_parser("profile", help="Build session memory profile")
     profile_p.add_argument("session_id", nargs="?", default=None, help="Session ID")
@@ -194,6 +204,7 @@ def main():
         "extract": cmd_extract,
         "factcheck": cmd_factcheck,
         "context": cmd_context,
+        "web": cmd_web,
         "profile": cmd_profile,
         "stats": cmd_stats,
     }
@@ -330,6 +341,24 @@ def cmd_search(engine, args, config):
         if len(m.content) > 200:
             print("   ...")
         print()
+
+    # Web fallback — only if local recall is thin ("if needed").
+    if web_fallback_enabled(args, config) and should_fallback(len(results), config):
+        from memorius.web_search import get_web_provider
+        provider = get_web_provider(config)
+        if provider:
+            web = provider.search(
+                query,
+                max_results=config.get("retrieval", {}).get("web_max_results", 5),
+            )
+            print("Web results (from internet):")
+            if not web:
+                print("  (no web results)")
+            for r in web:
+                print(f"  - {r.title}")
+                print(f"    {r.url}")
+                if r.snippet:
+                    print(f"    {r.snippet[:160]}")
 
 
 def cmd_mine(engine, args, config):
@@ -503,6 +532,47 @@ def cmd_factcheck(engine, args, config):
         for m in result.contradicting_memories:
             print(f"    - [{m['vault']}/{m['shelf']}] {m['content'][:100]}")
 
+    # Web cross-check when the vault can't settle the claim.
+    if result.verdict in ("uncertain", "no_match") and web_fallback_enabled(args, config):
+        from memorius.web_search import get_web_provider
+        provider = get_web_provider(config)
+        if provider:
+            web = provider.search(
+                result.statement,
+                max_results=config.get("retrieval", {}).get("web_max_results", 5),
+            )
+            if web:
+                print("  Web cross-check:")
+                for r in web[:3]:
+                    print(f"    - {r.title}: {r.url}")
+
+
+def cmd_web(engine, args, config):
+    """Search the internet (web fallback primitive)."""
+    from memorius.web_search import get_web_provider
+
+    query = args.query
+    if not query:
+        query = sys.stdin.read().strip()
+    if not query:
+        print("Error: query required (pass as argument or pipe to stdin)")
+        return
+
+    provider = get_web_provider(config, provider=args.provider)
+    if not provider:
+        print("Error: no web provider available")
+        return
+
+    results = provider.search(query, max_results=args.max)
+    print(f'Web search: "{query}"')
+    print(f"Results: {len(results)}")
+    print()
+    for i, r in enumerate(results, 1):
+        print(f"{i}. {r.title}")
+        print(f"   {r.url}")
+        if r.snippet:
+            print(f"   {r.snippet[:200]}")
+
 
 def cmd_context(engine, args, config):
     """Get memory context for injection."""
@@ -516,6 +586,23 @@ def cmd_context(engine, args, config):
     context = engine.get_context(query, vault=args.vault, max_items=args.max)
     if context:
         print(context)
+    elif web_fallback_enabled(args, config):
+        from memorius.web_search import get_web_provider
+        provider = get_web_provider(config)
+        if provider:
+            web = provider.search(
+                query,
+                max_results=config.get("retrieval", {}).get("web_max_results", 5),
+            )
+            if web:
+                print("No matching memories. Web results (from internet):")
+                for r in web:
+                    print(f"- {r.title}")
+                    print(f"  {r.url}")
+                    if r.snippet:
+                        print(f"  {r.snippet[:160]}")
+            else:
+                print("No relevant memories or web results found.")
     else:
         print("No relevant memories found.")
 

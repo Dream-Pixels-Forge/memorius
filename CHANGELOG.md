@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.4.2 (2026-07-15)
+
+### Features
+- **Hybrid retrieval with web fallback** — when local recall is thin,
+  memorius can now augment results with *cited* web search
+  ("search the internet if needed"). 2026-aligned: grounded,
+  local-first retrieval that reaches the live web only as a fallback.
+  - `memorius web "<query>"` — new standalone web-search command.
+  - `search` / `context` / `factcheck` gain a `--web` flag; `search`
+    and `context` also fall back automatically when `retrieval.web_fallback`
+    is enabled in config.
+  - `memorius/web_search.py`: pluggable `WebSearchProvider` with a
+    **keyless** `DuckDuckGoProvider` (stdlib-only) and a `MockProvider`
+    for tests. Fallback triggers only when local hits < `web_min_results`.
+  - Off by default (privacy / local-first); enable via config or `--web`.
+    Env overrides: `MEMORIUS_WEB_FALLBACK`, `MEMORIUS_WEB_PROVIDER`.
+
 ## v0.4.1 (2026-07-15)
 
 ### Bug Fixes
