@@ -17,7 +17,7 @@ from typing import Any
 
 from memorius.embeddings import EmbeddingFactory, EmbeddingProvider
 from memorius.config import load_config
-from memorius.validation import validate_name as _validate_name
+from memorius.validation import validate_name as _validate_name, validate_memory_id
 from memorius.models import Memory  # noqa: F401
 from memorius.vector_store import ChromaStore
 from memorius.meta_store import SQLiteStore
@@ -154,6 +154,73 @@ class VaultEngine:
             except Exception:
                 logger.debug("Failed to record access for %s", mem.id)
         return results
+
+    def delete(self, memory_id: str, vault: str | None = None,
+               shelf: str | None = None, dry_run: bool = False) -> dict[str, Any]:
+        """Delete a memory by ID, with validation and an optional dry-run.
+
+        Args:
+            memory_id: UUID of the memory to delete.
+            vault: Optional vault scope. If given, must match the memory's
+                actual vault (prevents deleting the wrong memory when IDs
+                are scoped to a vault).
+            shelf: Optional shelf scope. If given, must match the memory's
+                actual shelf.
+            dry_run: If True, return what *would* be deleted without deleting.
+
+        Returns:
+            dict with keys: found, deleted, memory_id, vault, shelf, folder,
+            note, content.
+
+        Raises:
+            ValueError: if memory_id is invalid/missing, or if a provided
+                vault/shelf does not match the memory's actual location.
+        """
+        memory_id = validate_memory_id(memory_id)
+        meta = self._meta.get_memory_meta(memory_id)
+        result: dict[str, Any] = {
+            "found": meta is not None,
+            "deleted": False,
+            "memory_id": memory_id,
+            "vault": None,
+            "shelf": None,
+            "folder": None,
+            "note": None,
+            "content": None,
+        }
+        if meta is None:
+            return result
+
+        result.update({
+            "vault": meta["vault"],
+            "shelf": meta["shelf"],
+            "folder": meta["folder"],
+            "note": meta["note"],
+            "content": meta["content"],
+        })
+
+        # Validate optional scope and ensure it matches the memory's location.
+        if vault is not None:
+            vault = _validate_name(vault, "vault")
+            if vault != meta["vault"]:
+                raise ValueError(
+                    f"memory {memory_id} is in vault {meta['vault']!r}, not {vault!r}"
+                )
+        if shelf is not None:
+            shelf = _validate_name(shelf, "shelf")
+            if shelf != meta["shelf"]:
+                raise ValueError(
+                    f"memory {memory_id} is on shelf {meta['shelf']!r}, not {shelf!r}"
+                )
+
+        if dry_run:
+            return result
+
+        # Hard delete from both the vector store and metadata store.
+        self._vector.delete(memory_id, meta["vault"], meta["shelf"])
+        self._meta.delete_memory(memory_id)
+        result["deleted"] = True
+        return result
 
     def mine(self, text: str, vault: str = "main", shelf: str = "conversations",
              folder: str = "mined", note: str = "transcript") -> list[Memory]:

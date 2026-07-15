@@ -6,6 +6,7 @@ Single source of truth for input validation across MCP, REST, and CLI.
 from __future__ import annotations
 
 import re
+import uuid as _uuid
 
 # ── Name validation ──────────────────────────────────────────────────────────
 
@@ -35,6 +36,35 @@ def validate_name(value: str, label: str = "name") -> str:
         raise ValueError(
             f"{label} can only contain letters, numbers, hyphens, and underscores"
         )
+    return value
+
+
+# ── Memory ID validation ─────────────────────────────────────────────────────
+
+
+def validate_memory_id(value: str) -> str:
+    """Validate a memory ID.
+
+    Memory IDs are generated as ``str(uuid.uuid4())``, so requiring a valid
+    UUID here rejects path-traversal and garbage inputs before they reach the
+    delete path, and makes accidental mis-deletes harder to do by typo.
+
+    Args:
+        value: The memory ID string to validate.
+
+    Returns:
+        The validated (stripped) memory ID.
+
+    Raises:
+        ValueError: If the ID is missing/blank or not a valid UUID.
+    """
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("memory_id is required")
+    value = value.strip()
+    try:
+        _uuid.UUID(value)
+    except (ValueError, AttributeError, TypeError):
+        raise ValueError("memory_id must be a valid UUID")
     return value
 
 

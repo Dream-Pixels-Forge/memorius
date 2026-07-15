@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Features
+- **`memorius delete <id>`** — remove a memory by UUID. Validates the ID
+  (must be a valid UUID), confirms existence, shows a content preview, and
+  asks for confirmation before deleting (skip with `--yes`; preview with
+  `--dry-run`). Hard-deletes from both the vector and metadata stores and
+  cleans up dangling knowledge-graph edges. Optional `--vault` / `--shelf`
+  scope must match the memory's real location (prevents cross-vault deletes).
+
 ## v0.4.4 (2026-07-15)
 
 ### Fixes

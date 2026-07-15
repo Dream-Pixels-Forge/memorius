@@ -236,6 +236,11 @@ memorius web <query>          Live web search (keyless DuckDuckGo by default)
   --max                       Max results (default: 5)
 memorius --version            Show version
 memorius config               Show current configuration
+memorius delete <id>          Delete a memory by ID (validation + confirmation)
+  --vault, -v                  Vault scope (must match the memory's vault)
+  --shelf, -s                  Shelf scope (must match the memory's shelf)
+  --yes, -y                    Skip the confirmation prompt
+  --dry-run                    Preview what would be deleted (no changes)
 ```
 
 ### Obsidian integration

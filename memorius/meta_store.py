@@ -478,6 +478,37 @@ class SQLiteStore:
             )
             conn.commit()
 
+    def delete_memory(self, memory_id: str) -> dict | None:
+        """Hard-delete a memory and clean up its graph edges + note count.
+
+        Returns the deleted memory's metadata, or None if it didn't exist
+        (so callers can distinguish 'not found' from 'deleted').
+        """
+        conn = self._conn()
+        meta = self.get_memory_meta(memory_id)
+        if not meta:
+            return None
+        now = datetime.now(timezone.utc).isoformat()
+        with self._lock:
+            # Remove graph edges referencing this memory (both directions).
+            try:
+                conn.execute(
+                    "DELETE FROM memory_graph WHERE source_id = ? OR target_id = ?",
+                    (memory_id, memory_id),
+                )
+            except sqlite3.OperationalError:
+                pass  # graph table may not exist if no links were ever created
+            # Decrement the owning note's memory count (floor at 0).
+            conn.execute(
+                "UPDATE notes SET memory_count = MAX(0, memory_count - 1), updated_at = ? "
+                "WHERE vault = ? AND shelf = ? AND folder = ? AND name = ?",
+                (now, meta["vault"], meta["shelf"], meta["folder"], meta["note"]),
+            )
+            # Hard-delete the memory row.
+            conn.execute("DELETE FROM memory_meta WHERE id = ?", (memory_id,))
+            conn.commit()
+        return dict(meta)
+
     def get_memory_stats(self) -> dict:
         """Get statistics about tracked memories."""
         conn = self._conn()

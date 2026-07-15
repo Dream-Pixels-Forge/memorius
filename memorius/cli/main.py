@@ -17,6 +17,7 @@ Usage:
   memorius obsidian import   Import Obsidian notes as memories
   memorius obsidian export   Export memories as Obsidian notes
   memorius web <query>     Search the internet (web fallback)
+  memorius delete <id>     Delete a memory by ID (validation + confirmation)
 """
 
 from __future__ import annotations
@@ -148,6 +149,13 @@ def main():
 
     subparsers.add_parser("stats", help="Show memory statistics")
 
+    delete_p = subparsers.add_parser("delete", help="Delete a memory by ID")
+    delete_p.add_argument("memory_id", help="Memory UUID to delete")
+    delete_p.add_argument("--vault", default=None, help="Vault scope (must match memory's vault)")
+    delete_p.add_argument("--shelf", default=None, help="Shelf scope (must match memory's shelf)")
+    delete_p.add_argument("--yes", "-y", action="store_true", help="Skip confirmation prompt")
+    delete_p.add_argument("--dry-run", action="store_true", help="Preview without deleting")
+
     # ── Obsidian subcommands ──
     obsidian_p = subparsers.add_parser("obsidian", help="Interact with Obsidian vaults")
     obsidian_sub = obsidian_p.add_subparsers(dest="subcommand")
@@ -207,6 +215,7 @@ def main():
         "web": cmd_web,
         "profile": cmd_profile,
         "stats": cmd_stats,
+        "delete": cmd_delete,
     }
     handler = commands.get(args.command)
     if handler:
@@ -649,6 +658,59 @@ def cmd_stats(engine, args, config):
         print("    Relations:")
         for rel, count in relations.items():
             print(f"      {rel}: {count}")
+
+
+def cmd_delete(engine, args, config):
+    """Delete a memory by ID, with validation and confirmation."""
+    from memorius.validation import validate_memory_id as _validate_memory_id
+
+    # 1) Validate the ID up front — clear error before any side effect.
+    try:
+        memory_id = _validate_memory_id(args.memory_id)
+    except ValueError as e:
+        print(f"Error: {e}")
+        return
+
+    # 2) Existence + location so we can show the user exactly what they're deleting.
+    meta = engine.meta.get_memory_meta(memory_id)
+    if not meta:
+        print(f"Error: memory not found: {memory_id}")
+        return
+
+    path = f"{meta['vault']}/{meta['shelf']}/{meta['folder']}/{meta['note']}"
+    preview = (meta["content"] or "").replace("\n", " ").strip()
+    if len(preview) > 120:
+        preview = preview[:117] + "..."
+
+    # 3) Dry-run: show what would be deleted, change nothing.
+    if args.dry_run:
+        print(f"[dry-run] Would delete: {memory_id}")
+        print(f"  Path:    {path}")
+        print(f"  Content: {preview}")
+        return
+
+    # 4) Confirmation gate (skipped with --yes). Non-interactive input => abort.
+    if not args.yes:
+        try:
+            ans = input(
+                f"Delete memory {memory_id} at {path}?\n"
+                f'  "{preview}"\n'
+                f"Are you sure? [y/N] "
+            ).strip().lower()
+        except EOFError:
+            print("\nAborted (no confirmation).")
+            return
+        if ans not in ("y", "yes"):
+            print("Aborted.")
+            return
+
+    # 5) Delete (engine re-validates and scopes to the memory's real location).
+    result = engine.delete(memory_id, vault=args.vault, shelf=args.shelf)
+    if result["deleted"]:
+        print(f"Deleted: {memory_id}")
+        print(f"  Path: {path}")
+    else:
+        print(f"Nothing deleted (found={result['found']}).")
 
 
 if __name__ == "__main__":
