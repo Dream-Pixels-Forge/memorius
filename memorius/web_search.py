@@ -15,6 +15,7 @@ flag — memorius never phones home unless you ask it to.
 from __future__ import annotations
 
 import html
+import json
 import logging
 import os
 import urllib.parse
@@ -107,7 +108,6 @@ class TavilyProvider(WebSearchProvider):
         return key
 
     def search(self, query: str, max_results: int = 5) -> list[WebResult]:
-        import json
         try:
             key = self._resolve_key()
         except RuntimeError as e:
@@ -228,7 +228,6 @@ def get_web_provider(
     retrieval = config.get("retrieval", {}) if isinstance(config, dict) else {}
     name = (provider or retrieval.get("web_provider", "duckduckgo")).lower()
     if name == "tavily":
-        retrieval = config.get("retrieval", {}) if isinstance(config, dict) else {}
         return TavilyProvider(api_key=retrieval.get("tavily_api_key"))
     if name == "mock":
         return MockProvider()
