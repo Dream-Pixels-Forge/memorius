@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.4 (2026-07-15)
+
+### Fixes
+- **web_search**: drop a redundant `retrieval` re-assignment in
+  `get_web_provider`'s `tavily` branch and hoist `import json` to
+  module level (no behaviour change).
+
 ## v0.4.3 (2026-07-15)
 
 ### Features
