@@ -36,7 +36,21 @@ logging.basicConfig(
 logger = logging.getLogger("memorius.cli")
 
 
+def _ensure_utf8_streams():
+    """Force UTF-8 on stdout/stderr so emoji/icons (e.g. the factcheck verdict
+    glyphs) don't crash on Windows cp1252 consoles. Best-effort: a stream
+    that can't be reconfigured (e.g. piped to a file) is left untouched."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):
+                pass
+
+
 def main():
+    _ensure_utf8_streams()
     parser = argparse.ArgumentParser(
         "memorius",
         description="Memory vault for any AI agent — store, search, and organize memories.",

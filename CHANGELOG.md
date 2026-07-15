@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.4.1 (2026-07-15)
+
+### Bug Fixes
+- **factcheck crash on Windows consoles** — `memorius factcheck` raised
+  `UnicodeEncodeError: 'charmap' codec can't encode characters ...` and died
+  before printing a verdict. The CLI now forces UTF-8 on `sys.stdout`/
+  `sys.stderr` at the top of `main()` (via `_ensure_utf8_streams()`, a
+  best-effort `reconfigure` that no-ops on streams that can't be
+  reconfigured, e.g. when piped to a file). The emoji verdict glyphs
+  (✅ ❌ ⚠️ ❓) now render cleanly on cp1252 consoles.
+- Added `tests/test_encoding_regression.py` guarding the cp1252 crash
+  across all four factcheck verdict glyphs.
+
 ## v0.4.0 (2026-06-14)
 
 ### Breaking Changes
