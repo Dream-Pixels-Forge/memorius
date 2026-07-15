@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.3 (2026-07-15)
+
+### Features
+- **`TavilyProvider`** — keyed, agent-grade web search for the hybrid
+  retrieval fallback. Reads the key from `retrieval.tavily_api_key`
+  or the `TAVILY_API_KEY` env var; missing key warns and returns
+  `[]` (never crashes the CLI). Selected via `retrieval.web_provider:
+  tavily` or `MEMORIUS_WEB_PROVIDER=tavily`. `DuckDuckGo`
+  (keyless) remains the default.
+
 ## v0.4.2 (2026-07-15)
 
 ### Features

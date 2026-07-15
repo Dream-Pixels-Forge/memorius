@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import html
 import logging
+import os
 import urllib.parse
 import urllib.request
 from abc import ABC, abstractmethod
@@ -80,6 +81,68 @@ class DuckDuckGoProvider(WebSearchProvider):
             logger.warning("DuckDuckGo search failed: %s", e)
             return []
         return _parse_ddg_lite(raw, max_results)
+
+
+class TavilyProvider(WebSearchProvider):
+    """Tavily web search — API key required, best signal-to-noise for agents.
+
+    Key from ``api_key`` arg, config ``retrieval.tavily_api_key``, or
+    the ``TAVILY_API_KEY`` env var. Missing key -> warns + returns [].
+    """
+
+    name = "tavily"
+    _ENDPOINT = "https://api.tavily.com/search"
+
+    def __init__(self, api_key: str | None = None, timeout: float = 15.0):
+        self._api_key = api_key
+        self.timeout = timeout
+
+    def _resolve_key(self) -> str:
+        key = self._api_key or os.environ.get("TAVILY_API_KEY")
+        if not key:
+            raise RuntimeError(
+                "Tavily requires an API key: set TAVILY_API_KEY or "
+                "retrieval.tavily_api_key in config."
+            )
+        return key
+
+    def search(self, query: str, max_results: int = 5) -> list[WebResult]:
+        import json
+        try:
+            key = self._resolve_key()
+        except RuntimeError as e:
+            logger.warning(str(e))
+            return []
+        payload = {
+            "api_key": key,
+            "query": query,
+            "max_results": max_results,
+            "search_depth": "basic",
+            "include_answer": False,
+            "include_raw_content": False,
+        }
+        data = json.dumps(payload).encode()
+        req = urllib.request.Request(
+            self._ENDPOINT,
+            data=data,
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                body = json.loads(resp.read().decode("utf-8", "replace"))
+        except Exception as e:  # network/timeout/auth — never crash the CLI
+            logger.warning("Tavily search failed: %s", e)
+            return []
+        out: list[WebResult] = []
+        for r in body.get("results", [])[:max_results]:
+            out.append(
+                WebResult(
+                    title=r.get("title", ""),
+                    url=r.get("url", ""),
+                    snippet=r.get("content", ""),
+                )
+            )
+        return out
 
 
 class MockProvider(WebSearchProvider):
@@ -164,6 +227,9 @@ def get_web_provider(
     """Build the configured web provider, or ``None`` if unavailable."""
     retrieval = config.get("retrieval", {}) if isinstance(config, dict) else {}
     name = (provider or retrieval.get("web_provider", "duckduckgo")).lower()
+    if name == "tavily":
+        retrieval = config.get("retrieval", {}) if isinstance(config, dict) else {}
+        return TavilyProvider(api_key=retrieval.get("tavily_api_key"))
     if name == "mock":
         return MockProvider()
     if name == "duckduckgo":

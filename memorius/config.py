@@ -40,7 +40,8 @@ hooks:
 
 retrieval:
   web_fallback: false      # opt-in: augment thin local recall with web (local-first / privacy)
-  web_provider: duckduckgo  # duckduckgo (keyless) | mock (tests)
+  web_provider: duckduckgo  # duckduckgo (keyless) | tavily (keyed) | mock (tests)
+  tavily_api_key: null      # or set TAVILY_API_KEY env var
   web_min_results: 1       # if ZERO local hits, fall back to web
   web_max_results: 5       # max web results to return
 """
@@ -107,6 +108,7 @@ def _ensure_defaults(config: dict[str, Any]):
     retrieval = config.setdefault("retrieval", {})
     retrieval.setdefault("web_fallback", False)
     retrieval.setdefault("web_provider", "duckduckgo")
+    retrieval.setdefault("tavily_api_key", None)
     retrieval.setdefault("web_min_results", 1)
     retrieval.setdefault("web_max_results", 5)
 
@@ -126,6 +128,7 @@ def _apply_env_overrides(config: dict[str, Any]):
         "MEMORIUS_DEFAULT_VAULT": ("vault", "default"),
         "MEMORIUS_WEB_FALLBACK": ("retrieval", "web_fallback"),
         "MEMORIUS_WEB_PROVIDER": ("retrieval", "web_provider"),
+        "MEMORIUS_TAVILY_API_KEY": ("retrieval", "tavily_api_key"),
     }
     for env_key, (section, key) in overrides.items():
         val = os.environ.get(env_key)

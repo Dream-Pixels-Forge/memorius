@@ -9,6 +9,7 @@ from pathlib import Path
 from memorius.web_search import (
     DuckDuckGoProvider,
     MockProvider,
+    TavilyProvider,
     WebResult,
     _parse_ddg_lite,
     get_web_provider,
@@ -67,9 +68,49 @@ def test_get_web_provider_mock():
     assert isinstance(p, MockProvider)
 
 
+def test_get_web_provider_tavily():
+    p = get_web_provider(_cfg(web_provider="tavily"))
+    assert isinstance(p, TavilyProvider)
+
+
 def test_get_web_provider_unknown_falls_back_to_duckduckgo(caplog):
     p = get_web_provider(_cfg(web_provider="bogus"))
     assert isinstance(p, DuckDuckGoProvider)
+
+
+def test_tavily_provider_parses_response(monkeypatch):
+    import json
+    import urllib.request
+
+    fake = json.dumps({
+        "results": [
+            {"title": "Tavily A", "url": "https://a", "content": "snippet A"},
+            {"title": "Tavily B", "url": "https://b", "content": "snippet B"},
+        ]
+    }).encode()
+
+    class _Resp:
+        def read(self):
+            return fake
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: _Resp())
+    p = TavilyProvider(api_key="tvly-x")
+    out = p.search("query", max_results=5)
+    assert len(out) == 2
+    assert out[0].title == "Tavily A"
+    assert out[0].url == "https://a"
+    assert out[0].snippet == "snippet A"
+
+
+def test_tavily_provider_no_key_returns_empty(monkeypatch, capsys):
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    p = TavilyProvider(api_key=None)
+    assert p.search("q") == []   # warns, never crashes
+
 
 
 # ── Fallback decision ─────────────────────────────────────────────────────
