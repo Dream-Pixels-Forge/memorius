@@ -3,7 +3,8 @@
 Status of the repo after the 0.4.5 hardening pass that produced this document:
 
 - **Phase 0 — Bug fixes: COMPLETE** (9 verified bugs fixed; 9 regression tests added in `tests/test_regression_bugs.py`; full suite 123 green — 104 non-integration in ~40s, 10 integration in ~92s, 9 regression in ~14s).
-- This document covers **Phase 1 onward — new features**. It is deliberately a plan, not a spec: each item names the goal, the files it touches, the user-facing API surface, the tests it needs, and the risks. Implementation is staged so each phase ships independently and never blocks the next.
+- **Phase 1.1 — Graph-aware retrieval: COMPLETE** (`engine.search(expand_graph=...)` walks the knowledge graph from primary hits and appends 1-hop linked memories, deduped and capped at `ceil(limit*1.5)`; `ContextInjector.inject` defaults `expand_graph=True`; `memorius search --expand-graph` CLI flag; MCP `memorius_search.expand_graph` and REST `POST /search.expand_graph` booleans; new `engine.get_memories_by_ids()` helper; 9 feature tests in `tests/test_feature_graph_retrieval.py`. Suite now 132 green — 122 non-integration in ~58s, 10 integration in ~76s, 9 feature in ~33s).
+- This document covers **Phase 1 onward — new features**, with 1.1 already shipped. The remainder is deliberately a plan, not a spec: each item names the goal, the files it touches, the user-facing API surface, the tests it needs, and the risks. Implementation is staged so each phase ships independently and never blocks the next.
 
 Prioritization rubric: **Impact × Confidence ÷ Effort**. P1 items are the ones that most materially change what memorius *does* for the user; P4 are nice-to-haves and infra hardening.
 
@@ -13,8 +14,10 @@ Prioritization rubric: **Impact × Confidence ÷ Effort**. P1 items are the ones
 
 The knowledge graph and temporal metadata already exist and are already maintained, but neither is *read* during retrieval. Three features wire them into the hot path. Ship together as one coherent "smarter recall" release.
 
-### 1.1 Graph-aware retrieval — `expand_graph` in `search` / `context`
+### 1.1 Graph-aware retrieval — `expand_graph` in `search` / `context`  ✅ SHIPPED
 **Goal:** when a memory matches a query, also surface 1-hop linked memories (the "you also worked on X" effect). The graph is built on every store but never read today.
+
+**Shipped in commit after the 0.4.5 hardening pass.** `engine.search(..., expand_graph=True, graph_hops=1, graph_min_weight=0.3)` appends graph-expanded memories (deduped against seeds, capped at `math.ceil(limit * 1.5)` total). `ContextInjector.inject` defaults `expand_graph=True`. CLI `--expand-graph`, MCP `memorius_search.expand_graph`, REST `POST /search.expand_graph` (all default off except context injection, where it's on). New `engine.get_memories_by_ids(ids, with_vectors=...)` helper. 9 feature tests in `tests/test_feature_graph_retrieval.py`.
 
 **Files:** `memorius/vault.py` (search), `memorius/context_inject.py` (inject), `memorius/graph.py` (no change — `expand_graph` already exists), `memorius/mcp_server.py` + `memorius/rest_server.py` (optional `expand` flag).
 

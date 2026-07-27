@@ -54,7 +54,7 @@ class McpServer:
         },
         {
             "name": "memorius_search",
-            "description": "Semantic search across the vault. Use before answering questions about past work.",
+            "description": "Semantic search across the vault. Use before answering questions about past work. Set expand_graph=true to also pull in memories linked in the knowledge graph to the primary hits (\"you also worked on X\").",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -62,6 +62,7 @@ class McpServer:
                     "n_results": {"type": "number", "description": "Number of results (default: 10)", "default": 10},
                     "vault": {"type": "string", "description": "Filter by vault"},
                     "shelf": {"type": "string", "description": "Filter by shelf"},
+                    "expand_graph": {"type": "boolean", "description": "Also pull in 1-hop graph-linked memories (default: false). Off preserves the original search-only behavior; on augments with related memories.", "default": False},
                 },
                 "required": ["query"],
             },
@@ -320,12 +321,14 @@ class McpServer:
         n_results = min(args.get("n_results", 10), MAX_SEARCH_LIMIT)
         vault = _validate_name(args.get("vault"), "vault") if args.get("vault") else None
         shelf = _validate_name(args.get("shelf"), "shelf") if args.get("shelf") else None
+        expand_graph = bool(args.get("expand_graph", False))
 
         results = self._engine.search(
             query=query,
             vault=vault,
             shelf=shelf,
             limit=n_results,
+            expand_graph=expand_graph,
         )
         # Exclude vector from response — it's large and not useful to callers
         return {

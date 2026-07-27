@@ -11,6 +11,7 @@ Hierarchy: Vault > Shelf > Folder > Note
 from __future__ import annotations
 
 import logging
+import math
 import uuid
 from pathlib import Path
 from typing import Any
@@ -118,8 +119,18 @@ class VaultEngine:
         return memory
 
     def search(self, query: str, vault: str | None = None,
-               shelf: str | None = None, limit: int = 10) -> list[Memory]:
-        """Search vault contents by semantic similarity with temporal decay ranking."""
+               shelf: str | None = None, limit: int = 10,
+               expand_graph: bool = False, graph_hops: int = 1,
+               graph_min_weight: float = 0.3) -> list[Memory]:
+        """Search vault contents by semantic similarity with temporal decay
+        ranking.
+
+        When ``expand_graph=True``, after the primary ranked results are
+        selected, walk the knowledge graph up to ``graph_hops`` hops from
+        each seed memory and append linked memories (deduped against the
+        seeds) so the caller also sees "what's connected to this". The
+        total returned size is capped at ``int(limit * 1.5)``.
+        """
         results = self._vector.search(query, vault=vault, shelf=shelf, n_results=limit * 2)
         try:
             from memorius.temporal import calculate_decay_score, calculate_search_score
@@ -152,12 +163,93 @@ class VaultEngine:
         except Exception:
             logger.debug("Temporal decay scoring failed, using rank order")
             results = results[:limit]
+
+        # ── Graph expansion (opt-in) ────────────────────────────────────────
+        # The seed results are the ranked matches above. If asked, walk the
+        # knowledge graph from those seeds and bring in linked memories that
+        # the vector search wouldn't have surfaced on its own.
+        if expand_graph and results:
+            expanded = self._expand_from_graph(
+                results, vault=vault, hops=graph_hops,
+                min_weight=graph_min_weight,
+                max_extra=max(0, math.ceil(limit * 1.5) - len(results)),
+            )
+            if expanded:
+                results = results + expanded
+
         for mem in results:
             try:
                 self._meta.record_access(mem.id)
             except Exception:
                 logger.debug("Failed to record access for %s", mem.id)
         return results
+
+    def _expand_from_graph(self, seeds: list[Memory], vault: str | None,
+                           hops: int, min_weight: float,
+                           max_extra: int) -> list[Memory]:
+        """Walk the knowledge graph from ``seeds`` and return linked memories
+        not already present in ``seeds``. Returns at most ``max_extra``
+        memories. Best-effort: any graph failure is swallowed (graph linking
+        is a supplement, never a hard requirement)."""
+        if max_extra <= 0 or not seeds:
+            return []
+        try:
+            from memorius.graph import expand_graph, init_graph_schema
+            conn = self._meta._conn()
+            init_graph_schema(conn)
+            res = expand_graph(
+                conn, [m.id for m in seeds], hops=max(1, hops),
+                min_weight=min_weight, max_nodes=max_extra,
+            )
+            expanded_ids = list(res.expanded_ids)
+        except Exception:
+            logger.debug("Graph expansion failed (best-effort)")
+            return []
+        if not expanded_ids:
+            return []
+        # If the caller scoped to one vault, only add memories in that vault.
+        fetched = self.get_memories_by_ids(expanded_ids, with_vectors=False)
+        seed_ids = {m.id for m in seeds}
+        out: list[Memory] = []
+        for mem in fetched:
+            if mem.id in seed_ids:
+                continue
+            if vault is not None and mem.vault != vault:
+                continue
+            out.append(mem)
+            if len(out) >= max_extra:
+                break
+        return out
+
+    def get_memories_by_ids(self, ids: list[str],
+                            with_vectors: bool = True) -> list[Memory]:
+        """Fetch memories by exact ID. Vectors are pulled from ChromaDB only
+        when ``with_vectors=True``. Memories whose meta row is missing or
+        whose vector is unfetchable are skipped."""
+        if not ids:
+            return []
+        metas = self._meta.get_memory_meta_batch(ids)
+        if not metas:
+            return []
+        groups: dict[tuple[str, str], list[str]] = {}
+        for mid, meta in metas.items():
+            v = meta.get("vault", "")
+            s = meta.get("shelf", "")
+            groups.setdefault((v, s), []).append(mid)
+        out: list[Memory] = []
+        for (v, s), group_ids in groups.items():
+            fetched = self._vector.get_by_ids(
+                group_ids, v, s, include_vectors=with_vectors,
+            )
+            for m in fetched:
+                meta = metas.get(m.id)
+                if meta:
+                    if not m.created_at:
+                        m.created_at = meta.get("created_at", m.created_at)
+                    if not m.updated_at:
+                        m.updated_at = meta.get("updated_at", m.updated_at)
+                out.append(m)
+        return out
 
     def list_memories(self, vault: str | None = None, shelf: str | None = None,
                       limit: int | None = None, with_vectors: bool = True) -> list[Memory]:

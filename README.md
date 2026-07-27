@@ -202,9 +202,10 @@ memorius store <text>        Store a memory
   --folder, -f                 Folder name (default: default)
   --note, -n                   Note name (default: default)
 memorius search <query>      Semantic search
-  --vault, -v                  Filter by vault
-  --shelf, -s                  Filter by shelf
-  --n                          Max results (default: 10)
+   --vault, -v                  Filter by vault
+   --shelf, -s                  Filter by shelf
+   --n                          Max results (default: 10)
+   --expand-graph                Also pull in 1-hop graph-linked memories (\"you also worked on X\")
 memorius mine <file|text>    Extract memories from transcript
   --vault, -v                  Target vault (default: main)
 memorius diary <session>     Write a diary entry

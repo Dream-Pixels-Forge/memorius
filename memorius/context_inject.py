@@ -159,6 +159,7 @@ class ContextInjector:
         vault: str | None = None,
         shelf: str | None = None,
         max_items: int | None = None,
+        expand_graph: bool = True,
     ) -> str:
         """Search and format relevant memories for injection.
 
@@ -167,6 +168,10 @@ class ContextInjector:
             vault: Filter by vault
             shelf: Filter by shelf
             max_items: Override max items to return
+            expand_graph: Pull in 1-hop linked memories from the knowledge
+                graph (default on — context injection is exactly where
+                graph-aware recall pays off; the primary vector hits get
+                augmented with "you also did X" connections).
 
         Returns:
             Formatted memory block string (empty if no relevant memories)
@@ -178,6 +183,8 @@ class ContextInjector:
             vault=vault,
             shelf=shelf,
             limit=limit * 2,  # fetch extra for filtering
+            expand_graph=expand_graph,
+            graph_hops=1,
         )
 
         # Filter by minimum relevance (using embedding distance)

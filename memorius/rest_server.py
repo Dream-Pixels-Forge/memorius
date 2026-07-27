@@ -137,7 +137,11 @@ class MemoriusAPI:
             limit = min(payload.get("limit", 10), MAX_SEARCH_LIMIT)
             vault = _validate_name(payload.get("vault"), "vault") if payload.get("vault") else None
             shelf = _validate_name(payload.get("shelf"), "shelf") if payload.get("shelf") else None
-            results = engine.search(query=query, vault=vault, shelf=shelf, limit=limit)
+            expand_graph = bool(payload.get("expand_graph", False))
+            results = engine.search(
+                query=query, vault=vault, shelf=shelf, limit=limit,
+                expand_graph=expand_graph,
+            )
             out = []
             for m in results:
                 d = m.to_dict()
