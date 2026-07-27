@@ -178,60 +178,71 @@ def check_statement(
 def _detect_contradiction(text_a: str, text_b: str) -> bool:
     """Detect if two texts contradict each other.
 
-    Checks for:
-    1. Negation patterns (is/is not, use/don't use)
-    2. Opposing pairs (yes/no, enable/disable)
-    3. Entity-slot conflicts — same structure, different entity values
-       e.g. "The project uses React" vs "The project uses Vue"
+    Checks for (in strictness order):
+    1. Negation patterns (is/is not, use/don't use) -- matched as
+       word-boundary phrases so "is" does NOT match inside "this" or
+       "history".
+    2. Opposing pairs (yes/no, enable/disable) -- same word-boundary
+       treatment so "no" does NOT match inside "know" or "note".
+    3. Entity-slot conflicts -- two sentences are nearly identical in
+       position and length but one content word differs, e.g. "The
+       project uses React" vs "The project uses Vue". Tightened vs the
+       old version: sentences must be nearly the SAME length (length
+       ratio >= 0.8) so trailing additions don't trip it, and exactly
+       one non-stopword entity slot must differ.
     """
     text_a_lower = text_a.lower()
     text_b_lower = text_b.lower()
 
-    # Negation patterns
+    # Negation patterns -- \b word boundaries so "is" can't match "this",
+    # "can" can't match "significant", "no" can't match "know".
+    def _has(text: str, phrase: str) -> bool:
+        return re.search(rf"\b{re.escape(phrase)}\b", text) is not None
+
     negations = [
         ("is", "is not"), ("are", "are not"), ("was", "was not"),
-        ("has", "has not"), ("does", "does not"), ("can", "can not"),
-        ("will", "will not"), ("should", "should not"),
-        ("use", "don't use"), ("prefer", "don't prefer"),
+        ("has", "has not"), ("does", "does not"), ("can", "cannot"),
+        ("can", "can not"), ("will", "will not"), ("should", "should not"),
+        ("use", "don't use"), ("use", "do not use"),
+        ("prefer", "don't prefer"), ("prefer", "do not prefer"),
     ]
 
     for pos, neg in negations:
-        if pos in text_a_lower and neg in text_b_lower:
+        if _has(text_a_lower, pos) and _has(text_b_lower, neg):
             return True
-        if neg in text_a_lower and pos in text_b_lower:
+        if _has(text_a_lower, neg) and _has(text_b_lower, pos):
             return True
 
-    # Check for opposing values
+    # Opposing-value pairs -- same word-boundary treatment.
     opposing_pairs = [
         ("yes", "no"), ("true", "false"), ("enable", "disable"),
         ("add", "remove"), ("create", "delete"), ("start", "stop"),
         ("fast", "slow"), ("big", "small"), ("new", "old"),
+        ("always", "never"), ("increase", "decrease"),
     ]
 
     for a, b in opposing_pairs:
-        if a in text_a_lower and b in text_b_lower:
+        if _has(text_a_lower, a) and _has(text_b_lower, b):
             return True
-        if b in text_a_lower and a in text_b_lower:
+        if _has(text_a_lower, b) and _has(text_b_lower, a):
             return True
 
-    # Entity-slot conflict detection:
-    # If two sentences share the same template but differ in entity positions,
-    # they likely contradict (e.g. "uses React" vs "uses Vue").
+    # Entity-slot conflict: same template, different entity value.
     words_a = text_a_lower.split()
     words_b = text_b_lower.split()
 
     if len(words_a) >= 3 and len(words_b) >= 3:
-        # Find positions where words differ
+        # Only compare sentences of nearly-equal length so that "the sky is
+        # blue" vs "the sky is blue today" doesn't trip the heuristic.
+        len_ratio = min(len(words_a), len(words_b)) / max(len(words_a), len(words_b))
+        if len_ratio < 0.8:
+            return False
         min_len = min(len(words_a), len(words_b))
         diff_positions = [
             i for i in range(min_len) if words_a[i] != words_b[i]
         ]
-
-        # If most words match but a few differ (entity slots), it's a conflict
         match_ratio = (min_len - len(diff_positions)) / min_len
-        if match_ratio >= ENTITY_SLOT_MATCH_RATIO and 1 <= len(diff_positions) <= max(1, min_len // 3):
-            # The differing words are potential entity-slot conflicts
-            # Exclude common stop words from being counted as entity differences
+        if match_ratio >= ENTITY_SLOT_MATCH_RATIO and len(diff_positions) >= 1:
             stop_words = {
                 "the", "a", "an", "is", "are", "was", "were", "be", "been",
                 "being", "have", "has", "had", "do", "does", "did", "will",
@@ -247,7 +258,9 @@ def _detect_contradiction(text_a: str, text_b: str) -> bool:
                 i for i in diff_positions if words_a[i] not in stop_words
                                      and words_b[i] not in stop_words
             ]
-            if entity_diffs:
+            # Require exactly one non-stopword entity slot to differ.
+            # Multiple diffs usually mean a paraphrase, not a contradiction.
+            if len(entity_diffs) == 1:
                 return True
 
     return False

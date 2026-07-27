@@ -201,6 +201,14 @@ class ContextInjector:
                     "note": mem.note,
                     "metadata": mem.metadata,
                 })
+                # Record access ONLY on memories actually injected (the ones
+                # that pass the filter and fit the limit). This reinforces the
+                # memories the agent really consumes, not the bigger candidate
+                # set that search returned and the injector never used.
+                try:
+                    self._engine.touch(mem.id)
+                except Exception:
+                    pass
             if len(filtered) >= limit:
                 break
 

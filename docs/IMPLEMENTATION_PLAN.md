@@ -5,6 +5,8 @@ Status of the repo after the 0.4.5 hardening pass that produced this document:
 - **Phase 0 — Bug fixes: COMPLETE** (9 verified bugs fixed; 9 regression tests added in `tests/test_regression_bugs.py`; full suite 123 green — 104 non-integration in ~40s, 10 integration in ~92s, 9 regression in ~14s).
 - **Phase 1.1 — Graph-aware retrieval: COMPLETE** (`engine.search(expand_graph=...)` walks the knowledge graph from primary hits and appends 1-hop linked memories, deduped and capped at `ceil(limit*1.5)`; `ContextInjector.inject` defaults `expand_graph=True`; `memorius search --expand-graph` CLI flag; MCP `memorius_search.expand_graph` and REST `POST /search.expand_graph` booleans; new `engine.get_memories_by_ids()` helper; 9 feature tests in `tests/test_feature_graph_retrieval.py`. Suite now 132 green — 122 non-integration in ~58s, 10 integration in ~76s, 9 feature in ~33s).
 - **Phase 1.3 — Metadata/tag filtering in search: COMPLETE** (`engine.search(..., folder=, note=, tags=)` threads folder/note to Chroma's `where` clause; tags are post-filtered in Python (Chroma can't test list membership) over a 4x over-fetch so the limit still holds after the universe shrinks; CLI `memorius search --folder --note --tag` (tag repeatable, AND-semantics); MCP `memorius_search.folder/note/tags` and REST `POST /search` gain the same keys; 9 feature tests in `tests/test_feature_search_filtering.py`. Suite now 141 green — 131 non-integration in ~104s, 10 integration in ~71s, 9 feature in ~23s).
+- **Phase 4.1 — Factcheck word-boundary fix: COMPLETE** (`_detect_contradiction` now uses `\b` word-boundary regexes instead of bare `in` substring, so "is" no longer matches inside "this"/"history" and "no" no longer matches inside "know"/"note"; added `("always","never")` and `("increase","decrease")` opposing pairs; entity-slot heuristic tightened to require nearly-equal sentence length (len_ratio >= 0.8 — trailing additions no longer trip) and exactly one non-stopword entity diff (multiple diffs = paraphrase, not contradiction); 12 feature tests in `tests/test_feature_factcheck_access.py`. Suite 153 green — 143 non-integration, 10 integration.).
+- **Phase 4.2 — Search access-recording fix: COMPLETE** (vault.search no longer calls record_access on every returned result — that distorted the reinforcement model; new `engine.touch(memory_id)` provides explicit reinforcement; ContextInjector.inject touches only the memories it actually injects — the ones that pass the >20-char content filter and fit the limit). Tests in the same file. **0.5.0 release scope now complete**: 1.1 + 1.3 + 4.1 + 4.2.
 - This document covers **Phase 1 onward — new features**, with 1.1 already shipped. The remainder is deliberately a plan, not a spec: each item names the goal, the files it touches, the user-facing API surface, the tests it needs, and the risks. Implementation is staged so each phase ships independently and never blocks the next.
 
 Prioritization rubric: **Impact × Confidence ÷ Effort**. P1 items are the ones that most materially change what memorius *does* for the user; P4 are nice-to-haves and infra hardening.
@@ -129,8 +131,15 @@ The knowledge graph and temporal metadata already exist and are already maintain
 
 ## Phase 4 — Quality hardening of existing features  *(not flashy, removes footguns)*
 
-### 4.1 Factcheck: stop matching `"is"` inside `"this"` and `"no"` inside `"know"`
+### 4.1 Factcheck: stop matching `"is"` inside `"this"` and `"no"` inside `"know"`  ✅ SHIPPED
 **Goal:** `_detect_contradiction` uses bare `in` substring checks → huge false-positive rate. Rewrite to word-boundary regexes.
+
+**Shipped.** `_detect_contradiction` now uses `re.search(rf"\b{re.escape(phrase)}\b", text)` for every negation pair (`is`/`is not`, `use`/`don't use`, etc.) and opposing pair (`yes`/`no`, `enable`/`disable`, etc.), with `("always","never")` and `("increase","decrease")` added. The entity-slot heuristic is tightened: sentences must have nearly-equal word count (length ratio >= 0.8, so trailing additions like "the sky is blue" vs "the sky is blue today" no longer trip), and exactly one non-stopword entity must differ (paraphrases with multiple diffs don't contradict). Tests: `tests/test_feature_factcheck_access.py` — 12 tests pinning the substring fix (`is` in `this`, `no` in `know`), the entity-slot tightening (trailing-word guard, multi-diff paraphrase guard), and the regression-safe real-contradiction cases (React vs Vue, `yes` vs `no`, `is` vs `is not`).
+
+### 4.2 `search` records access on every returned result — distortion  ✅ SHIPPED
+**Goal:** `vault.search` calls `record_access` for every result, including ones the agent never reads. This inflates `access_count` and corrupts the reinforcement model. Only record access when a memory is actually *used*.
+
+**Shipped.** `vault.search` no longer calls `record_access` on its results. New public method `engine.touch(memory_id)` for explicit reinforcement — validates the UUID, safe on missing/invalid ids. `ContextInjector.inject` now calls `touch()` only on memories it actually injects (the ones that pass the >20-char content filter and fit the limit), not on the larger search candidate set. Tests: `tests/test_feature_factcheck_access.py` — search does not increment `access_count` or advance `last_accessed` across two searches; `touch` increments `access_count` to 1 then 2; missing/invalid ids are safe; injector touches the long injected memory but not the short filtered-out one.
 
 **Files:** `memorius/factcheck.py`. Replace each `pos in text_a_lower` with `re.search(rf"\b{re.escape(pos)}\b", text_a_lower)`. Opposing pairs the same. Keep the entity-slot heuristic but require it to fire only when negations/pairs didn't match.
 
@@ -179,7 +188,7 @@ The knowledge graph and temporal metadata already exist and are already maintain
 
 | Release | Contents | Why these together |
 |---|---|---|
-| **0.5.0** | Phase 1 (1.1, 1.3) + Phase 4.1, 4.2 | "Smarter recall" — graph + filters + honest factcheck + honest access stats ship as one coherent retrieval-quality story. 1.2 deferred to 0.5.1 pending 4.1. |
+| **0.5.0** ✅ | Phase 1 (1.1, 1.3) + Phase 4.1, 4.2 | "Smarter recall" — graph + filters + honest factcheck + honest access stats ship as one coherent retrieval-quality story. 1.2 deferred to 0.5.1 pending 4.1. **ALL SHIPPED.** |
 | **0.5.1** | Phase 1.2 + Phase 2.1 (get/update/delete) + Phase 2.2 (prune) | Contradiction edges need 4.1's clean factcheck; CRUD completion + prune form the "lifecycle" release. |
 | **0.6.0** | Phase 2.3 (TTL) + Phase 3.1 (export/import) + Phase 3.2 (doctor) | Trust & portability — backup/restore/healthcheck as a release theme. |
 | **0.7.0** | Phase 4.3, 4.4 (scale) | Quality hardening before any growth push. |

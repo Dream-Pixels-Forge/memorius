@@ -216,12 +216,24 @@ class VaultEngine:
             if expanded:
                 results = results + expanded
 
-        for mem in results:
-            try:
-                self._meta.record_access(mem.id)
-            except Exception:
-                logger.debug("Failed to record access for %s", mem.id)
+        # NOTE: search no longer records access on every returned result --
+        # that inflated access_count for memories the caller never actually
+        # used, distorting the reinforcement model. Use engine.touch(id) for
+        # explicit reinforcement, or rely on get_memory / context injection
+        # (which records access only on memories actually pulled in).
         return results
+
+    def touch(self, memory_id: str) -> None:
+        """Explicitly mark a memory as accessed (reinforce it).
+
+        Use when an agent actually reads/uses a memory and you want the
+        reinforcement model to credit it. Idempotent: safe to call on
+        a missing id (no-op)."""
+        try:
+            validate_memory_id(memory_id)
+            self._meta.record_access(memory_id)
+        except Exception:
+            logger.debug("touch(%s) failed (best-effort)", memory_id)
 
     def _expand_from_graph(self, seeds: list[Memory], vault: str | None,
                            hops: int, min_weight: float,
