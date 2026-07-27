@@ -152,7 +152,7 @@ def consolidate(
     result = ConsolidationResult()
 
     # Collect all memories with vectors
-    search_results = engine.search(query="", vault=vault, limit=10000)
+    search_results = engine.list_memories(vault=vault, limit=10000, with_vectors=True)
     memories = [m.to_dict() for m in search_results]
 
     if not memories:

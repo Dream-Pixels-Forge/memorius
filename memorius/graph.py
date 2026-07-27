@@ -206,7 +206,7 @@ def auto_link_by_proximity(
 
         # Prefer vector cosine similarity if available
         if source.get("vector") and m.get("vector"):
-            sim = _cosine_similarity(source["vector"], m["vector"])
+            sim = cosine_similarity(source["vector"], m["vector"])
         else:
             # Fall back to word overlap (Jaccard)
             target_content = (m.get("content") or "").lower()

@@ -63,7 +63,7 @@ memorius mine transcript.txt --vault conversations
 memorius status
 
 # Write a diary entry
-memorius diary --session "session-001" --title "Research findings"
+memorius diary "session-001" --title "Research findings"
 ```
 
 <img width="979" height="632" alt="Screenshot from 2026-06-18 15-14-39" src="https://github.com/user-attachments/assets/6cbca59b-1a3c-4b1d-85e8-dd5b256b9061" />
@@ -112,7 +112,7 @@ vault:
   default: main
 
 server:
-  mcp_port: 8910
+  mcp_port: 8911
   rest_port: 8912
   host: 127.0.0.1
 
@@ -208,9 +208,9 @@ memorius search <query>      Semantic search
 memorius mine <file|text>    Extract memories from transcript
   --vault, -v                  Target vault (default: main)
 memorius diary <session>     Write a diary entry
-  --title, -t                  Entry title
-  --summary, -s                Entry summary
-  --vault, -v                  Vault name (default: main)
+  --title                      Entry title
+  --summary                    Entry summary
+  --vault                      Vault name (default: main)
 memorius diaries              List recent diary entries
 memorius ls                   Explore vault hierarchy
 memorius consolidate         Merge duplicate memories

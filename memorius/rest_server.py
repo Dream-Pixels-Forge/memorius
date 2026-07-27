@@ -36,6 +36,7 @@ class MemoriusAPI:
         try:
             from fastapi import FastAPI, Request, HTTPException
             from fastapi.middleware.cors import CORSMiddleware
+            from fastapi.responses import JSONResponse
         except ImportError:
             raise ImportError(
                 "REST server requires extra dependencies. Install: pip install memorius[rest]"
@@ -62,7 +63,7 @@ class MemoriusAPI:
             if api_key:
                 auth_header = request.headers.get("Authorization", "")
                 if not auth_header.startswith("Bearer ") or auth_header[7:] != api_key:
-                    raise HTTPException(status_code=401, detail="Invalid or missing API key")
+                    return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key"})
             return await call_next(request)
 
         @app.middleware("http")
@@ -71,9 +72,9 @@ class MemoriusAPI:
             if content_length:
                 try:
                     if int(content_length) > MAX_CONTENT_LENGTH:
-                        raise HTTPException(status_code=413, detail="Request body too large")
+                        return JSONResponse(status_code=413, content={"detail": "Request body too large"})
                 except ValueError:
-                    raise HTTPException(status_code=400, detail="Invalid Content-Length header")
+                    return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length header"})
             return await call_next(request)
 
         # Rate limiting middleware
@@ -95,7 +96,7 @@ class MemoriusAPI:
             else:
                 rate_store[client_ip] = []
             if len(rate_store[client_ip]) >= rate_max:
-                raise HTTPException(status_code=429, detail="Rate limit exceeded")
+                return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded"})
             rate_store[client_ip].append(now)
             return await call_next(request)
 
@@ -122,7 +123,9 @@ class MemoriusAPI:
                 content=content, vault=vault, shelf=shelf,
                 folder=folder, note=note, metadata=payload.get("metadata"),
             )
-            return memory.to_dict()
+            d = memory.to_dict()
+            d.pop("vector", None)
+            return d
 
         @app.post("/search")
         async def search(payload: dict[str, Any]):
@@ -135,7 +138,12 @@ class MemoriusAPI:
             vault = _validate_name(payload.get("vault"), "vault") if payload.get("vault") else None
             shelf = _validate_name(payload.get("shelf"), "shelf") if payload.get("shelf") else None
             results = engine.search(query=query, vault=vault, shelf=shelf, limit=limit)
-            return {"query": query, "count": len(results), "results": [m.to_dict() for m in results]}
+            out = []
+            for m in results:
+                d = m.to_dict()
+                d.pop("vector", None)
+                out.append(d)
+            return {"query": query, "count": len(results), "results": out}
 
         @app.post("/mine")
         async def mine(payload: dict[str, Any]):
@@ -279,15 +287,17 @@ class MemoriusAPI:
             source_vault = _validate_name(payload.get("source_vault", "main"), "vault")
             source_shelf = payload.get("source_shelf")
             dry_run = payload.get("dry_run", False)
-            results = engine.search(query="", vault=source_vault, shelf=source_shelf, limit=1000)
+            results = engine._meta.list_memories_meta(vault=source_vault, limit=100000)
             exported = 0
             for mem in results:
-                note_path = (vault_path / mem.vault / mem.shelf / mem.folder / f"{mem.note}.md").resolve()
+                if source_shelf and mem.get("shelf") != source_shelf:
+                    continue
+                note_path = (vault_path / mem["vault"] / mem["shelf"] / mem["folder"] / f"{mem['note']}.md").resolve()
                 if not str(note_path).startswith(str(vault_path)):
                     raise HTTPException(status_code=400, detail="Path traversal detected")
                 if not dry_run:
                     note_path.parent.mkdir(parents=True, exist_ok=True)
-                    note_path.write_text(mem.content)
+                    note_path.write_text(mem["content"])
                 exported += 1
             return {"exported": exported, "dry_run": dry_run, "vault": str(vault_path)}
 

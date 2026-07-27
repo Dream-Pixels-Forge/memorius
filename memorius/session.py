@@ -55,8 +55,9 @@ def build_session_profile(
         if content:
             profile.recent_topics = _extract_topics(content)
 
-    # 2. Get recent memories
-    recent = engine.search(query="", vault=vault, limit=10)
+    # 2. Get recent memories (time-recency ordered, no vector fetch needed
+    # since this scan only uses content + metadata category tags).
+    recent = engine.list_memories(vault=vault, limit=10, with_vectors=False)
     for mem in recent:
         meta = mem.metadata or {}
         category = meta.get("category", "")

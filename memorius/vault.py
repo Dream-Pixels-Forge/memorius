@@ -136,7 +136,8 @@ class VaultEngine:
                         access_count=meta.get("access_count", 0),
                     )
                     access_count = meta.get("access_count", 0)
-                semantic_sim = max(0.1, 1.0 - (rank_pos * 0.05))
+                distance = float((mem.metadata or {}).get("__distance__", 0.0) or 0.0)
+                semantic_sim = max(0.0, min(1.0, 1.0 - distance))
                 final_score = calculate_search_score(
                     semantic_similarity=semantic_sim,
                     decay_score=decay,
@@ -145,6 +146,9 @@ class VaultEngine:
                 scored.append((mem, final_score))
             scored.sort(key=lambda x: x[1], reverse=True)
             results = [m for m, _ in scored[:limit]]
+            for mem in results:
+                if "__distance__" in (mem.metadata or {}):
+                    del mem.metadata["__distance__"]
         except Exception:
             logger.debug("Temporal decay scoring failed, using rank order")
             results = results[:limit]
@@ -154,6 +158,69 @@ class VaultEngine:
             except Exception:
                 logger.debug("Failed to record access for %s", mem.id)
         return results
+
+    def list_memories(self, vault: str | None = None, shelf: str | None = None,
+                      limit: int | None = None, with_vectors: bool = True) -> list[Memory]:
+        """List memories by metadata (time-recency), optionally filling vectors
+        from the ChromaStore. Avoids the misuse of empty-query search as
+        \"list all\". Returns Memories ordered by created_at DESC from the meta
+        store.
+        """
+        meta_rows = self._meta.list_memories_meta(
+            vault=vault, limit=limit or 10000, include_archived=False,
+        )
+        if not meta_rows:
+            return []
+
+        # Defaults from meta rows (meta is source of truth for temporal order).
+        memories: list[Memory] = []
+
+        # Group meta rows by (vault, shelf) so we can batch-fetch from the right
+        # Chroma collection.
+        groups: dict[tuple[str, str], list[dict]] = {}
+        for row in meta_rows:
+            groups.setdefault((row.get("vault") or "", row.get("shelf") or ""), []).append(row)
+
+        for (v, s), rows in groups.items():
+            if shelf is not None and s != shelf:
+                continue
+            ids = [r["id"] for r in rows]
+            fetched = self._vector.get_by_ids(ids, v, s, include_vectors=with_vectors)
+
+            by_id = {m.id: m for m in fetched}
+            for row in rows:
+                mem = by_id.get(row["id"])
+                if mem is not None:
+                    if not mem.created_at:
+                        mem.created_at = row.get("created_at", "")
+                    if not mem.updated_at:
+                        mem.updated_at = row.get("updated_at", "")
+                    memories.append(mem)
+                else:
+                    # Vector missing: fall back to meta-only record.
+                    try:
+                        md = row.get("metadata") or "{}"
+                        if isinstance(md, str):
+                            import json as _json
+                            md = (_json.loads(md) if md else {})
+                    except Exception:
+                        md = {}
+                    memories.append(Memory(
+                        id=row["id"],
+                        vault=v,
+                        shelf=s,
+                        folder=row.get("folder", ""),
+                        note=row.get("note", ""),
+                        content=row.get("content", ""),
+                        metadata=md or {},
+                        created_at=row.get("created_at", ""),
+                        updated_at=row.get("updated_at", ""),
+                        vector=None,
+                    ))
+
+        if limit is not None:
+            memories = memories[:limit]
+        return memories
 
     def delete(self, memory_id: str, vault: str | None = None,
                shelf: str | None = None, dry_run: bool = False) -> dict[str, Any]:

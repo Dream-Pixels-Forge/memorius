@@ -98,6 +98,7 @@ def main():
     diary_p.add_argument("--summary", default="", help="Diary summary")
     diary_p.add_argument("--content", default="", help="Diary content")
     diary_p.add_argument("--vault", default="main", help="Vault name")
+    diary_p.add_argument("--exchange-count", type=int, default=0, help="Number of exchanges in session")
 
     subparsers.add_parser("diaries", help="List recent diary entries")
     p = subparsers.add_parser("ls", help="Explore vault hierarchy")
@@ -107,8 +108,8 @@ def main():
     serve_p.add_argument("--port", type=int, default=8911, help="Not used for stdio")
 
     serve_rest_p = subparsers.add_parser("serve-rest", help="Start REST API server")
-    serve_rest_p.add_argument("--port", type=int, default=8912, help="Port")
-    serve_rest_p.add_argument("--host", default="127.0.0.1", help="Host")
+    serve_rest_p.add_argument("--port", type=int, default=None, help="Port")
+    serve_rest_p.add_argument("--host", default=None, help="Host")
 
     config_p = subparsers.add_parser("config", help="Show configuration")
     config_p.add_argument("--show", action="store_true", default=True, help="Show config")
@@ -403,6 +404,7 @@ def cmd_diary(engine, args, config):
         title=title,
         summary=summary,
         content=args.content,
+        exchange_count=args.exchange_count,
     )
     print(f"Diary written: {entry['id']}")
 

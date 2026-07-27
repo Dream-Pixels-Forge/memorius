@@ -21,13 +21,16 @@ local = threading.local()
 
 
 def _close_thread_conn():
-    """Close the current thread's SQLite connection if open."""
-    if hasattr(local, "memorius_conn") and local.memorius_conn:
+    """Close ALL of the current thread's SQLite connections if open."""
+    conns = getattr(local, "memorius_conns", None)
+    if not conns:
+        return
+    for conn in conns.values():
         try:
-            local.memorius_conn.close()
+            conn.close()
         except Exception:
             pass
-        local.memorius_conn = None
+    local.memorius_conns = {}
 
 
 atexit.register(_close_thread_conn)
@@ -42,15 +45,21 @@ class SQLiteStore:
         self._init_db()
 
     def _conn(self) -> sqlite3.Connection:
-        """Thread-local connection."""
-        if not hasattr(local, "memorius_conn") or local.memorius_conn is None:
+        """Thread-local, per-db-path connection."""
+        conns = getattr(local, "memorius_conns", None)
+        if conns is None:
+            conns = {}
+            local.memorius_conns = conns
+        key = str(self._db_path)
+        conn = conns.get(key)
+        if conn is None:
             self._db_path.parent.mkdir(parents=True, exist_ok=True)
             conn = sqlite3.connect(str(self._db_path))
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")
-            local.memorius_conn = conn
-        return local.memorius_conn
+            conns[key] = conn
+        return conn
 
     # ── Migration helpers ──
 
