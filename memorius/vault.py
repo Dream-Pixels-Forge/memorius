@@ -121,7 +121,9 @@ class VaultEngine:
     def search(self, query: str, vault: str | None = None,
                shelf: str | None = None, limit: int = 10,
                expand_graph: bool = False, graph_hops: int = 1,
-               graph_min_weight: float = 0.3) -> list[Memory]:
+               graph_min_weight: float = 0.3,
+               folder: str | None = None, note: str | None = None,
+               tags: list[str] | None = None) -> list[Memory]:
         """Search vault contents by semantic similarity with temporal decay
         ranking.
 
@@ -129,9 +131,46 @@ class VaultEngine:
         selected, walk the knowledge graph up to ``graph_hops`` hops from
         each seed memory and append linked memories (deduped against the
         seeds) so the caller also sees "what's connected to this". The
-        total returned size is capped at ``int(limit * 1.5)``.
+        total returned size is capped at ``ceil(limit * 1.5)``.
+
+        Optional metadata filters narrow the primary vector matches:
+
+          - ``folder`` / ``note`` restrict to memories stored under that
+            folder/note path. ChromaDB surfaces these as ``where`` clauses
+            on metadata fields already written by ``ChromaStore.add``.
+          - ``tags`` is a list of tags; a memory matches only if it carries
+            ALL of them in its metadata ``tags`` list. ChromaDB's ``where``
+            cannot test list membership, so tags are post-filtered in
+            Python after the vector query (over all ``n_results`` hits, so
+            the limit is still honored when the universe shrinks).
         """
-        results = self._vector.search(query, vault=vault, shelf=shelf, n_results=limit * 2)
+        filter_metadata: dict[str, str] = {}
+        if folder is not None:
+            filter_metadata["folder"] = _validate_name(folder, "folder")
+        if note is not None:
+            filter_metadata["note"] = _validate_name(note, "note")
+        # Over-fetch so the post-filter for tags can still return up to
+        # `limit` after discarding non-matching memories.
+        fetch_n = (limit * 4) if tags else (limit * 2)
+        results = self._vector.search(
+            query, vault=vault, shelf=shelf, n_results=fetch_n,
+            filter_metadata=filter_metadata or None,
+        )
+
+        if tags:
+            wanted = {str(t) for t in tags}
+            filtered: list[Memory] = []
+            for mem in results:
+                md_tags = (mem.metadata or {}).get("tags") or []
+                if isinstance(md_tags, str):
+                    try:
+                        import json as _json
+                        md_tags = _json.loads(md_tags)
+                    except Exception:
+                        md_tags = [md_tags]
+                if wanted.issubset({str(t) for t in (md_tags or [])}):
+                    filtered.append(mem)
+            results = filtered
         try:
             from memorius.temporal import calculate_decay_score, calculate_search_score
             meta_map = self._meta.get_memory_meta_batch([m.id for m in results])

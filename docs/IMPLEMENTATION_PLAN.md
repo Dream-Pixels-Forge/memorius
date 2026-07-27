@@ -4,6 +4,7 @@ Status of the repo after the 0.4.5 hardening pass that produced this document:
 
 - **Phase 0 — Bug fixes: COMPLETE** (9 verified bugs fixed; 9 regression tests added in `tests/test_regression_bugs.py`; full suite 123 green — 104 non-integration in ~40s, 10 integration in ~92s, 9 regression in ~14s).
 - **Phase 1.1 — Graph-aware retrieval: COMPLETE** (`engine.search(expand_graph=...)` walks the knowledge graph from primary hits and appends 1-hop linked memories, deduped and capped at `ceil(limit*1.5)`; `ContextInjector.inject` defaults `expand_graph=True`; `memorius search --expand-graph` CLI flag; MCP `memorius_search.expand_graph` and REST `POST /search.expand_graph` booleans; new `engine.get_memories_by_ids()` helper; 9 feature tests in `tests/test_feature_graph_retrieval.py`. Suite now 132 green — 122 non-integration in ~58s, 10 integration in ~76s, 9 feature in ~33s).
+- **Phase 1.3 — Metadata/tag filtering in search: COMPLETE** (`engine.search(..., folder=, note=, tags=)` threads folder/note to Chroma's `where` clause; tags are post-filtered in Python (Chroma can't test list membership) over a 4x over-fetch so the limit still holds after the universe shrinks; CLI `memorius search --folder --note --tag` (tag repeatable, AND-semantics); MCP `memorius_search.folder/note/tags` and REST `POST /search` gain the same keys; 9 feature tests in `tests/test_feature_search_filtering.py`. Suite now 141 green — 131 non-integration in ~104s, 10 integration in ~71s, 9 feature in ~23s).
 - This document covers **Phase 1 onward — new features**, with 1.1 already shipped. The remainder is deliberately a plan, not a spec: each item names the goal, the files it touches, the user-facing API surface, the tests it needs, and the risks. Implementation is staged so each phase ships independently and never blocks the next.
 
 Prioritization rubric: **Impact × Confidence ÷ Effort**. P1 items are the ones that most materially change what memorius *does* for the user; P4 are nice-to-haves and infra hardening.
@@ -41,8 +42,10 @@ The knowledge graph and temporal metadata already exist and are already maintain
 
 **Risks:** factcheck's substring matching is noisy (see Phase 4.1); ship 1.2 *after* 4.1 to avoid persisting junk edges. If shipped first, gate edge creation on `confidence >= 0.7`.
 
-### 1.3 Metadata & tag filtering in search
+### 1.3 Metadata & tag filtering in search  ✅ SHIPPED
 **Goal:** `ChromaStore.search` already accepts `filter_metadata`; expose it so users can filter by folder/note/arbitrary tags without leaving the query.
+
+**Shipped in commit after Phase 1.1.** `engine.search(..., folder=, note=, tags=)` validates folder/note (name regex) and passes them to Chroma's `where` clause; `tags` is a list with AND-semantics and is post-filtered in Python over a 4x over-fetch (Chroma's `where` can't test list membership, so we pull more and filter down — the limit still holds after the universe shrinks). CLI `memorius search --folder F --note N --tag T [--tag T2]`; MCP `memorius_search` gains `folder`/`note`/`tags` schema fields; REST `POST /search` gains the same payload keys. 9 feature tests in `tests/test_feature_search_filtering.py`.
 
 **Files:** `memorius/vault.py` (thread `filter_metadata` through), `memorius/cli/main.py` (`memorius search ... --folder F --note N --tag T`), `memorius/mcp_server.py` + `memorius/rest_server.py` (optional `filter` object).
 

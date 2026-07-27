@@ -54,7 +54,7 @@ class McpServer:
         },
         {
             "name": "memorius_search",
-            "description": "Semantic search across the vault. Use before answering questions about past work. Set expand_graph=true to also pull in memories linked in the knowledge graph to the primary hits (\"you also worked on X\").",
+            "description": "Semantic search across the vault. Use before answering questions about past work. Set expand_graph=true to also pull in memories linked in the knowledge graph to the primary hits (\"you also worked on X\"). Filter by folder/note/tags to narrow to a specific path or tagged subset.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -62,6 +62,9 @@ class McpServer:
                     "n_results": {"type": "number", "description": "Number of results (default: 10)", "default": 10},
                     "vault": {"type": "string", "description": "Filter by vault"},
                     "shelf": {"type": "string", "description": "Filter by shelf"},
+                    "folder": {"type": "string", "description": "Filter by folder (Chroma metadata)"},
+                    "note": {"type": "string", "description": "Filter by note (Chroma metadata)"},
+                    "tags": {"type": "array", "items": {"type": "string"}, "description": "Only return memories carrying ALL of these tags (post-filtered in Python)"},
                     "expand_graph": {"type": "boolean", "description": "Also pull in 1-hop graph-linked memories (default: false). Off preserves the original search-only behavior; on augments with related memories.", "default": False},
                 },
                 "required": ["query"],
@@ -321,7 +324,11 @@ class McpServer:
         n_results = min(args.get("n_results", 10), MAX_SEARCH_LIMIT)
         vault = _validate_name(args.get("vault"), "vault") if args.get("vault") else None
         shelf = _validate_name(args.get("shelf"), "shelf") if args.get("shelf") else None
+        folder = _validate_name(args.get("folder"), "folder") if args.get("folder") else None
+        note = _validate_name(args.get("note"), "note") if args.get("note") else None
         expand_graph = bool(args.get("expand_graph", False))
+        tags_in = args.get("tags")
+        tags = [str(t) for t in tags_in] if isinstance(tags_in, list) and tags_in else None
 
         results = self._engine.search(
             query=query,
@@ -329,6 +336,9 @@ class McpServer:
             shelf=shelf,
             limit=n_results,
             expand_graph=expand_graph,
+            folder=folder,
+            note=note,
+            tags=tags,
         )
         # Exclude vector from response — it's large and not useful to callers
         return {

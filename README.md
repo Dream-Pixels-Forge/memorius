@@ -204,6 +204,9 @@ memorius store <text>        Store a memory
 memorius search <query>      Semantic search
    --vault, -v                  Filter by vault
    --shelf, -s                  Filter by shelf
+   --folder                     Filter by folder (Chroma metadata)
+   --note                       Filter by note (Chroma metadata)
+   --tag                        Filter by tag (repeatable; memory must carry ALL supplied tags)
    --n                          Max results (default: 10)
    --expand-graph                Also pull in 1-hop graph-linked memories (\"you also worked on X\")
 memorius mine <file|text>    Extract memories from transcript

@@ -85,6 +85,9 @@ def main():
     search_p.add_argument("--n", type=int, default=10, help="Number of results")
     search_p.add_argument("--vault", default=None, help="Filter by vault")
     search_p.add_argument("--shelf", default=None, help="Filter by shelf")
+    search_p.add_argument("--folder", default=None, help="Filter by folder (Chroma metadata)")
+    search_p.add_argument("--note", default=None, help="Filter by note (Chroma metadata)")
+    search_p.add_argument("--tag", action="append", default=None, help="Filter by tag (repeatable; memory must carry ALL supplied tags)")
     search_p.add_argument("--expand-graph", action="store_true", help="Also pull in 1-hop graph-linked memories (\"you also worked on X\")")
     search_p.add_argument("--web", action="store_true", help="Fall back to web search if local recall is thin")
 
@@ -343,6 +346,9 @@ def cmd_search(engine, args, config):
         shelf=args.shelf,
         limit=args.n,
         expand_graph=getattr(args, "expand_graph", False),
+        folder=getattr(args, "folder", None),
+        note=getattr(args, "note", None),
+        tags=getattr(args, "tag", None),
     )
     print(f'Search: "{query}"')
     if getattr(args, "expand_graph", False):
