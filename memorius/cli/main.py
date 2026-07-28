@@ -82,6 +82,8 @@ def main():
     store_p.add_argument("--shelf", default="default", help="Shelf name")
     store_p.add_argument("--folder", default="default", help="Folder name")
     store_p.add_argument("--note", default="default", help="Note name")
+    store_p.add_argument("--ttl", type=int, default=None, metavar="DAYS",
+                         help="Time-to-live in days; memory expires after N days")
 
     search_p = subparsers.add_parser("search", help="Semantic search")
     search_p.add_argument("query", nargs="?", default=None, help="Search query")
@@ -348,9 +350,12 @@ def cmd_store(engine, args, config):
         shelf=args.shelf,
         folder=args.folder,
         note=args.note,
+        ttl_days=args.ttl,
     )
     print(f"Stored: {memory.id}")
     print(f"  Path: {memory.vault}/{memory.shelf}/{memory.folder}/{memory.note}")
+    if args.ttl is not None:
+        print(f"  Expires: {args.ttl} days")
 
 
 def cmd_search(engine, args, config):

@@ -121,11 +121,17 @@ def find_stale_memories(
     threshold: float = ARCHIVE_THRESHOLD,
     limit: int = 100,
 ) -> list[dict[str, Any]]:
-    """Find memories below the decay threshold (candidates for archival)."""
-    now = datetime.now(timezone.utc).isoformat()
+    """Find memories below the decay threshold or past their TTL expiry.
+
+    Returns up to *limit* rows ordered oldest-first. A memory qualifies if
+    its decay score is below *threshold* **or** its metadata contains an
+    ``expires_at`` ISO timestamp that is strictly in the past.
+    """
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
     rows = conn.execute(
         """SELECT id, vault, shelf, folder, note, content, created_at,
-                  last_accessed, access_count
+                  last_accessed, access_count, metadata
            FROM memory_meta
            WHERE archived = 0
            ORDER BY created_at ASC
@@ -133,16 +139,41 @@ def find_stale_memories(
         (limit,),
     ).fetchall()
 
-    stale = []
+    stale: list[dict[str, Any]] = []
     for row in rows:
+        row_dict = dict(row)
+        expired = False
+        expires_at = None
+
+        # Check TTL expiry from metadata JSON
+        raw_meta = row_dict.pop("metadata", None) or ""
+        if raw_meta:
+            try:
+                import json as _json
+                meta = _json.loads(raw_meta)
+                expires_at = meta.get("expires_at")
+            except (ValueError, TypeError):
+                pass
+
+        if expires_at:
+            try:
+                exp_dt = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+                if exp_dt <= now:
+                    expired = True
+            except (ValueError, TypeError):
+                pass
+
         score = calculate_decay_score(
-            created_at=row["created_at"],
-            last_accessed=row["last_accessed"],
-            access_count=row["access_count"],
+            created_at=row_dict["created_at"],
+            last_accessed=row_dict["last_accessed"],
+            access_count=row_dict["access_count"],
         )
-        if score < threshold:
-            stale.append(dict(row))
-            stale[-1]["decay_score"] = score
+        row_dict["decay_score"] = score
+
+        if score < threshold or expired:
+            row_dict["expired"] = expired
+            row_dict["expires_at"] = expires_at
+            stale.append(row_dict)
 
     return stale
 

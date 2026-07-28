@@ -14,6 +14,7 @@ import json
 import logging
 import math
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -85,12 +86,26 @@ class VaultEngine:
 
     def store(self, content: str, vault: str = "main", shelf: str = "default",
               folder: str = "default", note: str = "default",
-              metadata: dict[str, Any] | None = None) -> Memory:
-        """Store a memory in the vault."""
+              metadata: dict[str, Any] | None = None,
+              ttl_days: int | None = None) -> Memory:
+        """Store a memory in the vault.
+
+        Args:
+            ttl_days: optional time-to-live in days. When set, the memory
+                becomes eligible for archival after this many days regardless
+                of access count. Stored as ``expires_at`` ISO timestamp in
+                metadata.
+        """
         vault = _validate_name(vault, "vault")
         shelf = _validate_name(shelf, "shelf")
         folder = _validate_name(folder, "folder")
         note = _validate_name(note, "note")
+
+        merged_metadata = dict(metadata or {})
+        if ttl_days is not None and ttl_days >= 0:
+            expires_at = (datetime.now(timezone.utc) + timedelta(days=ttl_days)).isoformat()
+            merged_metadata["expires_at"] = expires_at
+            merged_metadata["ttl_days"] = ttl_days
 
         self._meta.ensure_note(vault, shelf, folder, note)
         memory = Memory(
@@ -100,13 +115,13 @@ class VaultEngine:
             folder=folder,
             note=note,
             content=content,
-            metadata=metadata or {},
+            metadata=merged_metadata,
         )
         self._vector.add(memory)
         self._meta.increment_note_count(vault, shelf, folder, note)
         self._meta.track_memory(
             memory_id=memory.id, vault=vault, shelf=shelf,
-            folder=folder, note=note, content=content, metadata=metadata,
+            folder=folder, note=note, content=content, metadata=merged_metadata,
         )
         # Auto-link to related memories via content similarity
         try:

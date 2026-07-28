@@ -119,9 +119,11 @@ class MemoriusAPI:
             shelf = _validate_name(payload.get("shelf", "default"), "shelf")
             folder = _validate_name(payload.get("folder", "default"), "folder")
             note = _validate_name(payload.get("note", "default"), "note")
+            ttl_days = payload.get("ttl_days")
             memory = engine.store(
                 content=content, vault=vault, shelf=shelf,
                 folder=folder, note=note, metadata=payload.get("metadata"),
+                ttl_days=ttl_days,
             )
             d = memory.to_dict()
             d.pop("vector", None)

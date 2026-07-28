@@ -48,6 +48,7 @@ class McpServer:
                     "shelf": {"type": "string", "description": "Shelf name (default: default)"},
                     "folder": {"type": "string", "description": "Folder name (default: default)"},
                     "note": {"type": "string", "description": "Note name (default: default)"},
+                    "ttl_days": {"type": "number", "description": "Time-to-live in days; memory expires after N days"},
                 },
                 "required": ["content"],
             },
@@ -369,6 +370,7 @@ class McpServer:
             shelf=shelf,
             folder=folder,
             note=note,
+            ttl_days=args.get("ttl_days"),
         )
         return {"id": memory.id, "vault": memory.vault, "path": f"{memory.shelf}/{memory.folder}/{memory.note}"}
 
