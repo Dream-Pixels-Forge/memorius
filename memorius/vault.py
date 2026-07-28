@@ -10,6 +10,7 @@ Hierarchy: Vault > Shelf > Folder > Note
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 import uuid
@@ -321,6 +322,62 @@ class VaultEngine:
         if not contra_ids:
             return []
         return self.get_memories_by_ids(contra_ids, with_vectors=False)
+
+    # ── CRUD: get / update / delete ──
+
+    def get_memory(self, memory_id: str) -> Memory | None:
+        """Fetch a single memory by ID. Returns None when the id is invalid
+        or the memory does not exist."""
+        try:
+            memory_id = validate_memory_id(memory_id)
+        except (ValueError, TypeError):
+            return None
+        results = self.get_memories_by_ids([memory_id], with_vectors=True)
+        return results[0] if results else None
+
+    def update_memory(self, memory_id: str, content: str | None = None,
+                      metadata: dict[str, Any] | None = None) -> Memory | None:
+        """Update a memory's content and/or metadata.  When ``content``
+        changes the vector is re-embedded and upserted into ChromaDB.  When
+        ``metadata`` is provided it is shallow-merged with the existing
+        metadata dict (new keys overwrite, existing keys without a new
+        value are preserved).  Returns the updated Memory or None when the
+        id is invalid / not found."""
+        try:
+            memory_id = validate_memory_id(memory_id)
+        except (ValueError, TypeError):
+            return None
+        meta = self._meta.get_memory_meta(memory_id)
+        if meta is None:
+            return None
+        # Update meta row first.
+        self._meta.update_memory_meta(memory_id, content=content, metadata=metadata)
+        # Re-fetch the (possibly updated) memory from meta + vector.
+        updated_metas = self._meta.get_memory_meta_batch([memory_id])
+        updated_meta = updated_metas.get(memory_id, meta)
+        # Build the Memory object to upsert into vector store.
+        new_content = content if content is not None else updated_meta.get("content", meta["content"])
+        merged_metadata = {}
+        try:
+            merged_metadata = json.loads(updated_meta.get("metadata") or "{}")
+        except Exception:
+            pass
+        if metadata is not None:
+            merged_metadata.update(metadata)
+        mem = Memory(
+            id=memory_id,
+            vault=updated_meta["vault"],
+            shelf=updated_meta["shelf"],
+            folder=updated_meta.get("folder", "default"),
+            note=updated_meta.get("note", "default"),
+            content=new_content,
+            metadata=merged_metadata,
+            created_at=updated_meta.get("created_at", ""),
+            updated_at=updated_meta.get("updated_at", ""),
+        )
+        # Re-embed + upsert.
+        self._vector.add(mem)
+        return mem
 
     def list_memories(self, vault: str | None = None, shelf: str | None = None,
                       limit: int | None = None, with_vectors: bool = True) -> list[Memory]:

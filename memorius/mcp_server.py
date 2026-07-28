@@ -203,6 +203,41 @@ class McpServer:
                 "required": ["memory_id"],
             },
         },
+        {
+            "name": "memorius_get",
+            "description": "Get a single memory by ID. Returns full content and metadata.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "memory_id": {"type": "string", "description": "Memory UUID"},
+                },
+                "required": ["memory_id"],
+            },
+        },
+        {
+            "name": "memorius_update",
+            "description": "Update a memory's content and/or metadata. Re-embeds if content changes.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "memory_id": {"type": "string", "description": "Memory UUID"},
+                    "content": {"type": "string", "description": "New content (omit to keep existing)"},
+                    "metadata": {"type": "object", "description": "Metadata to shallow-merge (omit to keep existing)"},
+                },
+                "required": ["memory_id"],
+            },
+        },
+        {
+            "name": "memorius_delete",
+            "description": "Delete a memory by ID from both vector and metadata stores.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "memory_id": {"type": "string", "description": "Memory UUID to delete"},
+                },
+                "required": ["memory_id"],
+            },
+        },
     ]
 
     # ── Tool dispatch ──
@@ -482,6 +517,44 @@ class McpServer:
                 for m in contradictions
             ],
         }
+
+    def tool_memorius_get(self, args: dict) -> dict:
+        memory_id = args.get("memory_id", "")
+        if not memory_id or not isinstance(memory_id, str):
+            return {"error": "memory_id is required"}
+        mem = self._engine.get_memory(memory_id)
+        if mem is None:
+            return {"error": "Memory not found", "memory_id": memory_id}
+        d = mem.to_dict()
+        d.pop("vector", None)
+        return d
+
+    def tool_memorius_update(self, args: dict) -> dict:
+        memory_id = args.get("memory_id", "")
+        if not memory_id or not isinstance(memory_id, str):
+            return {"error": "memory_id is required"}
+        content = args.get("content")
+        if content is not None:
+            if not isinstance(content, str) or not content.strip():
+                return {"error": "Content must be a non-empty string"}
+            if len(content) > MAX_CONTENT_LENGTH:
+                return {"error": f"Content too long (max {MAX_CONTENT_LENGTH} chars)"}
+        metadata = args.get("metadata")
+        if metadata is not None and not isinstance(metadata, dict):
+            return {"error": "Metadata must be a dict"}
+        mem = self._engine.update_memory(memory_id, content=content, metadata=metadata)
+        if mem is None:
+            return {"error": "Memory not found", "memory_id": memory_id}
+        d = mem.to_dict()
+        d.pop("vector", None)
+        return d
+
+    def tool_memorius_delete(self, args: dict) -> dict:
+        memory_id = args.get("memory_id", "")
+        if not memory_id or not isinstance(memory_id, str):
+            return {"error": "memory_id is required"}
+        result = self._engine.delete(memory_id)
+        return result
 
     # ── Response helpers ──
 

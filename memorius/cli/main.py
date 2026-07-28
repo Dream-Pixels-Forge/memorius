@@ -10,6 +10,9 @@ Usage:
   memorius diary <session>   Write a diary entry (interactive)
   memorius diaries           List recent diary entries
   memorius ls [vault]        Explore vault hierarchy
+  memorius get <id>          Get a memory by ID
+  memorius update <id>       Update a memory's content or metadata
+  memorius delete <id>       Delete a memory by ID (validation + confirmation)
   memorius serve             Start the MCP server (stdio)
   memorius serve-rest        Start the REST API server
   memorius config            Show current config
@@ -17,7 +20,6 @@ Usage:
   memorius obsidian import   Import Obsidian notes as memories
   memorius obsidian export   Export memories as Obsidian notes
   memorius web <query>     Search the internet (web fallback)
-  memorius delete <id>     Delete a memory by ID (validation + confirmation)
 """
 
 from __future__ import annotations
@@ -161,6 +163,16 @@ def main():
     delete_p.add_argument("--yes", "-y", action="store_true", help="Skip confirmation prompt")
     delete_p.add_argument("--dry-run", action="store_true", help="Preview without deleting")
 
+    get_p = subparsers.add_parser("get", help="Get a memory by ID")
+    get_p.add_argument("memory_id", help="Memory UUID to retrieve")
+    get_p.add_argument("--json", dest="output_json", action="store_true", help="Output as JSON")
+
+    update_p = subparsers.add_parser("update", help="Update a memory's content or metadata")
+    update_p.add_argument("memory_id", help="Memory UUID to update")
+    update_p.add_argument("--content", default=None, help="New content (omit to keep existing)")
+    update_p.add_argument("--metadata", default=None, help="JSON metadata to shallow-merge")
+    update_p.add_argument("--json", dest="output_json", action="store_true", help="Output as JSON")
+
     # ── Obsidian subcommands ──
     obsidian_p = subparsers.add_parser("obsidian", help="Interact with Obsidian vaults")
     obsidian_sub = obsidian_p.add_subparsers(dest="subcommand")
@@ -221,6 +233,8 @@ def main():
         "profile": cmd_profile,
         "stats": cmd_stats,
         "delete": cmd_delete,
+        "get": cmd_get,
+        "update": cmd_update,
     }
     handler = commands.get(args.command)
     if handler:
@@ -670,6 +684,63 @@ def cmd_stats(engine, args, config):
         print("    Relations:")
         for rel, count in relations.items():
             print(f"      {rel}: {count}")
+
+
+def cmd_get(engine, args, config):
+    """Get a single memory by ID."""
+    from memorius.validation import validate_memory_id as _vid
+    try:
+        memory_id = _vid(args.memory_id)
+    except ValueError as e:
+        print(f"Error: {e}")
+        return
+    mem = engine.get_memory(memory_id)
+    if mem is None:
+        print(f"Error: memory not found: {memory_id}")
+        return
+    if getattr(args, "output_json", False):
+        d = mem.to_dict()
+        d.pop("vector", None)
+        print(json.dumps(d, indent=2))
+    else:
+        print(f"ID:      {mem.id}")
+        print(f"Path:    {mem.vault}/{mem.shelf}/{mem.folder}/{mem.note}")
+        print(f"Created: {mem.created_at or 'N/A'}")
+        print(f"Updated: {mem.updated_at or 'N/A'}")
+        print(f"\n{mem.content}")
+
+
+def cmd_update(engine, args, config):
+    """Update a memory's content and/or metadata."""
+    from memorius.validation import validate_memory_id as _vid
+    try:
+        memory_id = _vid(args.memory_id)
+    except ValueError as e:
+        print(f"Error: {e}")
+        return
+    content = args.content
+    metadata = None
+    if args.metadata:
+        try:
+            metadata = json.loads(args.metadata)
+        except json.JSONDecodeError as e:
+            print(f"Error: invalid JSON for --metadata: {e}")
+            return
+    if content is None and metadata is None:
+        print("Error: specify --content and/or --metadata to update")
+        return
+    mem = engine.update_memory(memory_id, content=content, metadata=metadata)
+    if mem is None:
+        print(f"Error: memory not found: {memory_id}")
+        return
+    if getattr(args, "output_json", False):
+        d = mem.to_dict()
+        d.pop("vector", None)
+        print(json.dumps(d, indent=2))
+    else:
+        print(f"Updated: {mem.id}")
+        print(f"  Path:    {mem.vault}/{mem.shelf}/{mem.folder}/{mem.note}")
+        print(f"  Content: {mem.content[:120]}{'...' if len(mem.content) > 120 else ''}")
 
 
 def cmd_delete(engine, args, config):

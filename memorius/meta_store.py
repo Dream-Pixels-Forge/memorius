@@ -426,6 +426,38 @@ class SQLiteStore:
             )
             conn.commit()
 
+    def update_memory_meta(self, memory_id: str, content: str | None = None,
+                           metadata: dict | None = None) -> bool:
+        """Update content and/or metadata for an existing memory.
+
+        Returns True if the row was updated, False if the memory was not found.
+        Metadata is shallow-merged: existing keys are kept unless overwritten
+        by the new dict.  ``updated_at`` is always refreshed.
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        conn = self._conn()
+        with self._lock:
+            row = conn.execute(
+                "SELECT * FROM memory_meta WHERE id = ?", (memory_id,)
+            ).fetchone()
+            if not row:
+                return False
+            cur_meta = json.loads(row["metadata"]) if row["metadata"] else {}
+            if metadata is not None:
+                cur_meta.update(metadata)
+            if content is not None:
+                conn.execute(
+                    "UPDATE memory_meta SET content = ?, metadata = ?, updated_at = ? WHERE id = ?",
+                    (content, json.dumps(cur_meta), now, memory_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE memory_meta SET metadata = ?, updated_at = ? WHERE id = ?",
+                    (json.dumps(cur_meta), now, memory_id),
+                )
+            conn.commit()
+        return True
+
     def get_memory_meta(self, memory_id: str) -> dict | None:
         """Get metadata for a memory."""
         conn = self._conn()

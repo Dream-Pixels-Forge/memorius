@@ -328,6 +328,55 @@ class MemoriusAPI:
                 "contradictions": out,
             }
 
+        @app.get("/memory/{memory_id}")
+        async def get_memory(memory_id: str):
+            from memorius.validation import validate_memory_id as _vid
+            try:
+                memory_id = _vid(memory_id)
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            mem = engine.get_memory(memory_id)
+            if mem is None:
+                raise HTTPException(status_code=404, detail="Memory not found")
+            d = mem.to_dict()
+            d.pop("vector", None)
+            return d
+
+        @app.patch("/memory/{memory_id}")
+        async def update_memory(memory_id: str, payload: dict[str, Any]):
+            from memorius.validation import validate_memory_id as _vid
+            try:
+                memory_id = _vid(memory_id)
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            content = payload.get("content")
+            if content is not None:
+                if not isinstance(content, str) or not content.strip():
+                    raise HTTPException(status_code=400, detail="Content must be a non-empty string")
+                if len(content) > MAX_CONTENT_LENGTH:
+                    raise HTTPException(status_code=400, detail="Content too long")
+            metadata = payload.get("metadata")
+            if metadata is not None and not isinstance(metadata, dict):
+                raise HTTPException(status_code=400, detail="Metadata must be an object")
+            mem = engine.update_memory(memory_id, content=content, metadata=metadata)
+            if mem is None:
+                raise HTTPException(status_code=404, detail="Memory not found")
+            d = mem.to_dict()
+            d.pop("vector", None)
+            return d
+
+        @app.delete("/memory/{memory_id}")
+        async def delete_memory(memory_id: str):
+            from memorius.validation import validate_memory_id as _vid
+            try:
+                memory_id = _vid(memory_id)
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            result = engine.delete(memory_id)
+            if not result.get("found", False):
+                raise HTTPException(status_code=404, detail="Memory not found")
+            return result
+
         @app.get("/stats")
         async def stats():
             status = engine.status()
