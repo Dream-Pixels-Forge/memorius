@@ -596,3 +596,42 @@ class VaultEngine:
     def get_memory_stats(self) -> dict:
         """Get memory tracking statistics."""
         return self._meta.get_memory_stats()
+
+    def prune(self, threshold: float = 0.1, dry_run: bool = False,
+              archive: bool = True) -> dict[str, Any]:
+        """Find stale memories and optionally soft-archive them.
+
+        Args:
+            threshold: decay-score threshold below which memories are stale.
+            dry_run: list candidates without touching them.
+            archive: if True (default) soft-archives; if False hard-deletes.
+
+        Returns:
+            dict with keys: stale (list of candidates), count,
+            dry_run, archived_count.
+        """
+        from memorius.temporal import find_stale_memories, archive_memories
+        conn = self._meta._conn()
+        stale = find_stale_memories(conn, threshold=threshold)
+        result: dict[str, Any] = {
+            "stale": [
+                {"id": s["id"], "content": (s.get("content") or "")[:200],
+                 "vault": s["vault"], "shelf": s["shelf"],
+                 "decay_score": round(s.get("decay_score", 0.0), 4)}
+                for s in stale
+            ],
+            "count": len(stale),
+            "dry_run": dry_run,
+            "archived_count": 0,
+        }
+        if dry_run or not stale:
+            return result
+        ids = [s["id"] for s in stale]
+        if archive:
+            archive_memories(conn, ids)
+            result["archived_count"] = len(ids)
+        else:
+            for mid in ids:
+                self.delete(mid)
+            result["archived_count"] = len(ids)
+        return result

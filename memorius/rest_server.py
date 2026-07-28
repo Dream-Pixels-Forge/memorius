@@ -377,6 +377,13 @@ class MemoriusAPI:
                 raise HTTPException(status_code=404, detail="Memory not found")
             return result
 
+        @app.post("/prune")
+        async def prune(payload: dict[str, Any]):
+            threshold = float(payload.get("threshold", 0.1))
+            dry_run = bool(payload.get("dry_run", True))
+            archive = bool(payload.get("archive", True))
+            return engine.prune(threshold=threshold, dry_run=dry_run, archive=archive)
+
         @app.get("/stats")
         async def stats():
             status = engine.status()

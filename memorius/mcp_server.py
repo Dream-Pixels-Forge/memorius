@@ -238,6 +238,18 @@ class McpServer:
                 "required": ["memory_id"],
             },
         },
+        {
+            "name": "memorius_prune",
+            "description": "Find stale memories by decay score and optionally archive or delete them. Use --dry-run to preview first.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "threshold": {"type": "number", "description": "Decay score threshold below which memories are stale (default: 0.1)", "default": 0.1},
+                    "dry_run": {"type": "boolean", "description": "List candidates without touching them (default: true)", "default": True},
+                    "archive": {"type": "boolean", "description": "Soft-archive (true) or hard-delete (false) stale memories (default: true)", "default": True},
+                },
+            },
+        },
     ]
 
     # ── Tool dispatch ──
@@ -555,6 +567,12 @@ class McpServer:
             return {"error": "memory_id is required"}
         result = self._engine.delete(memory_id)
         return result
+
+    def tool_memorius_prune(self, args: dict) -> dict:
+        threshold = float(args.get("threshold", 0.1))
+        dry_run = bool(args.get("dry_run", True))
+        archive = bool(args.get("archive", True))
+        return self._engine.prune(threshold=threshold, dry_run=dry_run, archive=archive)
 
     # ── Response helpers ──
 

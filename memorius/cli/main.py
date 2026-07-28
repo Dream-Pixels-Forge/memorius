@@ -13,6 +13,7 @@ Usage:
   memorius get <id>          Get a memory by ID
   memorius update <id>       Update a memory's content or metadata
   memorius delete <id>       Delete a memory by ID (validation + confirmation)
+  memorius prune             Find and archive stale memories by decay score
   memorius serve             Start the MCP server (stdio)
   memorius serve-rest        Start the REST API server
   memorius config            Show current config
@@ -173,6 +174,12 @@ def main():
     update_p.add_argument("--metadata", default=None, help="JSON metadata to shallow-merge")
     update_p.add_argument("--json", dest="output_json", action="store_true", help="Output as JSON")
 
+    prune_p = subparsers.add_parser("prune", help="Find and archive stale memories")
+    prune_p.add_argument("--threshold", type=float, default=0.1, help="Decay score threshold (default: 0.1)")
+    prune_p.add_argument("--dry-run", action="store_true", help="Preview without touching memories")
+    prune_p.add_argument("--delete", dest="hard_delete", action="store_true", help="Hard-delete instead of soft-archive")
+    prune_p.add_argument("--json", dest="output_json", action="store_true", help="Output as JSON")
+
     # ── Obsidian subcommands ──
     obsidian_p = subparsers.add_parser("obsidian", help="Interact with Obsidian vaults")
     obsidian_sub = obsidian_p.add_subparsers(dest="subcommand")
@@ -235,6 +242,7 @@ def main():
         "delete": cmd_delete,
         "get": cmd_get,
         "update": cmd_update,
+        "prune": cmd_prune,
     }
     handler = commands.get(args.command)
     if handler:
@@ -741,6 +749,29 @@ def cmd_update(engine, args, config):
         print(f"Updated: {mem.id}")
         print(f"  Path:    {mem.vault}/{mem.shelf}/{mem.folder}/{mem.note}")
         print(f"  Content: {mem.content[:120]}{'...' if len(mem.content) > 120 else ''}")
+
+
+def cmd_prune(engine, args, config):
+    """Find and archive stale memories."""
+    result = engine.prune(
+        threshold=args.threshold,
+        dry_run=args.dry_run,
+        archive=not args.hard_delete,
+    )
+    if getattr(args, "output_json", False):
+        print(json.dumps(result, indent=2))
+        return
+    if result["count"] == 0:
+        print("No stale memories found.")
+        return
+    label = "Would archive" if result["dry_run"] else "Archived"
+    if args.hard_delete:
+        label = "Would delete" if result["dry_run"] else "Deleted"
+    print(f"{result['count']} stale memor{'y' if result['count'] == 1 else 'ies'} found:")
+    for item in result["stale"]:
+        preview = (item.get("content") or "")[:100]
+        print(f"  [{item['decay_score']:.2f}] {item['id']}  {preview}")
+    print(f"\n{label}: {result['archived_count']}")
 
 
 def cmd_delete(engine, args, config):
