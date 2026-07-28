@@ -97,7 +97,7 @@ The knowledge graph and temporal metadata already exist and are already maintain
 
 ## Phase 3 — Backup, migration, and import/export  *(trust & portability)*
 
-### 3.1 `memorius export / import` — full vault dump (JSON + Markdown)
+### 3.1 `memorius export / import` — full vault dump (JSON + Markdown)  ✅ SHIPPED
 **Goal:** a single-file backup of everything (memories + diaries + hierarchy + graph) and a matching importer. The existing Obsidian export only covers memories and is lossy.
 
 **Files:** new `memorius/backup.py` (`export_vault(engine, path, fmt='json'|'markdown')`, `import_vault(engine, path, merge=True`), CLI (`memorius export vault.json`, `memorius import vault.json --merge`), MCP/REST (`POST /export`, `POST /import`).
