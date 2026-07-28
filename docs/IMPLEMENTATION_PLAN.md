@@ -33,7 +33,7 @@ The knowledge graph and temporal metadata already exist and are already maintain
 
 **Risks:** graph can grow large; cap `expand_graph` `max_nodes` (already 50) and only expand when the primary result set is < `limit`. Backward-compatible because it's opt-in.
 
-### 1.2 Contradiction edges — persist factcheck verdicts in the graph
+### 1.2 Contradiction edges — persist factcheck verdicts in the graph  ✅ SHIPPED
 **Goal:** `factcheck` already detects contradictions; today they're discarded. Persist them as `relation='contradicts'` edges so the graph becomes a soft "memory consistency" layer future searches/factchecks can exploit.
 
 **Files:** `memorius/factcheck.py` (after computing contradicting memories, call `link_memories(conn, statement_memory_id, contra_memory_id, weight=confidence, relation='contradicts')`), `memorius/graph.py` (`get_linked` already filters by relation — no change), `memorius/vault.py` (expose `contradicts` via a new `get_contradictions(memory_id)` helper).
@@ -59,7 +59,7 @@ The knowledge graph and temporal metadata already exist and are already maintain
 
 ## Phase 2 — Complete the CRUD + lifecycle surface  *(fills obvious gaps)*
 
-### 2.1 `get` / `update` / `delete` for a single memory, in all three interfaces
+### 2.1 `get` / `update` / `delete` for a single memory, in all three interfaces  ✅ SHIPPED
 **Goal:** today you can `store` and you can `delete` (CLI only). You cannot fetch one memory by ID, update its content, or delete it via MCP/REST. Complete the surface.
 
 **Files:** `memorius/vault.py` (`get_memory(id)`, `update_memory(id, content=None, metadata=None)`), `memorius/meta_store.py` (`get_memory_meta` already exists; add `update_memory_meta`), `memorius/vector_store.py` (`ChromaStore.get` is one-shot; `update` = re-embed + upsert, already supported via `add`'s upsert path), CLI (`memorius get <id>`, `memorius update <id> --content ...`), MCP (`memorius_get`, `memorius_update`, `memorius_delete`), REST (`GET /memory/{id}`, `PATCH /memory/{id}`, `DELETE /memory/{id}`).
@@ -73,7 +73,7 @@ The knowledge graph and temporal metadata already exist and are already maintain
 
 **Risks:** `update` changing content but keeping the same ID invalidates graph edges whose `weight` was computed from the old embedding — acceptable (edges stay; they just become stale). Document it.
 
-### 2.2 `memorius prune` — surface the existing stale-archive machinery
+### 2.2 `memorius prune` — surface the existing stale-archive machinery  ✅ SHIPPED
 **Goal:** `temporal.find_stale_memories` and `temporal.archive_memories` exist but have no CLI command. Memories decay silently; users can't act on decay.
 
 **Files:** `memorius/cli/main.py` (`memorius prune --threshold 0.1 --dry-run --archive`), `memorius/mcp_server.py` + `memorius/rest_server.py` (`memorius_prune` / `POST /prune`).
@@ -189,7 +189,7 @@ The knowledge graph and temporal metadata already exist and are already maintain
 | Release | Contents | Why these together |
 |---|---|---|
 | **0.5.0** ✅ | Phase 1 (1.1, 1.3) + Phase 4.1, 4.2 | "Smarter recall" — graph + filters + honest factcheck + honest access stats ship as one coherent retrieval-quality story. 1.2 deferred to 0.5.1 pending 4.1. **ALL SHIPPED.** |
-| **0.5.1** | Phase 1.2 + Phase 2.1 (get/update/delete) + Phase 2.2 (prune) | Contradiction edges need 4.1's clean factcheck; CRUD completion + prune form the "lifecycle" release. |
+| **0.5.1** ✅ | Phase 1.2 + Phase 2.1 (get/update/delete) + Phase 2.2 (prune) | Contradiction edges need 4.1's clean factcheck; CRUD completion + prune form the "lifecycle" release. **ALL SHIPPED.** |
 | **0.6.0** | Phase 2.3 (TTL) + Phase 3.1 (export/import) + Phase 3.2 (doctor) | Trust & portability — backup/restore/healthcheck as a release theme. |
 | **0.7.0** | Phase 4.3, 4.4 (scale) | Quality hardening before any growth push. |
 | **0.8.0+** | Phase 5 items as individually shippable | Each is独立 and opt-in. |
