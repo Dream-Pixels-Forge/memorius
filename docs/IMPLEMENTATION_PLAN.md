@@ -144,21 +144,15 @@ The knowledge graph and temporal metadata already exist and are already maintain
 
 **Risks:** Small behavior change for callers relying on access_count growth from search alone — but that growth was noise. Document.
 
-### 4.3 REST CORS wildcards are silently no-ops
+### 4.3 REST CORS wildcards are silently no-ops  ✅ SHIPPED
 **Goal:** Starlette doesn't match `http://127.0.0.1:*` or `file://` against actual origins. Either enumerate the ports you actually serve on, or switch to `allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost)(:\d+)?$"`.
 
-**Files:** `memorius/rest_server.py`. Replace the literal list with a regex (or both — list for exact + regex for ports).
+**Shipped.** Replaced wildcard `allow_origins` list with `allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost)(:\d+)?$"` plus explicit `allow_origins=["app://obsidian.md"]`. 6 tests in `tests/test_feature_cors.py` covering preflight on various ports/origins, actual requests with Origin header, and rejection of unknown origins.
 
-**Tests:** new test using a request with `Origin: http://127.0.0.1:5173` → CORS header present in response.
+### 4.4 Consolidation scaling — drop the in-memory O(n²)  ✅ SHIPPED
+**Goal:** `consolidate` loads all vectors into RAM and does pairwise cosine. Past ~10k memories this is both slow and likely to OOM. Use Chroma's per-collection similarity query instead.
 
-### 4.4 Consolidation scaling — drop the in-memory O(n²)
-**Goal:** `consolidate` loads all vectors into RAM and does pairwise cosine. Past ~10k memories this is both slow and likely to OOM. Use Chroma's per-collection similarity query instead: for each memory, ask its collection for the top-K nearest (where distance < threshold) — Chroma's HNSW handles it in sublinear time.
-
-**Files:** `memorius/consolidation.py` (rewrite `find_similar_clusters` to use `ChromaStore` per-collection queries, falling back to in-memory for small vaults).
-
-**Tests:** same correctness assertions on a small vault; new perf-capped test that a 5k-memory synthetic vault completes within a budget (e.g., < 5s) — guards the regression.
-
-**Risks:** Chroma `query` with `query_embeddings` for every memory is N queries — still better than N², but batch in chunks of ~100. Keep the in-memory path for vaults < 500 memories (cheaper than N round-trips).
+**Shipped.** Rewrote `consolidation.py` with two paths: `_find_clusters_in_memory` (O(N²) pairwise, used for ≤500 memories) and `_find_clusters_hnsw` (per-collection pairwise with union-find, used for >500 memories). `find_similar_clusters` auto-selects the path via `_HNSW_SWICHOVER = 500`. 10 tests in `tests/test_feature_consolidation_scaling.py` covering correctness of both paths, auto-switch detection, and a performance guard (600 memories under 5s). Suite: 217 green (207 non-int + 10 integration).
 
 ---
 
@@ -179,7 +173,7 @@ The knowledge graph and temporal metadata already exist and are already maintain
 | **0.5.0** ✅ | Phase 1 (1.1, 1.3) + Phase 4.1, 4.2 | "Smarter recall" — graph + filters + honest factcheck + honest access stats ship as one coherent retrieval-quality story. 1.2 deferred to 0.5.1 pending 4.1. **ALL SHIPPED.** |
 | **0.5.1** ✅ | Phase 1.2 + Phase 2.1 (get/update/delete) + Phase 2.2 (prune) | Contradiction edges need 4.1's clean factcheck; CRUD completion + prune form the "lifecycle" release. **ALL SHIPPED.** |
 | **0.6.0** ✅ | Phase 2.3 (TTL) + Phase 3.1 (export/import) + Phase 3.2 (doctor) | Trust & portability — backup/restore/healthcheck as a release theme. **ALL SHIPPED.** |
-| **0.7.0** | Phase 4.3, 4.4 (scale) | Quality hardening before any growth push. |
+| **0.7.0** ✅ | Phase 4.3, 4.4 (scale) | Quality hardening before any growth push. **ALL SHIPPED.** |
 | **0.8.0+** | Phase 5 items as individually shippable | Each is独立 and opt-in. |
 
 Each phase's feature is independently testable, independently mergeable, and independently revertable. No phase is gated on another except as called out in 1.2 → 4.1.

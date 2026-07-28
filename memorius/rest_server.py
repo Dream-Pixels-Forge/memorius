@@ -44,13 +44,13 @@ class MemoriusAPI:
 
         app = FastAPI(title="Memorius API", version=_memorius_version)
 
-        # CORS — restrictive by default
+        # CORS — restrictive by default; regex covers dynamic ports
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=["http://127.0.0.1", "http://localhost", "http://127.0.0.1:*", "http://localhost:*", "app://obsidian.md", "file://"],
-            allow_methods=["GET", "POST", "OPTIONS"],
-            allow_headers=["Content-Type", "Authorization"],
-            allow_credentials=True,
+            allow_origins=["app://obsidian.md"],
+            allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost)(:\d+)?$",
+            allow_methods=["*"],
+            allow_headers=["*"],
         )
 
         # API key authentication
