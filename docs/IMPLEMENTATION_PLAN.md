@@ -159,8 +159,8 @@ The knowledge graph and temporal metadata already exist and are already maintain
 ## Phase 5 — Performance & DX niceties  *(defer until P1-P4 shipped)*
 
 - **5.1 Batch embedding for `mine` and bulk import** ✅ SHIPPED — `mine()` now batch-embeds all chunks in a single `embed()` call. `store()` accepts optional `_vector` param for pre-computed vectors. 5 tests in `tests/test_feature_batch_pagination.py`. Part of commit `2028bdc`.
-- **5.2 Optional cross-encoder rerank** — `memorius[ranker]` extra pulling a small cross-encoder; rerank the top-50 by query-doc relevance. Plugin point in `EmbeddingFactory`-style factory.
-- **5.3 SQLite-vec fallback for vectors** — drop the chromadb+onnxruntime dependency for users who want a single-file install. Behind a `storage.type: sqlite-vec` config flag.
+- **5.2 Optional cross-encoder rerank** ✅ SHIPPED — `memorius[ranker]` extra (`sentence-transformers>=2.2.0`) lazy-loads `cross-encoder/ms-marco-MiniLM-L-6-v2`. `CrossEncoderReranker` class in `memorius/reranker.py` with `rerank_search_results()` and `get_reranker()` singleton. Wired into `vault.search(rerank=False)` with graceful ImportError fallback. CLI `--rerank` on search. MCP `rerank` boolean on `memorius_search`. REST `POST /search` accepts `rerank` field. `pyproject.toml` adds `ranker` extra, `all` updated. 10 tests in `tests/test_feature_rerank.py`.
+- **5.3 SQLite-vec fallback for vectors** ✅ SHIPPED — `memorius/sqlite_vec_store.py` implements `SqliteVecStore` class (add/search/delete/get_by_ids/count/get_collections) using `sqlite-vec` extension with in-Python cosine distance. `VaultEngine` wired to select `SqliteVecStore` when `storage.type: "sqlite-vec"` in config. `pyproject.toml` adds `single-file` extra (`sqlite-vec>=0.1.0`), `all` updated. Cursor pagination tie-breaking fixed: composite `(created_at, id) < (?, ?)` tuple cursor in `meta_store.py`. 16 tests in `tests/test_feature_sqlite_vec.py`. Full suite: 254 green.
 - **5.4 `serve-rest` daemon / socket activation** ✅ SHIPPED — `memorius serve-rest --daemon` (double-fork on Unix, detached subprocess on Windows) + `--stop` + `--pid-file`. 8 tests in `tests/test_feature_daemon.py`. Part of commit `ae5e0cb`.
 - **5.5 Cursor pagination on search / list** ✅ SHIPPED — `list_memories()` returns `{"memories": [...], "next_cursor": timestamp|None}`. `cursor` param on MCP `memorius_list` and REST `GET /memories`. CLI `memorius list --cursor`. 8 tests in `tests/test_feature_batch_pagination.py`. Part of commit `2028bdc`.
 
@@ -175,7 +175,7 @@ The knowledge graph and temporal metadata already exist and are already maintain
 | **0.6.0** ✅ | Phase 2.3 (TTL) + Phase 3.1 (export/import) + Phase 3.2 (doctor) | Trust & portability — backup/restore/healthcheck as a release theme. **ALL SHIPPED.** |
 | **0.7.0** ✅ | Phase 4.3, 4.4 (scale) | Quality hardening before any growth push. **ALL SHIPPED.** |
 | **0.8.0** ✅ | Phase 5.1, 5.4, 5.5 | Batch embedding, daemon, cursor pagination. **ALL SHIPPED.** |
-| **0.9.0+** | Phase 5.2, 5.3 (cross-encoder rerank, sqlite-vec) | Opt-in/nice-to-haves. |
+| **0.9.0** ✅ | Phase 5.2, 5.3 (cross-encoder rerank, sqlite-vec) | Opt-in/nice-to-haves — rerank for quality, sqlite-vec for single-file simplicity. **ALL SHIPPED.** |
 
 Each phase's feature is independently testable, independently mergeable, and independently revertable. No phase is gated on another except as called out in 1.2 → 4.1.
 

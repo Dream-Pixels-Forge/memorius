@@ -94,6 +94,7 @@ def main():
     search_p.add_argument("--note", default=None, help="Filter by note (Chroma metadata)")
     search_p.add_argument("--tag", action="append", default=None, help="Filter by tag (repeatable; memory must carry ALL supplied tags)")
     search_p.add_argument("--expand-graph", action="store_true", help="Also pull in 1-hop graph-linked memories (\"you also worked on X\")")
+    search_p.add_argument("--rerank", action="store_true", help="Cross-encoder rerank results (requires memorius[ranker])")
     search_p.add_argument("--web", action="store_true", help="Fall back to web search if local recall is thin")
 
     mine_p = subparsers.add_parser("mine", help="Mine memories from a transcript")
@@ -398,6 +399,7 @@ def cmd_search(engine, args, config):
         folder=getattr(args, "folder", None),
         note=getattr(args, "note", None),
         tags=getattr(args, "tag", None),
+        rerank=getattr(args, "rerank", False),
     )
     print(f'Search: "{query}"')
     if getattr(args, "expand_graph", False):

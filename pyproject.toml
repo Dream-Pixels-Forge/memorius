@@ -35,8 +35,14 @@ local-embeddings = [
 openai = [
     "openai>=1.0.0",
 ]
+ranker = [
+    "sentence-transformers>=2.2.0",
+]
+single-file = [
+    "sqlite-vec>=0.1.0",
+]
 all = [
-    "memorius[local-embeddings,openai]",
+    "memorius[local-embeddings,openai,ranker,single-file]",
 ]
 dev = [
     "pytest>=7.0",

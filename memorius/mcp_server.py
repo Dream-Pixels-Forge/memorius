@@ -67,6 +67,7 @@ class McpServer:
                     "note": {"type": "string", "description": "Filter by note (Chroma metadata)"},
                     "tags": {"type": "array", "items": {"type": "string"}, "description": "Only return memories carrying ALL of these tags (post-filtered in Python)"},
                     "expand_graph": {"type": "boolean", "description": "Also pull in 1-hop graph-linked memories (default: false). Off preserves the original search-only behavior; on augments with related memories.", "default": False},
+                    "rerank": {"type": "boolean", "description": "Cross-encoder rerank results by relevance (requires memorius[ranker], default: false)", "default": False},
                     "cursor": {"type": "string", "description": "Cursor for pagination (timestamp of last item from previous page)"},
                 },
                 "required": ["query"],
@@ -405,6 +406,7 @@ class McpServer:
         folder = _validate_name(args.get("folder"), "folder") if args.get("folder") else None
         note = _validate_name(args.get("note"), "note") if args.get("note") else None
         expand_graph = bool(args.get("expand_graph", False))
+        rerank = bool(args.get("rerank", False))
         tags_in = args.get("tags")
         tags = [str(t) for t in tags_in] if isinstance(tags_in, list) and tags_in else None
         cursor = args.get("cursor") if isinstance(args.get("cursor"), str) else None
@@ -418,6 +420,7 @@ class McpServer:
             folder=folder,
             note=note,
             tags=tags,
+            rerank=rerank,
         )
         # Exclude vector from response — it's large and not useful to callers
         return {

@@ -486,17 +486,26 @@ class SQLiteStore:
         """List memory metadata with optional vault filter and cursor pagination.
 
         Args:
-            cursor: ISO timestamp of the last item from the previous page.
-                When set, returns items created *before* this timestamp.
+            cursor: Composite cursor ``"timestamp|memory_id"`` from the
+                previous page.  When set, returns items created *before*
+                the cursor, breaking ties by id.
         """
         conn = self._conn()
+
+        # Parse composite cursor into (timestamp, id).
+        cursor_ts: str | None = None
+        cursor_id: str | None = None
+        if cursor:
+            cursor_ts, cursor_id = cursor.split("|", 1)
+
         if vault:
             if include_archived:
                 if cursor:
                     rows = conn.execute(
-                        "SELECT * FROM memory_meta WHERE vault = ? AND created_at < ? "
+                        "SELECT * FROM memory_meta WHERE vault = ? "
+                        "AND (created_at, id) < (?, ?) "
                         "ORDER BY created_at DESC LIMIT ?",
-                        (vault, cursor, limit),
+                        (vault, cursor_ts, cursor_id, limit),
                     ).fetchall()
                 else:
                     rows = conn.execute(
@@ -508,8 +517,9 @@ class SQLiteStore:
                 if cursor:
                     rows = conn.execute(
                         "SELECT * FROM memory_meta WHERE vault = ? AND archived = 0 "
-                        "AND created_at < ? ORDER BY created_at DESC LIMIT ?",
-                        (vault, cursor, limit),
+                        "AND (created_at, id) < (?, ?) "
+                        "ORDER BY created_at DESC LIMIT ?",
+                        (vault, cursor_ts, cursor_id, limit),
                     ).fetchall()
                 else:
                     rows = conn.execute(
@@ -521,9 +531,10 @@ class SQLiteStore:
             if include_archived:
                 if cursor:
                     rows = conn.execute(
-                        "SELECT * FROM memory_meta WHERE created_at < ? "
+                        "SELECT * FROM memory_meta "
+                        "WHERE (created_at, id) < (?, ?) "
                         "ORDER BY created_at DESC LIMIT ?",
-                        (cursor, limit),
+                        (cursor_ts, cursor_id, limit),
                     ).fetchall()
                 else:
                     rows = conn.execute(
@@ -533,9 +544,10 @@ class SQLiteStore:
             else:
                 if cursor:
                     rows = conn.execute(
-                        "SELECT * FROM memory_meta WHERE archived = 0 AND created_at < ? "
+                        "SELECT * FROM memory_meta WHERE archived = 0 "
+                        "AND (created_at, id) < (?, ?) "
                         "ORDER BY created_at DESC LIMIT ?",
-                        (cursor, limit),
+                        (cursor_ts, cursor_id, limit),
                     ).fetchall()
                 else:
                     rows = conn.execute(

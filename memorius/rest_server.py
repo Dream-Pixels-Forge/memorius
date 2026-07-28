@@ -142,11 +142,13 @@ class MemoriusAPI:
             folder = _validate_name(payload.get("folder"), "folder") if payload.get("folder") else None
             note = _validate_name(payload.get("note"), "note") if payload.get("note") else None
             expand_graph = bool(payload.get("expand_graph", False))
+            rerank = bool(payload.get("rerank", False))
             tags_in = payload.get("tags")
             tags = [str(t) for t in tags_in] if isinstance(tags_in, list) and tags_in else None
             results = engine.search(
                 query=query, vault=vault, shelf=shelf, limit=limit,
                 expand_graph=expand_graph, folder=folder, note=note, tags=tags,
+                rerank=rerank,
             )
             out = []
             for m in results:

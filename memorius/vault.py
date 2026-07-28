@@ -49,7 +49,12 @@ class VaultEngine:
 
         self._embed = EmbeddingFactory.create(embed_cfg)
         storage_path = Path(storage_cfg.get("path", "~/.memorius/data")).expanduser()
-        self._vector = ChromaStore(storage_path / "vectors", self._embed)
+        storage_type = storage_cfg.get("type", "chroma")
+        if storage_type == "sqlite-vec":
+            from memorius.sqlite_vec_store import SqliteVecStore
+            self._vector = SqliteVecStore(storage_path / "vectors", self._embed)
+        else:
+            self._vector = ChromaStore(storage_path / "vectors", self._embed)
         self._meta = SQLiteStore(storage_path)
 
     def __enter__(self):
@@ -142,7 +147,8 @@ class VaultEngine:
                expand_graph: bool = False, graph_hops: int = 1,
                graph_min_weight: float = 0.3,
                folder: str | None = None, note: str | None = None,
-               tags: list[str] | None = None) -> list[Memory]:
+               tags: list[str] | None = None,
+               rerank: bool = False) -> list[Memory]:
         """Search vault contents by semantic similarity with temporal decay
         ranking.
 
@@ -221,6 +227,16 @@ class VaultEngine:
         except Exception:
             logger.debug("Temporal decay scoring failed, using rank order")
             results = results[:limit]
+
+        # ── Cross-encoder rerank (opt-in) ──────────────────────────────────
+        if rerank and results:
+            try:
+                from memorius.reranker import rerank_search_results
+                results = rerank_search_results(query, results, top_k=limit)
+            except ImportError:
+                logger.debug("Cross-encoder reranker not installed, skipping")
+            except Exception:
+                logger.debug("Reranking failed, keeping original order")
 
         # ── Graph expansion (opt-in) ────────────────────────────────────────
         # The seed results are the ranked matches above. If asked, walk the
@@ -471,11 +487,13 @@ class VaultEngine:
         if limit is not None:
             memories = memories[:limit]
 
-        # Compute next_cursor from the last memory's created_at
+        # Compute next_cursor as composite "created_at|id" to break ties
+        # when multiple memories share the same timestamp.
         next_cursor = None
         if has_more and memories:
             last = memories[-1]
-            next_cursor = last.created_at or last.updated_at
+            ts = last.created_at or last.updated_at
+            next_cursor = f"{ts}|{last.id}"
 
         return {"memories": memories, "next_cursor": next_cursor}
 
