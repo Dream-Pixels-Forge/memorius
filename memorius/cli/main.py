@@ -119,6 +119,9 @@ def main():
     serve_rest_p = subparsers.add_parser("serve-rest", help="Start REST API server")
     serve_rest_p.add_argument("--port", type=int, default=None, help="Port")
     serve_rest_p.add_argument("--host", default=None, help="Host")
+    serve_rest_p.add_argument("--daemon", action="store_true", help="Run as background daemon")
+    serve_rest_p.add_argument("--stop", action="store_true", help="Stop running daemon")
+    serve_rest_p.add_argument("--pid-file", default=None, help="PID file path")
 
     config_p = subparsers.add_parser("config", help="Show configuration")
     config_p.add_argument("--show", action="store_true", default=True, help="Show config")
@@ -510,11 +513,136 @@ def cmd_serve(engine, args, config):
 
 def cmd_serve_rest(engine, args, config):
     """Start the REST API server."""
-    from memorius.rest_server import run_rest_server
     config_server = config.get("server", {})
     host = args.host or config_server.get("host", "127.0.0.1")
     port = args.port or config_server.get("rest_port", 8912)
-    run_rest_server(engine, host=host, port=port)
+    pid_file = Path(args.pid_file or (DEFAULT_CONFIG_DIR / "serve.pid"))
+
+    if getattr(args, "stop", False):
+        _stop_daemon(pid_file)
+        return
+
+    if getattr(args, "daemon", False):
+        _start_daemon(engine, host, port, pid_file)
+    else:
+        from memorius.rest_server import run_rest_server
+        run_rest_server(engine, host=host, port=port)
+
+
+def _stop_daemon(pid_file: Path):
+    """Stop a running daemon by PID file."""
+    import os
+    import signal
+    import time
+
+    if not pid_file.exists():
+        print("No daemon running (no PID file)")
+        return
+
+    try:
+        pid = int(pid_file.read_text().strip())
+    except (ValueError, OSError):
+        pid_file.unlink(missing_ok=True)
+        print("Invalid PID file, removed")
+        return
+
+    # Check if process is alive
+    alive = True
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        alive = False
+
+    if not alive:
+        print(f"PID {pid} not running, cleaning up")
+        pid_file.unlink(missing_ok=True)
+        return
+
+    # Send termination signal
+    if os.name == "nt":
+        import subprocess
+        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+    else:
+        os.kill(pid, signal.SIGTERM)
+
+    print(f"Sent stop signal to PID {pid}")
+
+    # Wait for process to exit
+    for _ in range(30):
+        try:
+            os.kill(pid, 0)
+            time.sleep(0.1)
+        except OSError:
+            break
+
+    if pid_file.exists():
+        pid_file.unlink(missing_ok=True)
+    print("Daemon stopped")
+
+
+def _start_daemon(engine, host: str, port: int, pid_file: Path):
+    """Start REST server as a background daemon."""
+    import os
+    import sys
+    import subprocess
+    import time
+
+    if os.name == "nt":
+        # Windows: launch detached subprocess
+        cmd = [
+            sys.executable, "-c",
+            (
+                f"import os, sys; sys.stdin = open(os.devnull); "
+                f"Path('{pid_file}').write_text(str(os.getpid())); "
+                f"from memorius.rest_server import run_rest_server; "
+                f"from memorius.vault import VaultEngine; "
+                f"from memorius.config import load_config; "
+                f"e = VaultEngine(load_config()); "
+                f"run_rest_server(e, host='{host}', port={port})"
+            ),
+        ]
+        proc = subprocess.Popen(
+            cmd,
+            creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        pid_file.parent.mkdir(parents=True, exist_ok=True)
+        pid_file.write_text(str(proc.pid))
+        print(f"Daemon started (PID {proc.pid})")
+    else:
+        # Unix: double-fork
+        pid = os.fork()
+        if pid > 0:
+            print(f"Daemon started (PID {pid})")
+            return
+
+        os.setsid()
+
+        pid = os.fork()
+        if pid > 0:
+            sys.exit(0)
+
+        # Redirect stdio
+        sys.stdin = open(os.devnull, "r")
+        sys.stdout = open(os.devnull, "w")
+        sys.stderr = open(os.devnull, "w")
+
+        # Write PID file
+        pid_file.parent.mkdir(parents=True, exist_ok=True)
+        pid_file.write_text(str(os.getpid()))
+
+        import atexit
+        def _cleanup():
+            pid_file.unlink(missing_ok=True)
+        atexit.register(_cleanup)
+
+        import signal
+        signal.signal(signal.SIGHUP, signal.SIG_IGN)
+
+        from memorius.rest_server import run_rest_server
+        run_rest_server(engine, host=host, port=port)
 
 
 def cmd_config(engine, args, config):
