@@ -182,6 +182,14 @@ def main():
     prune_p.add_argument("--delete", dest="hard_delete", action="store_true", help="Hard-delete instead of soft-archive")
     prune_p.add_argument("--json", dest="output_json", action="store_true", help="Output as JSON")
 
+    export_p = subparsers.add_parser("export", help="Export vault to JSON or Markdown")
+    export_p.add_argument("dest", help="Output file path (.json) or directory (for markdown)")
+    export_p.add_argument("--format", choices=["json", "markdown"], default="json", help="Export format (default: json)")
+
+    import_p = subparsers.add_parser("import", help="Import vault from a JSON export")
+    import_p.add_argument("src", help="JSON export file to import")
+    import_p.add_argument("--replace", action="store_true", help="Overwrite existing memories instead of skipping")
+
     # ── Obsidian subcommands ──
     obsidian_p = subparsers.add_parser("obsidian", help="Interact with Obsidian vaults")
     obsidian_sub = obsidian_p.add_subparsers(dest="subcommand")
@@ -245,6 +253,8 @@ def main():
         "get": cmd_get,
         "update": cmd_update,
         "prune": cmd_prune,
+        "export": cmd_export,
+        "import": cmd_import,
     }
     handler = commands.get(args.command)
     if handler:
@@ -777,6 +787,35 @@ def cmd_prune(engine, args, config):
         preview = (item.get("content") or "")[:100]
         print(f"  [{item['decay_score']:.2f}] {item['id']}  {preview}")
     print(f"\n{label}: {result['archived_count']}")
+
+
+def cmd_export(engine, args, config):
+    """Export vault to JSON or Markdown."""
+    from memorius.backup import export_json, export_markdown
+
+    fmt = getattr(args, "format", "json")
+    dest = args.dest
+
+    if fmt == "json":
+        path = export_json(engine, dest)
+        print(f"Exported vault to {path}")
+    else:
+        path = export_markdown(engine, dest)
+        print(f"Exported vault to {path}")
+
+
+def cmd_import(engine, args, config):
+    """Import vault from a JSON export."""
+    from memorius.backup import import_json
+
+    merge = not getattr(args, "replace", False)
+    stats = import_json(engine, args.src, merge=merge)
+
+    total = sum(stats.values())
+    print(f"Import complete ({total} operations):")
+    for k, v in stats.items():
+        if v:
+            print(f"  {k}: {v}")
 
 
 def cmd_delete(engine, args, config):
