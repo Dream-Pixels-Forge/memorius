@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.5.0 (2026-07-28)
+
+### Features
+- **Cross-encoder reranker** — `memorius search --rerank` uses `cross-encoder/ms-marco-MiniLM-L-6-v2` for higher-precision search ranking. Install via `pip install memorius[ranker]`.
+- **SQLite-vec backend** — single-file vector store alternative to ChromaDB. Set `storage.type: sqlite-vec` or `MEMORIUS_STORAGE_TYPE=sqlite-vec`. Install via `pip install memorius[single-file]`.
+- **Cursor pagination** — `memorius list` and MCP `memorius_list` support cursor-based pagination for large vaults. `search` also supports `--cursor` for paginated results.
+- **Batch embedding** — vector store writes embeddings in batches for improved performance on bulk operations.
+- **Daemon mode** — `memorius serve-rest --daemon` / `--stop` with PID file management for background operation.
+- **`memorius setup`** — downloads ONNX model with SHA256 verification and initializes vault (`--force`, `--skip-model`).
+- **TTL (Time-to-Live)** — `memorius store "..." --ttl 30` sets expiration on memories. Expired memories are eligible for pruning.
+- **`memorius prune`** — find and archive/delete stale memories by decay score threshold or TTL expiry (`--dry-run`, `--delete`, `--json`).
+- **Export / Import** — `memorius export` (JSON or Markdown) and `memorius import` for vault portability and backups. JSON export includes hierarchy, diaries, and graph edges.
+- **`memorius doctor`** — health checks for config, storage, ONNX model, vector/meta drift, and graph integrity. Available via CLI, MCP, and REST.
+- **`memorius get` / `memorius update`** — read and modify individual memories by UUID. Update supports content changes (auto re-embeds) and metadata merging.
+- **Contradiction edges** — `memorius factcheck` persists bidirectional `relation='contradicts'` edges in the knowledge graph. MCP `memorius_contradictions` and REST `GET /contradictions/{id}` expose them.
+- **Graph-aware retrieval** — `memorius search --expand-graph` pulls in 1-hop graph-linked memories ("you also worked on X"). Configurable `graph_hops` and `graph_min_weight`.
+- **Metadata & tag filtering** — `memorius search --tag` (repeatable) filters memories by tags. Shell/folder/note filters work via Chroma metadata.
+- **`memorius list`** — list memories with cursor pagination, vault filtering, and JSON output.
+- **Honest factcheck** — improved contradiction detection with honest access recording on search and store operations.
+
+### Expanded
+- **26 CLI commands** (was 18) — added `setup`, `get`, `update`, `list`, `prune`, `export`, `import`, `doctor`
+- **22 MCP tools** (was 14) — added `get`, `update`, `delete`, `list`, `contradictions`, `prune`, `doctor`
+- **24 REST endpoints** (was 15) — added CRUD, doctor, prune, contradictions, memories list
+- **8 agent hooks** — OpenClaude, Claude Code, Codex CLI, Gemini CLI, OpenClaw, OpenCode, Pi, Generic
+- **10 hook engine actions** — mine_dir, diary, conditional_diary, command, log, webhook, inject_context, consolidate, factcheck, block
+
+### Improved
+- **README** — comprehensive rewrite with all current features, security sections, thread safety, validation, context injection, session inheritance, and optional dependencies.
+- **REST security** — API key auth (`MEMORIUS_API_KEY`), rate limiting (500 req/min), request body limits, restrictive CORS.
+- **Hook security** — template injection prevention, `shlex.split()` command execution, webhook SSRF protection.
+- **Thread safety** — thread-local SQLite connections, `threading.Lock()` for all writes, `atexit` cleanup.
+
 ## v0.4.5 (2026-07-15)
 
 ### Features
