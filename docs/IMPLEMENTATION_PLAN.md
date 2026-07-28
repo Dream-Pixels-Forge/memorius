@@ -158,11 +158,11 @@ The knowledge graph and temporal metadata already exist and are already maintain
 
 ## Phase 5 — Performance & DX niceties  *(defer until P1-P4 shipped)*
 
-- **5.1 Async / batch embedding for `mine` and bulk import** — `embeddings.embed` already accepts a list; mine() stores one-at-a-time. Batch the embed + upsert.
+- **5.1 Batch embedding for `mine` and bulk import** ✅ SHIPPED — `mine()` now batch-embeds all chunks in a single `embed()` call. `store()` accepts optional `_vector` param for pre-computed vectors. 5 tests in `tests/test_feature_batch_pagination.py`. Part of commit `2028bdc`.
 - **5.2 Optional cross-encoder rerank** — `memorius[ranker]` extra pulling a small cross-encoder; rerank the top-50 by query-doc relevance. Plugin point in `EmbeddingFactory`-style factory.
 - **5.3 SQLite-vec fallback for vectors** — drop the chromadb+onnxruntime dependency for users who want a single-file install. Behind a `storage.type: sqlite-vec` config flag.
-- **5.4 `serve-rest` daemon / socket activation** — `memorius serve-rest --daemon` that double-forks and writes a pidfile, so agents can rely on a stable REST endpoint.
-- **5.5 Pagination on search / list** — `cursor` + `limit` consistent across MCP/REST, mirroring `openart_creation_list`-style cursors.
+- **5.4 `serve-rest` daemon / socket activation** ✅ SHIPPED — `memorius serve-rest --daemon` (double-fork on Unix, detached subprocess on Windows) + `--stop` + `--pid-file`. 8 tests in `tests/test_feature_daemon.py`. Part of commit `ae5e0cb`.
+- **5.5 Cursor pagination on search / list** ✅ SHIPPED — `list_memories()` returns `{"memories": [...], "next_cursor": timestamp|None}`. `cursor` param on MCP `memorius_list` and REST `GET /memories`. CLI `memorius list --cursor`. 8 tests in `tests/test_feature_batch_pagination.py`. Part of commit `2028bdc`.
 
 ---
 
@@ -174,7 +174,8 @@ The knowledge graph and temporal metadata already exist and are already maintain
 | **0.5.1** ✅ | Phase 1.2 + Phase 2.1 (get/update/delete) + Phase 2.2 (prune) | Contradiction edges need 4.1's clean factcheck; CRUD completion + prune form the "lifecycle" release. **ALL SHIPPED.** |
 | **0.6.0** ✅ | Phase 2.3 (TTL) + Phase 3.1 (export/import) + Phase 3.2 (doctor) | Trust & portability — backup/restore/healthcheck as a release theme. **ALL SHIPPED.** |
 | **0.7.0** ✅ | Phase 4.3, 4.4 (scale) | Quality hardening before any growth push. **ALL SHIPPED.** |
-| **0.8.0+** | Phase 5 items as individually shippable | Each is独立 and opt-in. |
+| **0.8.0** ✅ | Phase 5.1, 5.4, 5.5 | Batch embedding, daemon, cursor pagination. **ALL SHIPPED.** |
+| **0.9.0+** | Phase 5.2, 5.3 (cross-encoder rerank, sqlite-vec) | Opt-in/nice-to-haves. |
 
 Each phase's feature is independently testable, independently mergeable, and independently revertable. No phase is gated on another except as called out in 1.2 → 4.1.
 
