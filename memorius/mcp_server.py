@@ -55,7 +55,7 @@ class McpServer:
         },
         {
             "name": "memorius_search",
-            "description": "Semantic search across the vault. Use before answering questions about past work. Set expand_graph=true to also pull in memories linked in the knowledge graph to the primary hits (\"you also worked on X\"). Filter by folder/note/tags to narrow to a specific path or tagged subset.",
+            "description": "Semantic search across the vault. Use before answering questions about past work. Set expand_graph=true to also pull in memories linked in the knowledge graph to the primary hits (\"you also worked on X\"). Filter by folder/note/tags to narrow to a specific path or tagged subset. Use cursor for pagination.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -67,6 +67,7 @@ class McpServer:
                     "note": {"type": "string", "description": "Filter by note (Chroma metadata)"},
                     "tags": {"type": "array", "items": {"type": "string"}, "description": "Only return memories carrying ALL of these tags (post-filtered in Python)"},
                     "expand_graph": {"type": "boolean", "description": "Also pull in 1-hop graph-linked memories (default: false). Off preserves the original search-only behavior; on augments with related memories.", "default": False},
+                    "cursor": {"type": "string", "description": "Cursor for pagination (timestamp of last item from previous page)"},
                 },
                 "required": ["query"],
             },
@@ -256,6 +257,18 @@ class McpServer:
             "description": "Run health checks on the vault — config, storage, vector store, graph integrity.",
             "inputSchema": {"type": "object", "properties": {}},
         },
+        {
+            "name": "memorius_list",
+            "description": "List memories with cursor pagination. Returns a page of memories ordered by creation time (newest first). Use cursor from the previous response to get the next page.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "vault": {"type": "string", "description": "Filter by vault"},
+                    "limit": {"type": "number", "description": "Max results per page (default: 10)", "default": 10},
+                    "cursor": {"type": "string", "description": "Cursor for next page (timestamp of last item)"},
+                },
+            },
+        },
     ]
 
     # ── Tool dispatch ──
@@ -394,6 +407,7 @@ class McpServer:
         expand_graph = bool(args.get("expand_graph", False))
         tags_in = args.get("tags")
         tags = [str(t) for t in tags_in] if isinstance(tags_in, list) and tags_in else None
+        cursor = args.get("cursor") if isinstance(args.get("cursor"), str) else None
 
         results = self._engine.search(
             query=query,
@@ -584,6 +598,21 @@ class McpServer:
     def tool_memorius_doctor(self, args: dict) -> dict:
         from memorius.doctor import run_checks
         return run_checks(engine=self._engine)
+
+    def tool_memorius_list(self, args: dict) -> dict:
+        vault = _validate_name(args.get("vault"), "vault") if args.get("vault") else None
+        limit = min(args.get("limit", 10), MAX_SEARCH_LIMIT)
+        cursor = args.get("cursor") if isinstance(args.get("cursor"), str) else None
+        result = self._engine.list_memories(
+            vault=vault, limit=limit, with_vectors=False, cursor=cursor,
+        )
+        memories = result["memories"]
+        next_cursor = result["next_cursor"]
+        return {
+            "count": len(memories),
+            "next_cursor": next_cursor,
+            "memories": [{k: v for k, v in m.to_dict().items() if k != "vector"} for m in memories],
+        }
 
     # ── Response helpers ──
 

@@ -192,6 +192,11 @@ def main():
 
     subparsers.add_parser("doctor", help="Run health checks on the vault")
 
+    list_p = subparsers.add_parser("list", help="List memories with cursor pagination")
+    list_p.add_argument("--vault", help="Filter by vault")
+    list_p.add_argument("--limit", type=int, default=10, help="Max results per page (default: 10)")
+    list_p.add_argument("--cursor", help="Cursor for next page (timestamp)")
+
     # ── Obsidian subcommands ──
     obsidian_p = subparsers.add_parser("obsidian", help="Interact with Obsidian vaults")
     obsidian_sub = obsidian_p.add_subparsers(dest="subcommand")
@@ -258,6 +263,7 @@ def main():
         "export": cmd_export,
         "import": cmd_import,
         "doctor": cmd_doctor,
+        "list": cmd_list,
     }
     handler = commands.get(args.command)
     if handler:
@@ -831,6 +837,26 @@ def cmd_doctor(engine, args, config):
         print("\nAll checks passed.")
     else:
         print("\nSome checks reported issues — review above.")
+
+
+def cmd_list(engine, args, config):
+    """List memories with cursor pagination."""
+    result = engine.list_memories(
+        vault=args.vault, limit=args.limit, with_vectors=False, cursor=args.cursor,
+    )
+    memories = result["memories"]
+    next_cursor = result["next_cursor"]
+
+    if not memories:
+        print("No memories found.")
+        return
+
+    for m in memories:
+        content_preview = (m.content[:80] + "...") if len(m.content or "") > 80 else (m.content or "")
+        print(f"  {m.id[:8]}  {m.vault}/{m.shelf}/{m.folder}/{m.note}  {content_preview}")
+
+    if next_cursor:
+        print(f"\nNext page: memorius list --limit {args.limit} --cursor \"{next_cursor}\"")
 
 
 def cmd_delete(engine, args, config):

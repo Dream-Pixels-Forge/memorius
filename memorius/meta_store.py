@@ -481,31 +481,68 @@ class SQLiteStore:
         return {row["id"]: dict(row) for row in rows}
 
     def list_memories_meta(self, vault: str | None = None, limit: int = 100,
-                           include_archived: bool = False) -> list[dict]:
-        """List memory metadata with optional vault filter."""
+                           include_archived: bool = False,
+                           cursor: str | None = None) -> list[dict]:
+        """List memory metadata with optional vault filter and cursor pagination.
+
+        Args:
+            cursor: ISO timestamp of the last item from the previous page.
+                When set, returns items created *before* this timestamp.
+        """
         conn = self._conn()
         if vault:
             if include_archived:
-                rows = conn.execute(
-                    "SELECT * FROM memory_meta WHERE vault = ? ORDER BY created_at DESC LIMIT ?",
-                    (vault, limit),
-                ).fetchall()
+                if cursor:
+                    rows = conn.execute(
+                        "SELECT * FROM memory_meta WHERE vault = ? AND created_at < ? "
+                        "ORDER BY created_at DESC LIMIT ?",
+                        (vault, cursor, limit),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        "SELECT * FROM memory_meta WHERE vault = ? "
+                        "ORDER BY created_at DESC LIMIT ?",
+                        (vault, limit),
+                    ).fetchall()
             else:
-                rows = conn.execute(
-                    "SELECT * FROM memory_meta WHERE vault = ? AND archived = 0 ORDER BY created_at DESC LIMIT ?",
-                    (vault, limit),
-                ).fetchall()
+                if cursor:
+                    rows = conn.execute(
+                        "SELECT * FROM memory_meta WHERE vault = ? AND archived = 0 "
+                        "AND created_at < ? ORDER BY created_at DESC LIMIT ?",
+                        (vault, cursor, limit),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        "SELECT * FROM memory_meta WHERE vault = ? AND archived = 0 "
+                        "ORDER BY created_at DESC LIMIT ?",
+                        (vault, limit),
+                    ).fetchall()
         else:
             if include_archived:
-                rows = conn.execute(
-                    "SELECT * FROM memory_meta ORDER BY created_at DESC LIMIT ?",
-                    (limit,),
-                ).fetchall()
+                if cursor:
+                    rows = conn.execute(
+                        "SELECT * FROM memory_meta WHERE created_at < ? "
+                        "ORDER BY created_at DESC LIMIT ?",
+                        (cursor, limit),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        "SELECT * FROM memory_meta ORDER BY created_at DESC LIMIT ?",
+                        (limit,),
+                    ).fetchall()
             else:
-                rows = conn.execute(
-                    "SELECT * FROM memory_meta WHERE archived = 0 ORDER BY created_at DESC LIMIT ?",
-                    (limit,),
-                ).fetchall()
+                if cursor:
+                    rows = conn.execute(
+                        "SELECT * FROM memory_meta WHERE archived = 0 AND created_at < ? "
+                        "ORDER BY created_at DESC LIMIT ?",
+                        (cursor, limit),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        "SELECT * FROM memory_meta WHERE archived = 0 "
+                        "ORDER BY created_at DESC LIMIT ?",
+                        (limit,),
+                    ).fetchall()
         return [dict(r) for r in rows]
 
     def archive_memory(self, memory_id: str):

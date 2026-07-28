@@ -268,8 +268,8 @@ def consolidate(
     result = ConsolidationResult()
 
     # Collect all memories with vectors
-    search_results = engine.list_memories(vault=vault, limit=10000, with_vectors=True)
-    memories = [m.to_dict() for m in search_results]
+    page = engine.list_memories(vault=vault, limit=10000, with_vectors=True)
+    memories = [m.to_dict() for m in page["memories"]]
 
     if not memories:
         logger.info("No memories to consolidate")

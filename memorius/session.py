@@ -57,8 +57,8 @@ def build_session_profile(
 
     # 2. Get recent memories (time-recency ordered, no vector fetch needed
     # since this scan only uses content + metadata category tags).
-    recent = engine.list_memories(vault=vault, limit=10, with_vectors=False)
-    for mem in recent:
+    result = engine.list_memories(vault=vault, limit=10, with_vectors=False)
+    for mem in result["memories"]:
         meta = mem.metadata or {}
         category = meta.get("category", "")
         content = mem.content or ""

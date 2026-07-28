@@ -87,7 +87,8 @@ class VaultEngine:
     def store(self, content: str, vault: str = "main", shelf: str = "default",
               folder: str = "default", note: str = "default",
               metadata: dict[str, Any] | None = None,
-              ttl_days: int | None = None) -> Memory:
+              ttl_days: int | None = None,
+              _vector: list[float] | None = None) -> Memory:
         """Store a memory in the vault.
 
         Args:
@@ -95,6 +96,7 @@ class VaultEngine:
                 becomes eligible for archival after this many days regardless
                 of access count. Stored as ``expires_at`` ISO timestamp in
                 metadata.
+            _vector: pre-computed embedding vector (internal use for batch ops).
         """
         vault = _validate_name(vault, "vault")
         shelf = _validate_name(shelf, "shelf")
@@ -116,6 +118,7 @@ class VaultEngine:
             note=note,
             content=content,
             metadata=merged_metadata,
+            vector=_vector,
         )
         self._vector.add(memory)
         self._meta.increment_note_count(vault, shelf, folder, note)
@@ -395,17 +398,29 @@ class VaultEngine:
         return mem
 
     def list_memories(self, vault: str | None = None, shelf: str | None = None,
-                      limit: int | None = None, with_vectors: bool = True) -> list[Memory]:
+                      limit: int | None = None, with_vectors: bool = True,
+                      cursor: str | None = None) -> dict[str, Any]:
         """List memories by metadata (time-recency), optionally filling vectors
         from the ChromaStore. Avoids the misuse of empty-query search as
-        \"list all\". Returns Memories ordered by created_at DESC from the meta
+        "list all". Returns Memories ordered by created_at DESC from the meta
         store.
+
+        Returns a dict with keys:
+            - memories: list of Memory objects
+            - next_cursor: ISO timestamp of the last memory (use as cursor
+              for the next page), or None if no more results
         """
+        fetch_limit = (limit or 10000) + 1  # fetch one extra to detect next page
         meta_rows = self._meta.list_memories_meta(
-            vault=vault, limit=limit or 10000, include_archived=False,
+            vault=vault, limit=fetch_limit, include_archived=False, cursor=cursor,
         )
         if not meta_rows:
-            return []
+            return {"memories": [], "next_cursor": None}
+
+        # Check if there are more results
+        has_more = len(meta_rows) > (limit or 10000)
+        if has_more:
+            meta_rows = meta_rows[:limit or 10000]
 
         # Defaults from meta rows (meta is source of truth for temporal order).
         memories: list[Memory] = []
@@ -455,7 +470,14 @@ class VaultEngine:
 
         if limit is not None:
             memories = memories[:limit]
-        return memories
+
+        # Compute next_cursor from the last memory's created_at
+        next_cursor = None
+        if has_more and memories:
+            last = memories[-1]
+            next_cursor = last.created_at or last.updated_at
+
+        return {"memories": memories, "next_cursor": next_cursor}
 
     def delete(self, memory_id: str, vault: str | None = None,
                shelf: str | None = None, dry_run: bool = False) -> dict[str, Any]:
@@ -526,15 +548,23 @@ class VaultEngine:
 
     def mine(self, text: str, vault: str = "main", shelf: str = "conversations",
              folder: str = "mined", note: str = "transcript") -> list[Memory]:
-        """Extract memories from a transcript by splitting into chunks."""
+        """Extract memories from a transcript by splitting into chunks.
+
+        Uses batch embedding — all chunks are embedded in a single call
+        for better throughput on large transcripts.
+        """
         import re
-        chunks = re.split(r'\n{2,}', text.strip())
+        chunks = [c.strip() for c in re.split(r'\n{2,}', text.strip()) if c.strip()]
+        if not chunks:
+            return []
+
+        # Batch embed all chunks at once
+        vectors = self._embed.embed(chunks)
+
         memories = []
-        for chunk in chunks:
-            chunk = chunk.strip()
-            if not chunk:
-                continue
-            m = self.store(chunk, vault=vault, shelf=shelf, folder=folder, note=note)
+        for chunk, vec in zip(chunks, vectors):
+            m = self.store(chunk, vault=vault, shelf=shelf, folder=folder, note=note,
+                          _vector=vec)
             memories.append(m)
         return memories
 

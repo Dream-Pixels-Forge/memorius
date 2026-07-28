@@ -398,6 +398,20 @@ class MemoriusAPI:
             from memorius.doctor import run_checks
             return run_checks(engine=engine)
 
+        @app.get("/memories")
+        async def list_memories(vault: str = None, limit: int = 10, cursor: str = None):
+            result = engine.list_memories(
+                vault=vault, limit=min(limit, 100), with_vectors=False, cursor=cursor,
+            )
+            memories = result["memories"]
+            next_cursor = result["next_cursor"]
+            out = []
+            for m in memories:
+                d = m.to_dict()
+                d.pop("vector", None)
+                out.append(d)
+            return {"count": len(out), "next_cursor": next_cursor, "memories": out}
+
 
 def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912):
     """Start the FastAPI REST server."""
