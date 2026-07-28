@@ -302,6 +302,26 @@ class VaultEngine:
                 out.append(m)
         return out
 
+    def get_contradictions(self, memory_id: str) -> list[Memory]:
+        """Return memories that contradict ``memory_id`` in the knowledge
+        graph (edges with relation='contradicts', created by `check_fact`
+        when a statement surfaces both a corroborating and a contradicting
+        memory about the same claim). Returns an empty list when the memory
+        is unknown or has no recorded contradictions."""
+        try:
+            validate_memory_id(memory_id)
+            from memorius.graph import get_linked, init_graph_schema
+            conn = self._meta._conn()
+            init_graph_schema(conn)
+            edges = get_linked(conn, memory_id, relation="contradicts")
+        except Exception:
+            logger.debug("get_contradictions(%s) failed (best-effort)", memory_id)
+            return []
+        contra_ids = [e["target_id"] for e in edges]
+        if not contra_ids:
+            return []
+        return self.get_memories_by_ids(contra_ids, with_vectors=False)
+
     def list_memories(self, vault: str | None = None, shelf: str | None = None,
                       limit: int | None = None, with_vectors: bool = True) -> list[Memory]:
         """List memories by metadata (time-recency), optionally filling vectors

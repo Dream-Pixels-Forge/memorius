@@ -309,6 +309,25 @@ class MemoriusAPI:
                 exported += 1
             return {"exported": exported, "dry_run": dry_run, "vault": str(vault_path)}
 
+        @app.get("/contradictions/{memory_id}")
+        async def contradictions(memory_id: str):
+            from memorius.validation import validate_memory_id as _vid
+            try:
+                memory_id = _vid(memory_id)
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            contradictions = engine.get_contradictions(memory_id)
+            out = []
+            for m in contradictions:
+                d = m.to_dict()
+                d.pop("vector", None)
+                out.append(d)
+            return {
+                "memory_id": memory_id,
+                "count": len(contradictions),
+                "contradictions": out,
+            }
+
         @app.get("/stats")
         async def stats():
             status = engine.status()

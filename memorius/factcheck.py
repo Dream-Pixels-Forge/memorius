@@ -164,6 +164,28 @@ def check_statement(
         confidence = UNCERTAIN_CONFIDENCE
         explanation = "Found related memories but none strongly match or contradict"
 
+    # Persist cross-memory contradiction edges (Phase 1.2).
+    # When the same statement surfaces BOTH a matching (corroborating) memory
+    # AND a contradicting one, those two stored memories disagree with each
+    # other about the same claim. Link them bidirectionally with
+    # relation='contradicts' so future searches/factchecks can exploit the
+    # graph instead of re-running the contradiction heuristics.
+    if matching and contradicting:
+        try:
+            from memorius.graph import init_graph_schema, link_memories
+            conn = engine._meta._conn()
+            init_graph_schema(conn)
+            edge_weight = max(0.3, min(float(confidence), 1.0))
+            for m_match in matching:
+                for m_contra in contradicting:
+                    if m_match["id"] != m_contra["id"]:
+                        link_memories(
+                            conn, m_match["id"], m_contra["id"],
+                            weight=edge_weight, relation="contradicts",
+                        )
+        except Exception:
+            logger.debug("Contradiction-edge persistence failed (best-effort)")
+
     return FactCheckResult(
         statement=statement,
         vault=vault,

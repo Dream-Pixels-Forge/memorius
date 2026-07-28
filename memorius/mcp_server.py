@@ -187,10 +187,21 @@ class McpServer:
             "description": "Get knowledge graph statistics — nodes, edges, relations.",
             "inputSchema": {"type": "object", "properties": {}},
         },
-        {
+{
             "name": "memorius_memory_stats",
-            "description": "Get memory tracking statistics — total, active, archived, by vault.",
+            "description": "Get memory tracking statistics - total, active, archived, by vault.",
             "inputSchema": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "memorius_contradictions",
+            "description": "Get memories that contradict a given memory (knowledge graph edges with relation='contradicts', created by memorius_factcheck when a statement surfaces both a corroborating and a contradicting memory).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "memory_id": {"type": "string", "description": "Memory UUID to inspect"},
+                },
+                "required": ["memory_id"],
+            },
         },
     ]
 
@@ -457,6 +468,20 @@ class McpServer:
 
     def tool_memorius_memory_stats(self, args: dict) -> dict:
         return self._engine.get_memory_stats()
+
+    def tool_memorius_contradictions(self, args: dict) -> dict:
+        memory_id = args.get("memory_id", "")
+        if not memory_id or not isinstance(memory_id, str):
+            return {"error": "memory_id is required"}
+        contradictions = self._engine.get_contradictions(memory_id)
+        return {
+            "memory_id": memory_id,
+            "count": len(contradictions),
+            "contradictions": [
+                {k: v for k, v in m.to_dict().items() if k != "vector"}
+                for m in contradictions
+            ],
+        }
 
     # ── Response helpers ──
 
