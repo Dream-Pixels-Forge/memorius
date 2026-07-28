@@ -190,6 +190,8 @@ def main():
     import_p.add_argument("src", help="JSON export file to import")
     import_p.add_argument("--replace", action="store_true", help="Overwrite existing memories instead of skipping")
 
+    subparsers.add_parser("doctor", help="Run health checks on the vault")
+
     # ── Obsidian subcommands ──
     obsidian_p = subparsers.add_parser("obsidian", help="Interact with Obsidian vaults")
     obsidian_sub = obsidian_p.add_subparsers(dest="subcommand")
@@ -255,6 +257,7 @@ def main():
         "prune": cmd_prune,
         "export": cmd_export,
         "import": cmd_import,
+        "doctor": cmd_doctor,
     }
     handler = commands.get(args.command)
     if handler:
@@ -816,6 +819,18 @@ def cmd_import(engine, args, config):
     for k, v in stats.items():
         if v:
             print(f"  {k}: {v}")
+
+
+def cmd_doctor(engine, args, config):
+    """Run health checks on the vault."""
+    from memorius.doctor import run_checks
+
+    result = run_checks(engine=engine)
+    print(result["summary"])
+    if result["healthy"]:
+        print("\nAll checks passed.")
+    else:
+        print("\nSome checks reported issues — review above.")
 
 
 def cmd_delete(engine, args, config):

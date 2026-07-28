@@ -110,22 +110,10 @@ The knowledge graph and temporal metadata already exist and are already maintain
 
 **Risks:** schema_version gate on import (reject older schemas with a message pointing at a migration path). Large vaults → stream JSON rather than build one giant dict (use `json.dump` with an iterator; not needed for v1).
 
-### 3.2 `memorius doctor` — health check
+### 3.2 `memorius doctor` — health check  ✅ SHIPPED
 **Goal:** a single command that tells the user whether their install is healthy: config present & valid, ONNX model downloaded, SQLite DB opens, Chroma collections all under the 63-char limit and carrying `memorius_vault` metadata (i.e., the legacy migration ran), graph table present, no orphaned memory_meta rows (whose Chroma vector is gone).
 
-**Files:** new `memorius/doctor.py`, CLI `memorius doctor`. Pure read-only checks; returns a report dict and prints a colored summary.
-
-**Checks:**
-1. Config file parseable + required keys present.
-2. `~/.memorius/data` writable.
-3. ONNX model present (`model_download.is_model_downloaded()`).
-4. SQLite `memory_meta` row count == sum of Chroma collection `count()`s (drift detection). Report drift, don't auto-fix.
-5. No Chroma collection name > 63 chars (should be zero post-migration).
-6. Graph table exists + edge count > 0 if memory count > ~10 (warn if zero — graph isn't being built).
-
-**Tests:** each check has a passing case and a failure case (e.g., delete the ONNX model file → check 3 fails; rename a Chroma collection to 64 chars → check 5 fails).
-
-**Risks:** read-only — none. Make it the first thing users run after install/upgrade.
+**Shipped.** `memorius/doctor.py` with `run_checks(engine=None)` returning `{checks, healthy, summary}`. Checks: config parseable + required keys, storage dir writable, ONNX model present, memory_meta vs Chroma row count drift, collection names >63 chars, graph table health (warn if >10 memories but 0 edges). CLI `memorius doctor`. MCP `memorius_doctor` tool. REST `GET /doctor`. 7 feature tests in `tests/test_feature_doctor.py`. Suite: 201 green (191 non-int + 10 integration).
 
 ---
 
@@ -190,7 +178,7 @@ The knowledge graph and temporal metadata already exist and are already maintain
 |---|---|---|
 | **0.5.0** ✅ | Phase 1 (1.1, 1.3) + Phase 4.1, 4.2 | "Smarter recall" — graph + filters + honest factcheck + honest access stats ship as one coherent retrieval-quality story. 1.2 deferred to 0.5.1 pending 4.1. **ALL SHIPPED.** |
 | **0.5.1** ✅ | Phase 1.2 + Phase 2.1 (get/update/delete) + Phase 2.2 (prune) | Contradiction edges need 4.1's clean factcheck; CRUD completion + prune form the "lifecycle" release. **ALL SHIPPED.** |
-| **0.6.0** | Phase 2.3 (TTL) + Phase 3.1 (export/import) + Phase 3.2 (doctor) | Trust & portability — backup/restore/healthcheck as a release theme. |
+| **0.6.0** ✅ | Phase 2.3 (TTL) + Phase 3.1 (export/import) + Phase 3.2 (doctor) | Trust & portability — backup/restore/healthcheck as a release theme. **ALL SHIPPED.** |
 | **0.7.0** | Phase 4.3, 4.4 (scale) | Quality hardening before any growth push. |
 | **0.8.0+** | Phase 5 items as individually shippable | Each is独立 and opt-in. |
 

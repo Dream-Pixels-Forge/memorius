@@ -393,6 +393,11 @@ class MemoriusAPI:
             graph_stats = engine.get_graph_stats()
             return {"vault": status, "memory_tracking": meta_stats, "knowledge_graph": graph_stats}
 
+        @app.get("/doctor")
+        async def doctor():
+            from memorius.doctor import run_checks
+            return run_checks(engine=engine)
+
 
 def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912):
     """Start the FastAPI REST server."""

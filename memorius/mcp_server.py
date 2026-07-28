@@ -251,6 +251,11 @@ class McpServer:
                 },
             },
         },
+        {
+            "name": "memorius_doctor",
+            "description": "Run health checks on the vault — config, storage, vector store, graph integrity.",
+            "inputSchema": {"type": "object", "properties": {}},
+        },
     ]
 
     # ── Tool dispatch ──
@@ -575,6 +580,10 @@ class McpServer:
         dry_run = bool(args.get("dry_run", True))
         archive = bool(args.get("archive", True))
         return self._engine.prune(threshold=threshold, dry_run=dry_run, archive=archive)
+
+    def tool_memorius_doctor(self, args: dict) -> dict:
+        from memorius.doctor import run_checks
+        return run_checks(engine=self._engine)
 
     # ── Response helpers ──
 
