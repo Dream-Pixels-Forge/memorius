@@ -84,7 +84,7 @@ The knowledge graph and temporal metadata already exist and are already maintain
 
 **Risks:** None functional. Communicate clearly that prune = soft archive, not destruction.
 
-### 2.3 TTL / expiry on memories
+### 2.3 TTL / expiry on memories  ✅ SHIPPED
 **Goal:** natural extension of the decay model — a memory can declare it expires after N days, after which `prune` archives it regardless of access.
 
 **Files:** `memorius/models.py` (no schema change — store `expires_at` ISO timestamp in `metadata`), `memorius/temporal.py` (`find_stale_memories` also returns rows whose `metadata.expires_at < now`), `memorius/vault.py` (`store(..., ttl_days=N)` sets `metadata['expires_at']`), CLI (`memorius store ... --ttl 7`).
