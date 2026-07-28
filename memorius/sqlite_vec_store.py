@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import struct
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,12 @@ def _vec_to_blob(vec: list[float] | Any) -> bytes:
 
 def _blob_to_vec(blob: bytes, dim: int) -> list[float]:
     """Unpack a bytes blob back into a float vector."""
+    expected = dim * 4  # 4 bytes per float32
+    if len(blob) != expected:
+        raise ValueError(
+            f"Vector blob length mismatch: expected {expected} bytes "
+            f"for dim={dim}, got {len(blob)}"
+        )
     return list(struct.unpack(f"{dim}f", blob))
 
 
@@ -46,11 +53,13 @@ class SqliteVecStore:
     def __init__(self, path: Path, embedding_provider: EmbeddingProvider):
         self._path = path
         self._embed = embedding_provider
-        self._conn = None  # lazy
+        self._lock = threading.Lock()
+        self._local = threading.local()
 
     def _lazy_conn(self):
-        if self._conn is not None:
-            return self._conn
+        conn = getattr(self._local, "conn", None)
+        if conn is not None:
+            return conn
         import sqlite3
         try:
             import sqlite_vec
@@ -87,7 +96,7 @@ class SqliteVecStore:
             ON memories(vault, shelf)
         """)
         conn.commit()
-        self._conn = conn
+        self._local.conn = conn
         return conn
 
     def add(self, memory) -> None:
@@ -110,30 +119,35 @@ class SqliteVecStore:
 
         vector_blob = _vec_to_blob(memory.vector) if memory.vector is not None else None
 
-        conn.execute(
-            """INSERT OR REPLACE INTO memories
-               (id, vault, shelf, folder, note, content, vector, metadata, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                memory.id,
-                memory.vault,
-                memory.shelf,
-                memory.folder,
-                memory.note,
-                memory.content,
-                vector_blob,
-                json.dumps(meta_clean),
-                memory.created_at,
-                memory.updated_at,
-            ),
-        )
-        conn.commit()
+        with self._lock:
+            conn.execute(
+                """INSERT OR REPLACE INTO memories
+                   (id, vault, shelf, folder, note, content, vector, metadata, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    memory.id,
+                    memory.vault,
+                    memory.shelf,
+                    memory.folder,
+                    memory.note,
+                    memory.content,
+                    vector_blob,
+                    json.dumps(meta_clean),
+                    memory.created_at,
+                    memory.updated_at,
+                ),
+            )
+            conn.commit()
 
     def delete(self, memory_id: str, vault: str, shelf: str) -> None:
-        """Delete a memory by ID."""
+        """Delete a memory by ID within a vault/shelf."""
         conn = self._lazy_conn()
-        conn.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
-        conn.commit()
+        with self._lock:
+            conn.execute(
+                "DELETE FROM memories WHERE id = ? AND vault = ? AND shelf = ?",
+                (memory_id, vault, shelf),
+            )
+            conn.commit()
 
     def search(
         self,
@@ -143,7 +157,12 @@ class SqliteVecStore:
         n_results: int = 10,
         filter_metadata: dict[str, str] | None = None,
     ) -> list:
-        """Search memories by semantic similarity."""
+        """Search memories by semantic similarity.
+
+        Loads all candidate rows and computes cosine distance in Python
+        for simplicity.  For large datasets (10k+), consider using
+        sqlite-vec's ``vec0`` virtual table for in-database ANN search.
+        """
         from memorius.models import Memory
 
         conn = self._lazy_conn()
@@ -158,8 +177,12 @@ class SqliteVecStore:
         if shelf:
             conditions.append("shelf = ?")
             params.append(shelf)
+        _ALLOWED_FILTER_COLS = {"folder", "note"}
         if filter_metadata:
             for k, v in filter_metadata.items():
+                if k not in _ALLOWED_FILTER_COLS:
+                    logger.warning("Ignoring disallowed filter_metadata key: %s", k)
+                    continue
                 conditions.append(f"{k} = ?")
                 params.append(v)
 
@@ -194,10 +217,6 @@ class SqliteVecStore:
 
         results.sort(key=lambda x: x[0])
         return [m for _, m in results[:n_results]]
-
-    def _resolve_collections(self, vault: str | None, shelf: str | None) -> list[str]:
-        """Not used for sqlite-vec (single-table). Kept for interface compat."""
-        return ["memories"]
 
     def get_collections(self) -> list[dict[str, str]]:
         """List all vault/shelf combos with counts."""

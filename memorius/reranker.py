@@ -7,7 +7,6 @@ cross-encoder model.  Install via ``pip install memorius[ranker]``.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 logger = logging.getLogger("memorius.reranker")
 
@@ -66,11 +65,28 @@ _reranker: CrossEncoderReranker | None = None
 
 
 def get_reranker(model_name: str | None = None) -> CrossEncoderReranker:
-    """Return the global reranker, creating it on first call."""
+    """Return the global reranker, creating it on first call.
+
+    If a *model_name* is given that differs from the already-loaded
+    singleton, a warning is logged and the original model is reused.
+    """
     global _reranker
     if _reranker is None:
         _reranker = CrossEncoderReranker(model_name)
+    elif model_name and model_name != _reranker._model_name:
+        logger.warning(
+            "Reranker already loaded with model '%s'; "
+            "ignoring requested model '%s'",
+            _reranker._model_name,
+            model_name,
+        )
     return _reranker
+
+
+def reset_reranker() -> None:
+    """Reset the global singleton (for testing only)."""
+    global _reranker
+    _reranker = None
 
 
 def rerank_search_results(
@@ -81,11 +97,12 @@ def rerank_search_results(
 ) -> list:
     """Rerank a list of Memory objects by query relevance.
 
-    Mutates and returns the same list, reordered by cross-encoder score.
-    Each memory gets a ``__rerank_score__`` in its metadata.
+    Returns a **new** list reordered by cross-encoder score.  Each
+    memory's ``metadata`` dict is updated with a ``__rerank_score__``
+    key (this mutates the individual Memory objects, not the list).
     """
     if not memories:
-        return memories
+        return []
 
     reranker = get_reranker(model_name)
     documents = [m.content for m in memories]

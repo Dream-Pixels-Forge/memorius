@@ -241,6 +241,7 @@ class SQLiteStore:
                 CREATE INDEX IF NOT EXISTS idx_notes_hierarchy ON notes(vault, shelf, folder);
                 CREATE INDEX IF NOT EXISTS idx_memory_meta_vault ON memory_meta(vault);
                 CREATE INDEX IF NOT EXISTS idx_memory_meta_archived ON memory_meta(archived);
+                CREATE INDEX IF NOT EXISTS idx_memory_meta_cursor ON memory_meta(created_at, id);
             """)
             conn.commit()
 
@@ -402,9 +403,10 @@ class SQLiteStore:
     # ── Memory meta tracking ──
 
     def track_memory(self, memory_id: str, vault: str, shelf: str, folder: str,
-                     note: str, content: str, metadata: dict | None = None):
+                     note: str, content: str, metadata: dict | None = None,
+                     created_at: str | None = None):
         """Track a memory in the meta table for temporal/graph features."""
-        now = datetime.now(timezone.utc).isoformat()
+        now = created_at or datetime.now(timezone.utc).isoformat()
         conn = self._conn()
         with self._lock:
             conn.execute(
@@ -486,7 +488,7 @@ class SQLiteStore:
         """List memory metadata with optional vault filter and cursor pagination.
 
         Args:
-            cursor: Composite cursor ``"timestamp|memory_id"`` from the
+            cursor: Composite cursor ``"timestamp~memory_id"`` from the
                 previous page.  When set, returns items created *before*
                 the cursor, breaking ties by id.
         """
@@ -496,7 +498,12 @@ class SQLiteStore:
         cursor_ts: str | None = None
         cursor_id: str | None = None
         if cursor:
-            cursor_ts, cursor_id = cursor.split("|", 1)
+            if "~" in cursor:
+                cursor_ts, cursor_id = cursor.split("~", 1)
+            else:
+                # Legacy cursor (pre-0.9.0): bare timestamp without id.
+                cursor_ts = cursor
+                cursor_id = ""
 
         if vault:
             if include_archived:

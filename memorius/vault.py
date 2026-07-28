@@ -130,6 +130,7 @@ class VaultEngine:
         self._meta.track_memory(
             memory_id=memory.id, vault=vault, shelf=shelf,
             folder=folder, note=note, content=content, metadata=merged_metadata,
+            created_at=memory.created_at,
         )
         # Auto-link to related memories via content similarity
         try:
@@ -493,7 +494,7 @@ class VaultEngine:
         if has_more and memories:
             last = memories[-1]
             ts = last.created_at or last.updated_at
-            next_cursor = f"{ts}|{last.id}"
+            next_cursor = f"{ts}~{last.id}"
 
         return {"memories": memories, "next_cursor": next_cursor}
 

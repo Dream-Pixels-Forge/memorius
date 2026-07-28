@@ -28,10 +28,8 @@ class TestRerankerModule:
 
     def test_reranker_singleton(self):
         """get_reranker returns the same instance."""
-        from memorius.reranker import get_reranker, _reranker
-        # Reset global
-        import memorius.reranker as mod
-        mod._reranker = None
+        from memorius.reranker import get_reranker, reset_reranker
+        reset_reranker()
         r1 = get_reranker()
         r2 = get_reranker()
         assert r1 is r2
