@@ -124,10 +124,9 @@ def test_graph_link_memories(engine):
     m1 = engine.store("Memory about Python", vault="g")
     m2 = engine.store("Memory about JavaScript", vault="g")
 
-    conn = engine._meta._conn()
-    link_memories(conn, m1.id, m2.id, weight=0.9, relation="related")
+    engine._meta.link_memories(m1.id, m2.id, weight=0.9, relation="related")
 
-    links = get_linked(conn, m1.id)
+    links = engine._meta.get_linked(m1.id)
     assert len(links) == 1
     assert links[0]["target_id"] == m2.id
 

@@ -26,4 +26,9 @@ Architecture:
     memorius:  Main CLI — init, mine, search, diary, status, serve, hook
 """
 
-__version__ = "0.4.5"
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("memorius")
+except PackageNotFoundError:
+    __version__ = "0.0.0"

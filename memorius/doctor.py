@@ -31,7 +31,7 @@ def run_checks(engine=None) -> dict[str, Any]:
         dict with keys ``checks`` (list of check dicts), ``healthy`` (bool),
         and ``summary`` (human-readable string).
     """
-    from memorius.config import load_config, DEFAULT_CONFIG_PATH
+    from memorius.config import load_config
     from memorius.model_download import is_model_downloaded
 
     checks: list[dict[str, Any]] = []
@@ -79,11 +79,9 @@ def run_checks(engine=None) -> dict[str, Any]:
         _add("collection_names", "skip", "No engine provided")
         _add("graph_health", "skip", "No engine provided")
     else:
-        conn = engine._meta._conn()
-
         # 4. Row count drift: memory_meta vs Chroma collections
         try:
-            meta_count = conn.execute("SELECT COUNT(*) FROM memory_meta").fetchone()[0]
+            meta_count = engine._meta.count_meta_rows()
             chroma = engine._vector._lazy_client()
             vector_count = 0
             for col in chroma.list_collections():
@@ -113,16 +111,13 @@ def run_checks(engine=None) -> dict[str, Any]:
 
         # 6. Graph health
         try:
-            conn.execute("SELECT COUNT(*) FROM memory_graph")
-            edge_count = conn.execute("SELECT COUNT(*) FROM memory_graph").fetchone()[0]
-            meta_count = conn.execute("SELECT COUNT(*) FROM memory_meta").fetchone()[0]
+            edge_count = engine._meta.count_graph_edges()
+            meta_count = engine._meta.count_meta_rows()
             if meta_count > 10 and edge_count == 0:
                 _add("graph_health", "warn",
                      f"{meta_count} memories but 0 graph edges — graph may not be building")
             else:
                 _add("graph_health", "ok", f"{edge_count} edges, {meta_count} memories")
-        except sqlite3.OperationalError:
-            _add("graph_health", "warn", "memory_graph table does not exist yet")
         except Exception as exc:
             _add("graph_health", "fail", str(exc))
 

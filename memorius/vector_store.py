@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from memorius.embeddings import EmbeddingProvider
+from memorius.vector_store_base import VectorStore
 
 logger = logging.getLogger("memorius.vector")
 
@@ -51,7 +52,7 @@ def _retry(fn, max_retries: int = 3, base_delay: float = 0.1, exceptions: tuple 
     raise last_exc
 
 
-class ChromaStore:
+class ChromaStore(VectorStore):
     """Vector store backed by ChromaDB."""
 
     def __init__(self, path: Path, embedding_provider: EmbeddingProvider):
@@ -70,7 +71,7 @@ class ChromaStore:
         )
         try:
             self._migrate_legacy_collections(self._client)
-        except Exception:
+        except Exception:  # best-effort: legacy migration failure should not block client init
             logger.debug("Legacy collection migration failed (best-effort)")
         return self._client
 
@@ -90,7 +91,7 @@ class ChromaStore:
         client = self._lazy_client()
         try:
             col = client.get_collection(name)
-        except Exception:
+        except Exception:  # best-effort: collection doesn't exist — will create below
             if not create:
                 return None
             col = client.create_collection(
@@ -172,7 +173,7 @@ class ChromaStore:
                     where=where,
                     include=["embeddings", "documents", "metadatas", "distances"],
                 ))
-            except Exception:
+            except Exception:  # best-effort: ChromaDB query failure after retries — skip this collection
                 logger.debug("ChromaDB query failed for collection %s after retries, skipping", col_name)
                 continue
 
@@ -223,9 +224,8 @@ class ChromaStore:
                 client = self._lazy_client()
                 client.get_collection(name)
                 return [name]
-            except Exception:
+            except Exception:  # best-effort: collection not found in ChromaDB
                 return []
-        if vault:
             prefix = f"v{len(vault):03d}_{vault}_s"
             return [n for n in self._collections if n.startswith(prefix)]
         return list(self._collections.keys())
@@ -237,7 +237,7 @@ class ChromaStore:
             for col in client.list_collections():
                 if col.name not in self._collections:
                     self._collections[col.name] = col
-        except Exception:
+        except Exception:  # best-effort: collection listing failure — search will lazy-load
             logger.debug("Failed to load collections from ChromaDB")
 
     def get_collections(self) -> list[dict[str, str]]:
@@ -290,7 +290,7 @@ class ChromaStore:
             include.append("embeddings")
         try:
             res = _retry(lambda: col.get(ids=ids, include=include))
-        except Exception:
+        except Exception:  # best-effort: ChromaDB get failure — return empty list
             logger.debug("ChromaDB get_by_ids failed for (%s,%s)", vault, shelf)
             return []
         out: list[Memory] = []
@@ -323,9 +323,12 @@ class ChromaStore:
 
     def _migrate_legacy_collections(self, client):
         """One-time, idempotent migration of legacy collection names to the
-        new length-safe scheme. Recovers (vault, shelf) from the first
-        record's metadata when possible; leaves unrecoverable legacy
-        collections untouched.
+        new length-safe scheme.
+
+        Recovers (vault, shelf) from the first record's metadata when
+        possible; leaves unrecoverable legacy collections untouched.
+        On every startup this is a no-op for collections already using the
+        new naming scheme (or carrying the ``memorius_vault`` metadata key).
         """
         migrated = 0
         skipped = 0
@@ -336,27 +339,14 @@ class ChromaStore:
                 continue
             try:
                 count = col.count()
-            except Exception:
+            except Exception:  # best-effort: collection count unreadable — skip
                 skipped += 1
                 continue
-            if count <= 0:
+            probe = self._probe_collection_meta(col)
+            if probe is None:
                 skipped += 1
                 continue
-            try:
-                probe = col.get(limit=1, include=["metadatas"])
-                probe_metas = probe.get("metadatas") or []
-                if not probe_metas:
-                    skipped += 1
-                    continue
-                first_meta = probe_metas[0] or {}
-                vault = first_meta.get("vault")
-                shelf = first_meta.get("shelf")
-                if not vault or not shelf:
-                    skipped += 1
-                    continue
-            except Exception:
-                skipped += 1
-                continue
+            vault, shelf = probe
             new_name = self._collection_name(vault, shelf)
             if new_name == name:
                 continue
@@ -364,50 +354,80 @@ class ChromaStore:
                 client.get_collection(new_name)
                 skipped += 1
                 continue
-            except Exception:
+            except Exception:  # best-effort: target collection already exists — skip this one
                 pass
-            try:
-                new_col = client.create_collection(
-                    new_name,
-                    get_or_create=True,
-                    metadata={
-                        "hnsw:space": "cosine",
-                        "memorius_vault": vault,
-                        "memorius_shelf": shelf,
-                    },
-                )
-                payload = _retry(lambda: col.get(
-                    limit=count,
-                    include=["embeddings", "documents", "metadatas"],
-                ))
-                ids = payload.get("ids") or []
-                if not ids:
-                    skipped += 1
-                    continue
-                embs_in = payload.get("embeddings")
-                if embs_in is None:
-                    embs_in = []
-                docs_in = payload.get("documents")
-                if docs_in is None:
-                    docs_in = []
-                metas_in = payload.get("metadatas")
-                if metas_in is None:
-                    metas_in = []
-                new_col.upsert(
-                    ids=ids,
-                    embeddings=embs_in,
-                    documents=docs_in,
-                    metadatas=metas_in,
-                )
-                client.delete_collection(name)
-                self._collections.pop(name, None)
-                self._collections[new_name] = new_col
+            if self._migrate_single_collection(client, col, new_name, vault, shelf, count):
+                self._try_delete_old_collection(client, name)
+                self._collections[new_name] = self._collections.pop(name, None) or client.get_collection(new_name)
                 migrated += 1
-            except Exception as e:
-                logger.debug("Legacy collection migration failed for %s: %s", name, e)
+            else:
                 skipped += 1
         if migrated or skipped:
             logger.debug(
                 "Legacy collection migration: %d migrated, %d skipped",
                 migrated, skipped,
             )
+
+    def _probe_collection_meta(self, col) -> tuple[str, str] | None:
+        """Extract (vault, shelf) from the first record in *col*.
+
+        Returns ``None`` when the metadata is missing or unreadable.
+        """
+        try:
+            probe = col.get(limit=1, include=["metadatas"])
+            probe_metas = probe.get("metadatas") or []
+            if not probe_metas:
+                return None
+            first_meta = probe_metas[0] or {}
+            vault = first_meta.get("vault")
+            shelf = first_meta.get("shelf")
+            if not vault or not shelf:
+                return None
+            return vault, shelf
+        except Exception:  # best-effort: metadata probe failed — cannot recover vault/shelf
+            return None
+
+    def _migrate_single_collection(
+        self, client, col, new_name: str, vault: str, shelf: str, count: int,
+    ) -> bool:
+        """Copy all records from *col* into a new-collection named *new_name*.
+
+        Returns ``True`` on success, ``False`` on failure (logged at DEBUG).
+        """
+        try:
+            new_col = client.create_collection(
+                new_name,
+                get_or_create=True,
+                metadata={
+                    "hnsw:space": "cosine",
+                    "memorius_vault": vault,
+                    "memorius_shelf": shelf,
+                },
+            )
+            payload = _retry(lambda: col.get(
+                limit=count,
+                include=["embeddings", "documents", "metadatas"],
+            ))
+            ids = payload.get("ids") or []
+            if not ids:
+                return False
+            embs_in = payload.get("embeddings") or []
+            docs_in = payload.get("documents") or []
+            metas_in = payload.get("metadatas") or []
+            new_col.upsert(
+                ids=ids,
+                embeddings=embs_in,
+                documents=docs_in,
+                metadatas=metas_in,
+            )
+            return True
+        except Exception as e:  # best-effort: single collection migration failure — skip, continue
+            logger.debug("Legacy collection migration failed for %s: %s", col.name, e)
+            return False
+
+    def _try_delete_old_collection(self, client, name: str) -> None:
+        """Best-effort deletion of a legacy collection after migration."""
+        try:
+            client.delete_collection(name)
+        except Exception:  # best-effort: old collection deletion failure — non-critical
+            pass

@@ -31,58 +31,27 @@ def export_json(engine, dest: str | Path) -> Path:
 
     Returns the path written.
     """
-    from memorius.graph import init_graph_schema
-
     dest = Path(dest)
-    conn = engine._meta._conn()
 
     # ── hierarchy ──
-    vaults = [dict(r) for r in conn.execute(
-        "SELECT name, description, created_at, updated_at FROM vaults"
-    ).fetchall()]
-
-    shelves = [dict(r) for r in conn.execute(
-        "SELECT vault, name, description, created_at, updated_at FROM shelves"
-    ).fetchall()]
-
-    folders = [dict(r) for r in conn.execute(
-        "SELECT vault, shelf, name, description, created_at, updated_at FROM folders"
-    ).fetchall()]
-
-    notes = [dict(r) for r in conn.execute(
-        "SELECT vault, shelf, folder, name, description, memory_count, created_at, updated_at FROM notes"
-    ).fetchall()]
+    hierarchy = engine._meta.export_hierarchy()
 
     # ── memories (meta only — vectors are re-derived on import) ──
-    memories = [dict(r) for r in conn.execute(
-        "SELECT id, vault, shelf, folder, note, content, metadata, "
-        "access_count, last_accessed, created_at, updated_at "
-        "FROM memory_meta"
-    ).fetchall()]
+    memories = engine._meta.export_memories_meta()
 
     # ── diaries ──
-    diaries = [dict(r) for r in conn.execute(
-        "SELECT id, session_id, vault, title, summary, content, "
-        "exchange_count, created_at, updated_at FROM diaries"
-    ).fetchall()]
+    diaries = engine._meta.export_diaries()
 
     # ── graph edges ──
-    graph_edges: list[dict[str, Any]] = []
-    try:
-        graph_edges = [dict(r) for r in conn.execute(
-            "SELECT source_id, target_id, weight, relation, created_at "
-            "FROM memory_graph"
-        ).fetchall()]
-    except Exception:
-        pass  # graph table may not exist
+    graph_edges = engine._meta.export_graph_edges()
 
     payload = {
         "schema_version": SCHEMA_VERSION,
         "exported_at": datetime.now(timezone.utc).isoformat(),
-        "vaults": vaults,
-        "shelves": shelves,
-        "folders": folders,
-        "notes": notes,
+        "vaults": hierarchy["vaults"],
+        "shelves": hierarchy["shelves"],
+        "folders": hierarchy["folders"],
+        "notes": hierarchy["notes"],
         "memories": memories,
         "diaries": diaries,
         "graph_edges": graph_edges,
@@ -117,7 +86,6 @@ def import_json(engine, src: str | Path, *, merge: bool = True) -> dict[str, Any
             f"{SCHEMA_VERSION}. Please upgrade memorius before importing."
         )
 
-    conn = engine._meta._conn()
     stats: dict[str, int] = {
         "vaults_imported": 0,
         "shelves_imported": 0,
@@ -130,154 +98,51 @@ def import_json(engine, src: str | Path, *, merge: bool = True) -> dict[str, Any
         "graph_edges_imported": 0,
     }
 
-    now = datetime.now(timezone.utc).isoformat()
-
     # ── hierarchy ──
-    for v in payload.get("vaults", []):
-        conn.execute(
-            "INSERT OR IGNORE INTO vaults (name, description, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?)",
-            (v["name"], v.get("description", ""), v.get("created_at", now), v.get("updated_at", now)),
-        )
-        stats["vaults_imported"] += 1
-
-    for s in payload.get("shelves", []):
-        conn.execute(
-            "INSERT OR IGNORE INTO shelves (vault, name, description, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (s["vault"], s["name"], s.get("description", ""), s.get("created_at", now), s.get("updated_at", now)),
-        )
-        stats["shelves_imported"] += 1
-
-    for f in payload.get("folders", []):
-        conn.execute(
-            "INSERT OR IGNORE INTO folders (vault, shelf, name, description, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (f["vault"], f["shelf"], f["name"], f.get("description", ""), f.get("created_at", now), f.get("updated_at", now)),
-        )
-        stats["folders_imported"] += 1
-
-    for n in payload.get("notes", []):
-        conn.execute(
-            "INSERT OR IGNORE INTO notes (vault, shelf, folder, name, description, memory_count, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (n["vault"], n["shelf"], n["folder"], n["name"],
-             n.get("description", ""), n.get("memory_count", 0),
-             n.get("created_at", now), n.get("updated_at", now)),
-        )
-        stats["notes_imported"] += 1
-    conn.commit()
+    engine._meta.import_hierarchy(
+        payload.get("vaults", []),
+        payload.get("shelves", []),
+        payload.get("folders", []),
+        payload.get("notes", []),
+    )
+    stats["vaults_imported"] = len(payload.get("vaults", []))
+    stats["shelves_imported"] = len(payload.get("shelves", []))
+    stats["folders_imported"] = len(payload.get("folders", []))
+    stats["notes_imported"] = len(payload.get("notes", []))
 
     # ── memories ──
-    existing_ids = set()
-    try:
-        rows = conn.execute("SELECT id FROM memory_meta").fetchall()
-        existing_ids = {r[0] for r in rows}
-    except Exception:
-        pass
-
     for m in payload.get("memories", []):
-        mid = m["id"]
-        if mid in existing_ids:
-            if not merge:
-                # overwrite
-                conn.execute(
-                    "UPDATE memory_meta SET vault=?, shelf=?, folder=?, note=?, "
-                    "content=?, metadata=?, access_count=?, last_accessed=?, "
-                    "created_at=?, updated_at=? WHERE id=?",
-                    (m["vault"], m["shelf"], m["folder"], m["note"],
-                     m["content"], m.get("metadata", "{}"),
-                     m.get("access_count", 0), m.get("last_accessed"),
-                     m.get("created_at", now), m.get("updated_at", now), mid),
-                )
-                stats["memories_imported"] += 1
-            else:
-                stats["memories_skipped"] += 1
-            continue
-
-        # ensure hierarchy nodes exist
         engine._meta.ensure_note(m["vault"], m["shelf"], m["folder"], m["note"])
-
-        conn.execute(
-            "INSERT INTO memory_meta (id, vault, shelf, folder, note, content, "
-            "metadata, access_count, last_accessed, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (mid, m["vault"], m["shelf"], m["folder"], m["note"],
-             m["content"], m.get("metadata", "{}"),
-             m.get("access_count", 0), m.get("last_accessed"),
-             m.get("created_at", now), m.get("updated_at", now)),
-        )
-        stats["memories_imported"] += 1
-
-        # re-embed and add to Chroma
-        try:
-            from memorius.models import Memory
-            mem = Memory(
-                id=mid, vault=m["vault"], shelf=m["shelf"],
-                folder=m["folder"], note=m["note"],
-                content=m["content"],
-                metadata=json.loads(m.get("metadata") or "{}"),
-            )
-            engine._vector.add(mem)
-        except Exception as exc:
-            logger.warning("Failed to re-embed memory %s: %s", mid, exc)
-
-        try:
-            conn.commit()
-        except Exception:
-            pass  # connection may be closed after vector add
+        imported = engine._meta.import_memory_meta(m, merge=merge)
+        if imported:
+            stats["memories_imported"] += 1
+            # re-embed and add to Chroma
+            try:
+                from memorius.models import Memory
+                mem = Memory(
+                    id=m["id"], vault=m["vault"], shelf=m["shelf"],
+                    folder=m["folder"], note=m["note"],
+                    content=m["content"],
+                    metadata=json.loads(m.get("metadata") or "{}"),
+                )
+                engine._vector.add(mem)
+            except Exception as exc:  # best-effort: re-embedding failure — memory still imported to meta
+                logger.warning("Failed to re-embed memory %s: %s", m["id"], exc)
+        else:
+            stats["memories_skipped"] += 1
 
     # ── diaries ──
-    existing_diary_ids: set[str] = set()
-    try:
-        rows = conn.execute("SELECT id FROM diaries").fetchall()
-        existing_diary_ids = {r[0] for r in rows}
-    except Exception:
-        pass
-
     for d in payload.get("diaries", []):
-        did = d["id"]
-        if did in existing_diary_ids:
-            if not merge:
-                conn.execute(
-                    "UPDATE diaries SET session_id=?, vault=?, title=?, summary=?, "
-                    "content=?, exchange_count=?, created_at=?, updated_at=? WHERE id=?",
-                    (d["session_id"], d["vault"], d.get("title", ""),
-                     d.get("summary", ""), d.get("content", ""),
-                     d.get("exchange_count", 0),
-                     d.get("created_at", now), d.get("updated_at", now), did),
-                )
-                stats["diaries_imported"] += 1
-            else:
-                stats["diaries_skipped"] += 1
-            continue
-
-        conn.execute(
-            "INSERT INTO diaries (id, session_id, vault, title, summary, content, "
-            "exchange_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (did, d["session_id"], d["vault"], d.get("title", ""),
-             d.get("summary", ""), d.get("content", ""),
-             d.get("exchange_count", 0),
-             d.get("created_at", now), d.get("updated_at", now)),
-        )
-        stats["diaries_imported"] += 1
-    conn.commit()
+        imported = engine._meta.import_diary(d, merge=merge)
+        if imported:
+            stats["diaries_imported"] += 1
+        else:
+            stats["diaries_skipped"] += 1
 
     # ── graph edges ──
-    from memorius.graph import init_graph_schema
-    init_graph_schema(conn)
-    for e in payload.get("graph_edges", []):
-        try:
-            conn.execute(
-                "INSERT OR IGNORE INTO memory_graph (source_id, target_id, weight, relation, created_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (e["source_id"], e["target_id"], e.get("weight", 1.0),
-                 e.get("relation", "related"), e.get("created_at", now)),
-            )
-            stats["graph_edges_imported"] += 1
-        except Exception:
-            pass
-    conn.commit()
+    stats["graph_edges_imported"] = engine._meta.import_graph_edges(
+        payload.get("graph_edges", [])
+    )
 
     logger.info("Imported: %s", stats)
     return stats
@@ -295,24 +160,13 @@ def export_markdown(engine, dest: str | Path) -> Path:
     Graph edges are included as ``links`` in frontmatter.
     """
     dest = Path(dest)
-    conn = engine._meta._conn()
 
-    memories = [dict(r) for r in conn.execute(
-        "SELECT id, vault, shelf, folder, note, content, metadata, "
-        "access_count, last_accessed, created_at, updated_at "
-        "FROM memory_meta"
-    ).fetchall()]
+    memories = engine._meta.export_memories_meta()
 
     # Pre-fetch graph edges grouped by source_id
     edges_by_source: dict[str, list[dict]] = {}
-    try:
-        for row in conn.execute(
-            "SELECT source_id, target_id, weight, relation FROM memory_graph"
-        ).fetchall():
-            d = dict(row)
-            edges_by_source.setdefault(d["source_id"], []).append(d)
-    except Exception:
-        pass
+    for edge in engine._meta.export_graph_edges():
+        edges_by_source.setdefault(edge["source_id"], []).append(edge)
 
     for m in memories:
         mid = m["id"]

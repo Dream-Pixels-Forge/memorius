@@ -10,17 +10,13 @@ Hierarchy: Vault > Shelf > Folder > Note
 
 from __future__ import annotations
 
-import json
 import logging
-import math
-import uuid
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 from memorius.embeddings import EmbeddingFactory, EmbeddingProvider
 from memorius.config import load_config
-from memorius.validation import validate_name as _validate_name, validate_memory_id
+from memorius.validation import validate_memory_id
 from memorius.models import Memory  # noqa: F401
 from memorius.vector_store import ChromaStore
 from memorius.meta_store import SQLiteStore
@@ -56,6 +52,8 @@ class VaultEngine:
         else:
             self._vector = ChromaStore(storage_path / "vectors", self._embed)
         self._meta = SQLiteStore(storage_path)
+        self._search = None  # lazy init
+        self._store = None  # lazy init
 
     def __enter__(self):
         return self
@@ -68,7 +66,7 @@ class VaultEngine:
         """Release all resources (DB connections, ChromaDB client)."""
         try:
             self._meta.close()
-        except Exception:
+        except Exception:  # best-effort: prevent cleanup errors from propagating
             pass
         self._vector = None
 
@@ -103,45 +101,13 @@ class VaultEngine:
                 metadata.
             _vector: pre-computed embedding vector (internal use for batch ops).
         """
-        vault = _validate_name(vault, "vault")
-        shelf = _validate_name(shelf, "shelf")
-        folder = _validate_name(folder, "folder")
-        note = _validate_name(note, "note")
-
-        merged_metadata = dict(metadata or {})
-        if ttl_days is not None and ttl_days >= 0:
-            expires_at = (datetime.now(timezone.utc) + timedelta(days=ttl_days)).isoformat()
-            merged_metadata["expires_at"] = expires_at
-            merged_metadata["ttl_days"] = ttl_days
-
-        self._meta.ensure_note(vault, shelf, folder, note)
-        memory = Memory(
-            id=str(uuid.uuid4()),
-            vault=vault,
-            shelf=shelf,
-            folder=folder,
-            note=note,
-            content=content,
-            metadata=merged_metadata,
-            vector=_vector,
+        if self._store is None:
+            from memorius.store_module import StoreModule
+            self._store = StoreModule(self._vector, self._meta)
+        return self._store.store(
+            content, vault=vault, shelf=shelf, folder=folder, note=note,
+            metadata=metadata, ttl_days=ttl_days, _vector=_vector,
         )
-        self._vector.add(memory)
-        self._meta.increment_note_count(vault, shelf, folder, note)
-        self._meta.track_memory(
-            memory_id=memory.id, vault=vault, shelf=shelf,
-            folder=folder, note=note, content=content, metadata=merged_metadata,
-            created_at=memory.created_at,
-        )
-        # Auto-link to related memories via content similarity
-        try:
-            from memorius.graph import auto_link_by_proximity, init_graph_schema
-            conn = self._meta._conn()
-            init_graph_schema(conn)
-            recent = self._meta.list_memories_meta(vault=vault, limit=50)
-            auto_link_by_proximity(conn, memory.id, recent)
-        except Exception:
-            logger.debug("Graph linking failed (best-effort)")
-        return memory
 
     def search(self, query: str, vault: str | None = None,
                shelf: str | None = None, limit: int = 10,
@@ -170,94 +136,15 @@ class VaultEngine:
             Python after the vector query (over all ``n_results`` hits, so
             the limit is still honored when the universe shrinks).
         """
-        filter_metadata: dict[str, str] = {}
-        if folder is not None:
-            filter_metadata["folder"] = _validate_name(folder, "folder")
-        if note is not None:
-            filter_metadata["note"] = _validate_name(note, "note")
-        # Over-fetch so the post-filter for tags can still return up to
-        # `limit` after discarding non-matching memories.
-        fetch_n = (limit * 4) if tags else (limit * 2)
-        results = self._vector.search(
-            query, vault=vault, shelf=shelf, n_results=fetch_n,
-            filter_metadata=filter_metadata or None,
+        if self._search is None:
+            from memorius.search_module import SearchModule
+            self._search = SearchModule(self._vector, self._meta)
+        return self._search.search(
+            query, vault=vault, shelf=shelf, limit=limit,
+            expand_graph=expand_graph, graph_hops=graph_hops,
+            graph_min_weight=graph_min_weight, folder=folder, note=note,
+            tags=tags, rerank=rerank,
         )
-
-        if tags:
-            wanted = {str(t) for t in tags}
-            filtered: list[Memory] = []
-            for mem in results:
-                md_tags = (mem.metadata or {}).get("tags") or []
-                if isinstance(md_tags, str):
-                    try:
-                        import json as _json
-                        md_tags = _json.loads(md_tags)
-                    except Exception:
-                        md_tags = [md_tags]
-                if wanted.issubset({str(t) for t in (md_tags or [])}):
-                    filtered.append(mem)
-            results = filtered
-        try:
-            from memorius.temporal import calculate_decay_score, calculate_search_score
-            meta_map = self._meta.get_memory_meta_batch([m.id for m in results])
-            scored = []
-            for rank_pos, mem in enumerate(results):
-                meta = meta_map.get(mem.id)
-                decay = 1.0
-                access_count = 0
-                if meta:
-                    decay = calculate_decay_score(
-                        created_at=meta.get("created_at", ""),
-                        last_accessed=meta.get("last_accessed"),
-                        access_count=meta.get("access_count", 0),
-                    )
-                    access_count = meta.get("access_count", 0)
-                distance = float((mem.metadata or {}).get("__distance__", 0.0) or 0.0)
-                semantic_sim = max(0.0, min(1.0, 1.0 - distance))
-                final_score = calculate_search_score(
-                    semantic_similarity=semantic_sim,
-                    decay_score=decay,
-                    access_count=access_count,
-                )
-                scored.append((mem, final_score))
-            scored.sort(key=lambda x: x[1], reverse=True)
-            results = [m for m, _ in scored[:limit]]
-            for mem in results:
-                if "__distance__" in (mem.metadata or {}):
-                    del mem.metadata["__distance__"]
-        except Exception:
-            logger.debug("Temporal decay scoring failed, using rank order")
-            results = results[:limit]
-
-        # ── Cross-encoder rerank (opt-in) ──────────────────────────────────
-        if rerank and results:
-            try:
-                from memorius.reranker import rerank_search_results
-                results = rerank_search_results(query, results, top_k=limit)
-            except ImportError:
-                logger.debug("Cross-encoder reranker not installed, skipping")
-            except Exception:
-                logger.debug("Reranking failed, keeping original order")
-
-        # ── Graph expansion (opt-in) ────────────────────────────────────────
-        # The seed results are the ranked matches above. If asked, walk the
-        # knowledge graph from those seeds and bring in linked memories that
-        # the vector search wouldn't have surfaced on its own.
-        if expand_graph and results:
-            expanded = self._expand_from_graph(
-                results, vault=vault, hops=graph_hops,
-                min_weight=graph_min_weight,
-                max_extra=max(0, math.ceil(limit * 1.5) - len(results)),
-            )
-            if expanded:
-                results = results + expanded
-
-        # NOTE: search no longer records access on every returned result --
-        # that inflated access_count for memories the caller never actually
-        # used, distorting the reinforcement model. Use engine.touch(id) for
-        # explicit reinforcement, or rely on get_memory / context injection
-        # (which records access only on memories actually pulled in).
-        return results
 
     def touch(self, memory_id: str) -> None:
         """Explicitly mark a memory as accessed (reinforce it).
@@ -265,78 +152,20 @@ class VaultEngine:
         Use when an agent actually reads/uses a memory and you want the
         reinforcement model to credit it. Idempotent: safe to call on
         a missing id (no-op)."""
-        try:
-            validate_memory_id(memory_id)
-            self._meta.record_access(memory_id)
-        except Exception:
-            logger.debug("touch(%s) failed (best-effort)", memory_id)
-
-    def _expand_from_graph(self, seeds: list[Memory], vault: str | None,
-                           hops: int, min_weight: float,
-                           max_extra: int) -> list[Memory]:
-        """Walk the knowledge graph from ``seeds`` and return linked memories
-        not already present in ``seeds``. Returns at most ``max_extra``
-        memories. Best-effort: any graph failure is swallowed (graph linking
-        is a supplement, never a hard requirement)."""
-        if max_extra <= 0 or not seeds:
-            return []
-        try:
-            from memorius.graph import expand_graph, init_graph_schema
-            conn = self._meta._conn()
-            init_graph_schema(conn)
-            res = expand_graph(
-                conn, [m.id for m in seeds], hops=max(1, hops),
-                min_weight=min_weight, max_nodes=max_extra,
-            )
-            expanded_ids = list(res.expanded_ids)
-        except Exception:
-            logger.debug("Graph expansion failed (best-effort)")
-            return []
-        if not expanded_ids:
-            return []
-        # If the caller scoped to one vault, only add memories in that vault.
-        fetched = self.get_memories_by_ids(expanded_ids, with_vectors=False)
-        seed_ids = {m.id for m in seeds}
-        out: list[Memory] = []
-        for mem in fetched:
-            if mem.id in seed_ids:
-                continue
-            if vault is not None and mem.vault != vault:
-                continue
-            out.append(mem)
-            if len(out) >= max_extra:
-                break
-        return out
+        if self._store is None:
+            from memorius.store_module import StoreModule
+            self._store = StoreModule(self._vector, self._meta)
+        self._store.touch(memory_id)
 
     def get_memories_by_ids(self, ids: list[str],
                             with_vectors: bool = True) -> list[Memory]:
         """Fetch memories by exact ID. Vectors are pulled from ChromaDB only
         when ``with_vectors=True``. Memories whose meta row is missing or
         whose vector is unfetchable are skipped."""
-        if not ids:
-            return []
-        metas = self._meta.get_memory_meta_batch(ids)
-        if not metas:
-            return []
-        groups: dict[tuple[str, str], list[str]] = {}
-        for mid, meta in metas.items():
-            v = meta.get("vault", "")
-            s = meta.get("shelf", "")
-            groups.setdefault((v, s), []).append(mid)
-        out: list[Memory] = []
-        for (v, s), group_ids in groups.items():
-            fetched = self._vector.get_by_ids(
-                group_ids, v, s, include_vectors=with_vectors,
-            )
-            for m in fetched:
-                meta = metas.get(m.id)
-                if meta:
-                    if not m.created_at:
-                        m.created_at = meta.get("created_at", m.created_at)
-                    if not m.updated_at:
-                        m.updated_at = meta.get("updated_at", m.updated_at)
-                out.append(m)
-        return out
+        if self._store is None:
+            from memorius.store_module import StoreModule
+            self._store = StoreModule(self._vector, self._meta)
+        return self._store.get_by_ids(ids, with_vectors=with_vectors)
 
     def get_contradictions(self, memory_id: str) -> list[Memory]:
         """Return memories that contradict ``memory_id`` in the knowledge
@@ -346,11 +175,9 @@ class VaultEngine:
         is unknown or has no recorded contradictions."""
         try:
             validate_memory_id(memory_id)
-            from memorius.graph import get_linked, init_graph_schema
-            conn = self._meta._conn()
-            init_graph_schema(conn)
-            edges = get_linked(conn, memory_id, relation="contradicts")
-        except Exception:
+            self._meta.init_graph()
+            edges = self._meta.get_linked(memory_id, relation="contradicts")
+        except Exception:  # best-effort: graph/meta failure should not break contradiction lookup
             logger.debug("get_contradictions(%s) failed (best-effort)", memory_id)
             return []
         contra_ids = [e["target_id"] for e in edges]
@@ -363,12 +190,10 @@ class VaultEngine:
     def get_memory(self, memory_id: str) -> Memory | None:
         """Fetch a single memory by ID. Returns None when the id is invalid
         or the memory does not exist."""
-        try:
-            memory_id = validate_memory_id(memory_id)
-        except (ValueError, TypeError):
-            return None
-        results = self.get_memories_by_ids([memory_id], with_vectors=True)
-        return results[0] if results else None
+        if self._store is None:
+            from memorius.store_module import StoreModule
+            self._store = StoreModule(self._vector, self._meta)
+        return self._store.get(memory_id)
 
     def update_memory(self, memory_id: str, content: str | None = None,
                       metadata: dict[str, Any] | None = None) -> Memory | None:
@@ -378,41 +203,10 @@ class VaultEngine:
         metadata dict (new keys overwrite, existing keys without a new
         value are preserved).  Returns the updated Memory or None when the
         id is invalid / not found."""
-        try:
-            memory_id = validate_memory_id(memory_id)
-        except (ValueError, TypeError):
-            return None
-        meta = self._meta.get_memory_meta(memory_id)
-        if meta is None:
-            return None
-        # Update meta row first.
-        self._meta.update_memory_meta(memory_id, content=content, metadata=metadata)
-        # Re-fetch the (possibly updated) memory from meta + vector.
-        updated_metas = self._meta.get_memory_meta_batch([memory_id])
-        updated_meta = updated_metas.get(memory_id, meta)
-        # Build the Memory object to upsert into vector store.
-        new_content = content if content is not None else updated_meta.get("content", meta["content"])
-        merged_metadata = {}
-        try:
-            merged_metadata = json.loads(updated_meta.get("metadata") or "{}")
-        except Exception:
-            pass
-        if metadata is not None:
-            merged_metadata.update(metadata)
-        mem = Memory(
-            id=memory_id,
-            vault=updated_meta["vault"],
-            shelf=updated_meta["shelf"],
-            folder=updated_meta.get("folder", "default"),
-            note=updated_meta.get("note", "default"),
-            content=new_content,
-            metadata=merged_metadata,
-            created_at=updated_meta.get("created_at", ""),
-            updated_at=updated_meta.get("updated_at", ""),
-        )
-        # Re-embed + upsert.
-        self._vector.add(mem)
-        return mem
+        if self._store is None:
+            from memorius.store_module import StoreModule
+            self._store = StoreModule(self._vector, self._meta)
+        return self._store.update(memory_id, content=content, metadata=metadata)
 
     def list_memories(self, vault: str | None = None, shelf: str | None = None,
                       limit: int | None = None, with_vectors: bool = True,
@@ -427,76 +221,13 @@ class VaultEngine:
             - next_cursor: ISO timestamp of the last memory (use as cursor
               for the next page), or None if no more results
         """
-        fetch_limit = (limit or 10000) + 1  # fetch one extra to detect next page
-        meta_rows = self._meta.list_memories_meta(
-            vault=vault, limit=fetch_limit, include_archived=False, cursor=cursor,
+        if self._store is None:
+            from memorius.store_module import StoreModule
+            self._store = StoreModule(self._vector, self._meta)
+        return self._store.list_memories(
+            vault=vault, shelf=shelf, limit=limit,
+            with_vectors=with_vectors, cursor=cursor,
         )
-        if not meta_rows:
-            return {"memories": [], "next_cursor": None}
-
-        # Check if there are more results
-        has_more = len(meta_rows) > (limit or 10000)
-        if has_more:
-            meta_rows = meta_rows[:limit or 10000]
-
-        # Defaults from meta rows (meta is source of truth for temporal order).
-        memories: list[Memory] = []
-
-        # Group meta rows by (vault, shelf) so we can batch-fetch from the right
-        # Chroma collection.
-        groups: dict[tuple[str, str], list[dict]] = {}
-        for row in meta_rows:
-            groups.setdefault((row.get("vault") or "", row.get("shelf") or ""), []).append(row)
-
-        for (v, s), rows in groups.items():
-            if shelf is not None and s != shelf:
-                continue
-            ids = [r["id"] for r in rows]
-            fetched = self._vector.get_by_ids(ids, v, s, include_vectors=with_vectors)
-
-            by_id = {m.id: m for m in fetched}
-            for row in rows:
-                mem = by_id.get(row["id"])
-                if mem is not None:
-                    if not mem.created_at:
-                        mem.created_at = row.get("created_at", "")
-                    if not mem.updated_at:
-                        mem.updated_at = row.get("updated_at", "")
-                    memories.append(mem)
-                else:
-                    # Vector missing: fall back to meta-only record.
-                    try:
-                        md = row.get("metadata") or "{}"
-                        if isinstance(md, str):
-                            import json as _json
-                            md = (_json.loads(md) if md else {})
-                    except Exception:
-                        md = {}
-                    memories.append(Memory(
-                        id=row["id"],
-                        vault=v,
-                        shelf=s,
-                        folder=row.get("folder", ""),
-                        note=row.get("note", ""),
-                        content=row.get("content", ""),
-                        metadata=md or {},
-                        created_at=row.get("created_at", ""),
-                        updated_at=row.get("updated_at", ""),
-                        vector=None,
-                    ))
-
-        if limit is not None:
-            memories = memories[:limit]
-
-        # Compute next_cursor as composite "created_at|id" to break ties
-        # when multiple memories share the same timestamp.
-        next_cursor = None
-        if has_more and memories:
-            last = memories[-1]
-            ts = last.created_at or last.updated_at
-            next_cursor = f"{ts}~{last.id}"
-
-        return {"memories": memories, "next_cursor": next_cursor}
 
     def delete(self, memory_id: str, vault: str | None = None,
                shelf: str | None = None, dry_run: bool = False) -> dict[str, Any]:
@@ -519,51 +250,10 @@ class VaultEngine:
             ValueError: if memory_id is invalid/missing, or if a provided
                 vault/shelf does not match the memory's actual location.
         """
-        memory_id = validate_memory_id(memory_id)
-        meta = self._meta.get_memory_meta(memory_id)
-        result: dict[str, Any] = {
-            "found": meta is not None,
-            "deleted": False,
-            "memory_id": memory_id,
-            "vault": None,
-            "shelf": None,
-            "folder": None,
-            "note": None,
-            "content": None,
-        }
-        if meta is None:
-            return result
-
-        result.update({
-            "vault": meta["vault"],
-            "shelf": meta["shelf"],
-            "folder": meta["folder"],
-            "note": meta["note"],
-            "content": meta["content"],
-        })
-
-        # Validate optional scope and ensure it matches the memory's location.
-        if vault is not None:
-            vault = _validate_name(vault, "vault")
-            if vault != meta["vault"]:
-                raise ValueError(
-                    f"memory {memory_id} is in vault {meta['vault']!r}, not {vault!r}"
-                )
-        if shelf is not None:
-            shelf = _validate_name(shelf, "shelf")
-            if shelf != meta["shelf"]:
-                raise ValueError(
-                    f"memory {memory_id} is on shelf {meta['shelf']!r}, not {shelf!r}"
-                )
-
-        if dry_run:
-            return result
-
-        # Hard delete from both the vector store and metadata store.
-        self._vector.delete(memory_id, meta["vault"], meta["shelf"])
-        self._meta.delete_memory(memory_id)
-        result["deleted"] = True
-        return result
+        if self._store is None:
+            from memorius.store_module import StoreModule
+            self._store = StoreModule(self._vector, self._meta)
+        return self._store.delete(memory_id, vault=vault, shelf=shelf, dry_run=dry_run)
 
     def mine(self, text: str, vault: str = "main", shelf: str = "conversations",
              folder: str = "mined", note: str = "transcript") -> list[Memory]:
@@ -654,8 +344,7 @@ class VaultEngine:
 
     def get_graph_stats(self) -> dict:
         """Get knowledge graph statistics."""
-        from memorius.graph import get_graph_stats
-        return get_graph_stats(self._meta._conn())
+        return self._meta.get_graph_stats()
 
     def get_memory_stats(self) -> dict:
         """Get memory tracking statistics."""
@@ -674,9 +363,7 @@ class VaultEngine:
             dict with keys: stale (list of candidates), count,
             dry_run, archived_count.
         """
-        from memorius.temporal import find_stale_memories, archive_memories
-        conn = self._meta._conn()
-        stale = find_stale_memories(conn, threshold=threshold)
+        stale = self._meta.find_stale_memories(threshold=threshold)
         result: dict[str, Any] = {
             "stale": [
                 {"id": s["id"], "content": (s.get("content") or "")[:200],
@@ -692,7 +379,7 @@ class VaultEngine:
             return result
         ids = [s["id"] for s in stale]
         if archive:
-            archive_memories(conn, ids)
+            self._meta.archive_memories(ids)
             result["archived_count"] = len(ids)
         else:
             for mid in ids:

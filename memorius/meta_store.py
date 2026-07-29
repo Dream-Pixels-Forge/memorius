@@ -6,11 +6,13 @@ Handles vault hierarchy, diaries, memory tracking, and temporal metadata.
 from __future__ import annotations
 
 import atexit
+import contextlib
 import json
 import logging
 import sqlite3
 import threading
 import uuid
+from collections.abc import Generator
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -28,7 +30,7 @@ def _close_thread_conn():
     for conn in conns.values():
         try:
             conn.close()
-        except Exception:
+        except Exception:  # best-effort: prevent atexit handler from raising during shutdown
             pass
     local.memorius_conns = {}
 
@@ -60,6 +62,71 @@ class SQLiteStore:
             conn.execute("PRAGMA synchronous=NORMAL")
             conns[key] = conn
         return conn
+
+    # ── Public query API ──
+
+    def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
+        """Execute a single SQL statement and commit.
+
+        Use for INSERT, UPDATE, DELETE, or DDL. Returns the cursor so the
+        caller can inspect ``lastrowid`` or ``rowcount`` if needed.
+        """
+        conn = self._conn()
+        with self._lock:
+            cur = conn.execute(sql, params)
+            conn.commit()
+            return cur
+
+    def execute_many(self, sql: str, params_seq: list[tuple]) -> sqlite3.Cursor:
+        """Execute a SQL statement against every parameter set and commit."""
+        conn = self._conn()
+        with self._lock:
+            cur = conn.executemany(sql, params_seq)
+            conn.commit()
+            return cur
+
+    def executescript(self, script: str) -> None:
+        """Execute a multi-statement SQL script and commit."""
+        conn = self._conn()
+        with self._lock:
+            conn.executescript(script)
+            conn.commit()
+
+    def fetchone(self, sql: str, params: tuple = ()) -> dict[str, Any] | None:
+        """Execute a SELECT and return a single row as a dict (or None)."""
+        conn = self._conn()
+        row = conn.execute(sql, params).fetchone()
+        return dict(row) if row else None
+
+    def fetchall(self, sql: str, params: tuple = ()) -> list[dict[str, Any]]:
+        """Execute a SELECT and return all rows as a list of dicts."""
+        conn = self._conn()
+        return [dict(r) for r in conn.execute(sql, params).fetchall()]
+
+    @contextlib.contextmanager
+    def transaction(self) -> Generator[sqlite3.Connection, None, None]:
+        """Context manager that wraps a block in a single transaction.
+
+        Commits on clean exit, rolls back on exception.  The connection
+        object is yielded but callers should prefer ``execute()`` /
+        ``fetchone()`` / ``fetchall()`` over raw ``conn`` calls for
+        forward-compatibility.
+
+        Usage::
+
+            with meta.transaction() as conn:
+                conn.execute("INSERT INTO ...", (...))
+                # auto-committed unless an exception propagates
+        """
+        conn = self._conn()
+        with self._lock:
+            try:
+                conn.execute("BEGIN")
+                yield conn
+                conn.commit()
+            except Exception:  # transaction rollback-and-raise pattern
+                conn.rollback()
+                raise
 
     # ── Migration helpers ──
 
@@ -156,12 +223,12 @@ class SQLiteStore:
                 DROP INDEX IF EXISTS idx_diaries_palace;
             """)
             conn.commit()
-        except Exception as e:
+        except Exception as e:  # best-effort: old table drop failure is non-critical
             logger.warning(f"Could not drop old tables: {e}")
 
         logger.info("Migrated hierarchy: palaces/wings/rooms/drawers -> vaults/shelves/folders/notes")
 
-    def _init_db(self):
+    def _init_db(self) -> None:
         conn = self._conn()
         with self._lock:
             self._migrate_diaries_table(conn)
@@ -244,6 +311,56 @@ class SQLiteStore:
                 CREATE INDEX IF NOT EXISTS idx_memory_meta_cursor ON memory_meta(created_at, id);
             """)
             conn.commit()
+
+    # ── Graph adapter ──
+
+    def init_graph(self) -> None:
+        """Ensure the knowledge graph schema exists."""
+        from memorius.graph import init_graph_schema
+        init_graph_schema(self._conn())
+
+    def link_memories(self, source_id: str, target_id: str,
+                      weight: float = 1.0, relation: str = "related") -> None:
+        """Create a bidirectional link between two memories."""
+        from memorius.graph import link_memories
+        link_memories(self._conn(), source_id, target_id, weight, relation)
+
+    def get_linked(self, memory_id: str, relation: str | None = None,
+                   min_weight: float = 0.0) -> list[dict[str, Any]]:
+        """Get all memories linked to a given memory."""
+        from memorius.graph import get_linked
+        return get_linked(self._conn(), memory_id, relation, min_weight)
+
+    def auto_link_by_proximity(self, memory_id: str,
+                               all_memories: list[dict[str, Any]],
+                               threshold: float = 0.3, max_links: int = 10) -> None:
+        """Create links based on content similarity."""
+        from memorius.graph import auto_link_by_proximity
+        auto_link_by_proximity(self._conn(), memory_id, all_memories, threshold, max_links)
+
+    def get_graph_stats(self) -> dict[str, Any]:
+        """Get knowledge graph statistics."""
+        from memorius.graph import get_graph_stats
+        return get_graph_stats(self._conn())
+
+    def expand_graph(self, seed_ids: list[str], hops: int = 1,
+                     min_weight: float = 0.3, max_nodes: int = 50) -> dict[str, Any]:
+        """Expand from seed IDs through the graph."""
+        from memorius.graph import expand_graph
+        return expand_graph(self._conn(), seed_ids, hops, min_weight, max_nodes)
+
+    # ── Temporal adapter ──
+
+    def archive_memories(self, memory_ids: list[str]) -> None:
+        """Mark memories as archived (soft delete)."""
+        from memorius.temporal import archive_memories
+        archive_memories(self._conn(), memory_ids)
+
+    def find_stale_memories(self, threshold: float = 0.1,
+                            limit: int = 100) -> list[dict[str, Any]]:
+        """Find memories below the decay threshold."""
+        from memorius.temporal import find_stale_memories
+        return find_stale_memories(self._conn(), threshold, limit)
 
     # ── Hierarchy operations ──
 
@@ -334,7 +451,7 @@ class SQLiteStore:
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def increment_note_count(self, vault: str, shelf: str, folder: str, note: str):
+    def increment_note_count(self, vault: str, shelf: str, folder: str, note: str) -> None:
         conn = self._conn()
         with self._lock:
             conn.execute(
@@ -403,8 +520,8 @@ class SQLiteStore:
     # ── Memory meta tracking ──
 
     def track_memory(self, memory_id: str, vault: str, shelf: str, folder: str,
-                     note: str, content: str, metadata: dict | None = None,
-                     created_at: str | None = None):
+                     note: str, content: str, metadata: dict[str, Any] | None = None,
+                     created_at: str | None = None) -> None:
         """Track a memory in the meta table for temporal/graph features."""
         now = created_at or datetime.now(timezone.utc).isoformat()
         conn = self._conn()
@@ -417,7 +534,7 @@ class SQLiteStore:
             )
             conn.commit()
 
-    def record_access(self, memory_id: str):
+    def record_access(self, memory_id: str) -> None:
         """Record that a memory was accessed (for temporal decay scoring)."""
         now = datetime.now(timezone.utc).isoformat()
         conn = self._conn()
@@ -429,7 +546,7 @@ class SQLiteStore:
             conn.commit()
 
     def update_memory_meta(self, memory_id: str, content: str | None = None,
-                           metadata: dict | None = None) -> bool:
+                           metadata: dict[str, Any] | None = None) -> bool:
         """Update content and/or metadata for an existing memory.
 
         Returns True if the row was updated, False if the memory was not found.
@@ -460,13 +577,13 @@ class SQLiteStore:
             conn.commit()
         return True
 
-    def get_memory_meta(self, memory_id: str) -> dict | None:
+    def get_memory_meta(self, memory_id: str) -> dict[str, Any] | None:
         """Get metadata for a memory."""
         conn = self._conn()
         row = conn.execute("SELECT * FROM memory_meta WHERE id = ?", (memory_id,)).fetchone()
         return dict(row) if row else None
 
-    def get_memory_meta_batch(self, memory_ids: list[str]) -> dict[str, dict]:
+    def get_memory_meta_batch(self, memory_ids: list[str]) -> dict[str, dict[str, Any]]:
         """Get metadata for multiple memories in a single query."""
         if not memory_ids:
             return {}
@@ -484,7 +601,7 @@ class SQLiteStore:
 
     def list_memories_meta(self, vault: str | None = None, limit: int = 100,
                            include_archived: bool = False,
-                           cursor: str | None = None) -> list[dict]:
+                           cursor: str | None = None) -> list[dict[str, Any]]:
         """List memory metadata with optional vault filter and cursor pagination.
 
         Args:
@@ -564,7 +681,7 @@ class SQLiteStore:
                     ).fetchall()
         return [dict(r) for r in rows]
 
-    def archive_memory(self, memory_id: str):
+    def archive_memory(self, memory_id: str) -> None:
         """Soft-delete a memory (mark as archived)."""
         now = datetime.now(timezone.utc).isoformat()
         conn = self._conn()
@@ -575,7 +692,7 @@ class SQLiteStore:
             )
             conn.commit()
 
-    def delete_memory(self, memory_id: str) -> dict | None:
+    def delete_memory(self, memory_id: str) -> dict[str, Any] | None:
         """Hard-delete a memory and clean up its graph edges + note count.
 
         Returns the deleted memory's metadata, or None if it didn't exist
@@ -606,7 +723,7 @@ class SQLiteStore:
             conn.commit()
         return dict(meta)
 
-    def get_memory_stats(self) -> dict:
+    def get_memory_stats(self) -> dict[str, Any]:
         """Get statistics about tracked memories."""
         conn = self._conn()
         total = conn.execute("SELECT COUNT(*) FROM memory_meta").fetchone()[0]
@@ -622,6 +739,154 @@ class SQLiteStore:
             "by_vault": {r[0]: r[1] for r in by_vault},
         }
 
-    def close(self):
+    # ── Batch export (backup) ──
+
+    def export_hierarchy(self) -> dict[str, Any]:
+        """Export all hierarchy tables for backup."""
+        return {
+            "vaults": self.fetchall("SELECT name, description, created_at, updated_at FROM vaults"),
+            "shelves": self.fetchall("SELECT vault, name, description, created_at, updated_at FROM shelves"),
+            "folders": self.fetchall("SELECT vault, shelf, name, description, created_at, updated_at FROM folders"),
+            "notes": self.fetchall("SELECT vault, shelf, folder, name, description, memory_count, created_at, updated_at FROM notes"),
+        }
+
+    def export_memories_meta(self) -> list[dict[str, Any]]:
+        """Export all memory metadata for backup."""
+        return self.fetchall(
+            "SELECT id, vault, shelf, folder, note, content, metadata, "
+            "access_count, last_accessed, created_at, updated_at FROM memory_meta"
+        )
+
+    def export_diaries(self) -> list[dict[str, Any]]:
+        """Export all diaries for backup."""
+        return self.fetchall(
+            "SELECT id, session_id, vault, title, summary, content, "
+            "exchange_count, created_at, updated_at FROM diaries"
+        )
+
+    def export_graph_edges(self) -> list[dict[str, Any]]:
+        """Export all graph edges for backup."""
+        try:
+            return self.fetchall(
+                "SELECT source_id, target_id, weight, relation, created_at FROM memory_graph"
+            )
+        except Exception:  # best-effort: graph table may not exist — return empty list
+            return []
+
+    def import_hierarchy(self, vaults: list[dict[str, Any]], shelves: list[dict[str, Any]],
+                         folders: list[dict[str, Any]], notes: list[dict[str, Any]]) -> None:
+        """Import hierarchy tables from a backup."""
+        now = datetime.now(timezone.utc).isoformat()
+        for v in vaults:
+            self.execute(
+                "INSERT OR IGNORE INTO vaults (name, description, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                (v["name"], v.get("description", ""), v.get("created_at", now), v.get("updated_at", now)),
+            )
+        for s in shelves:
+            self.execute(
+                "INSERT OR IGNORE INTO shelves (vault, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                (s["vault"], s["name"], s.get("description", ""), s.get("created_at", now), s.get("updated_at", now)),
+            )
+        for f in folders:
+            self.execute(
+                "INSERT OR IGNORE INTO folders (vault, shelf, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (f["vault"], f["shelf"], f["name"], f.get("description", ""), f.get("created_at", now), f.get("updated_at", now)),
+            )
+        for n in notes:
+            self.execute(
+                "INSERT OR IGNORE INTO notes (vault, shelf, folder, name, description, memory_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (n["vault"], n["shelf"], n["folder"], n["name"],
+                 n.get("description", ""), n.get("memory_count", 0),
+                 n.get("created_at", now), n.get("updated_at", now)),
+            )
+
+    def import_memory_meta(self, memory_data: dict[str, Any], *, merge: bool = True) -> bool:
+        """Import a single memory metadata row. Returns True if imported."""
+        mid = memory_data["id"]
+        now = datetime.now(timezone.utc).isoformat()
+        existing = self.fetchone("SELECT id FROM memory_meta WHERE id = ?", (mid,))
+        if existing:
+            if not merge:
+                self.execute(
+                    "UPDATE memory_meta SET vault=?, shelf=?, folder=?, note=?, "
+                    "content=?, metadata=?, access_count=?, last_accessed=?, "
+                    "created_at=?, updated_at=? WHERE id=?",
+                    (memory_data["vault"], memory_data["shelf"], memory_data["folder"],
+                     memory_data["note"], memory_data["content"],
+                     memory_data.get("metadata", "{}"), memory_data.get("access_count", 0),
+                     memory_data.get("last_accessed"), memory_data.get("created_at", now),
+                     memory_data.get("updated_at", now), mid),
+                )
+                return True
+            return False
+        self.execute(
+            "INSERT INTO memory_meta (id, vault, shelf, folder, note, content, "
+            "metadata, access_count, last_accessed, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (mid, memory_data["vault"], memory_data["shelf"], memory_data["folder"],
+             memory_data["note"], memory_data["content"],
+             memory_data.get("metadata", "{}"), memory_data.get("access_count", 0),
+             memory_data.get("last_accessed"), memory_data.get("created_at", now),
+             memory_data.get("updated_at", now)),
+        )
+        return True
+
+    def import_diary(self, diary_data: dict[str, Any], *, merge: bool = True) -> bool:
+        """Import a single diary entry. Returns True if imported."""
+        did = diary_data["id"]
+        now = datetime.now(timezone.utc).isoformat()
+        existing = self.fetchone("SELECT id FROM diaries WHERE id = ?", (did,))
+        if existing:
+            if not merge:
+                self.execute(
+                    "UPDATE diaries SET session_id=?, vault=?, title=?, summary=?, "
+                    "content=?, exchange_count=?, created_at=?, updated_at=? WHERE id=?",
+                    (diary_data["session_id"], diary_data["vault"], diary_data.get("title", ""),
+                     diary_data.get("summary", ""), diary_data.get("content", ""),
+                     diary_data.get("exchange_count", 0),
+                     diary_data.get("created_at", now), diary_data.get("updated_at", now), did),
+                )
+                return True
+            return False
+        self.execute(
+            "INSERT INTO diaries (id, session_id, vault, title, summary, content, "
+            "exchange_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (did, diary_data["session_id"], diary_data["vault"], diary_data.get("title", ""),
+             diary_data.get("summary", ""), diary_data.get("content", ""),
+             diary_data.get("exchange_count", 0),
+             diary_data.get("created_at", now), diary_data.get("updated_at", now)),
+        )
+        return True
+
+    def import_graph_edges(self, edges: list[dict[str, Any]]) -> int:
+        """Import graph edges from a backup. Returns count imported."""
+        self.init_graph()
+        now = datetime.now(timezone.utc).isoformat()
+        count = 0
+        for e in edges:
+            try:
+                self.execute(
+                    "INSERT OR IGNORE INTO memory_graph (source_id, target_id, weight, relation, created_at) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (e["source_id"], e["target_id"], e.get("weight", 1.0),
+                     e.get("relation", "related"), e.get("created_at", now)),
+                )
+                count += 1
+            except Exception:  # best-effort: skip corrupted edge, continue with rest
+                pass
+        return count
+
+    def count_meta_rows(self) -> int:
+        """Count rows in memory_meta."""
+        return self.fetchone("SELECT COUNT(*) as c FROM memory_meta")["c"]
+
+    def count_graph_edges(self) -> int:
+        """Count rows in memory_graph."""
+        try:
+            return self.fetchone("SELECT COUNT(*) as c FROM memory_graph")["c"]
+        except Exception:  # best-effort: graph table may not exist yet — return 0
+            return 0
+
+    def close(self) -> None:
         """Close the current thread's connection."""
         _close_thread_conn()

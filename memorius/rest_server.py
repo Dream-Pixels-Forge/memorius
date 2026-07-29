@@ -259,33 +259,33 @@ class MemoriusAPI:
 
         @app.get("/obsidian")
         async def obsidian_list(vault: str | None = None):
-            from memorius.cli.obsidian import _resolve_vault_path, _scan_vault
-            path = _resolve_vault_path(vault)
+            from memorius.obsidian import resolve_vault_path, scan_vault
+            path = resolve_vault_path(vault)
             if not path.exists():
                 raise HTTPException(status_code=404, detail=f"Vault not found: {path}")
-            notes = _scan_vault(path)
+            notes = scan_vault(path)
             return {"vault": str(path), "count": len(notes), "notes": notes}
 
         @app.post("/obsidian/import")
         async def obsidian_import(payload: dict[str, Any]):
             if not payload.get("confirm", False) and not payload.get("dry_run", False):
                 raise HTTPException(status_code=400, detail="Import requires confirm=true or dry_run=true")
-            from memorius.cli.obsidian import _resolve_vault_path, _scan_vault, _parse_note
-            vault_path = _resolve_vault_path(payload.get("vault"))
+            from memorius.obsidian import resolve_vault_path, scan_vault, parse_note
+            vault_path = resolve_vault_path(payload.get("vault"))
             if not vault_path.exists():
                 raise HTTPException(status_code=404, detail=f"Vault not found: {vault_path}")
             target_vault = _validate_name(payload.get("target_vault", "main"), "vault")
             target_shelf = _validate_name(payload.get("target_shelf", "obsidian"), "shelf")
             dry_run = payload.get("dry_run", False)
             tag_filter = payload.get("tag")
-            notes = _scan_vault(vault_path)
+            notes = scan_vault(vault_path)
             imported = skipped = 0
             for note in notes:
                 if tag_filter and tag_filter not in note.get("tags", []):
                     skipped += 1
                     continue
                 if not dry_run:
-                    body = _parse_note(note["path"])
+                    body = parse_note(note["path"])
                     engine.store(content=body, vault=target_vault, shelf=target_shelf,
                                  folder=note.get("folder", "default"), note=note["name"],
                                  metadata={"source": "obsidian", "tags": note.get("tags", [])})
@@ -294,8 +294,8 @@ class MemoriusAPI:
 
         @app.post("/obsidian/export")
         async def obsidian_export(payload: dict[str, Any]):
-            from memorius.cli.obsidian import _resolve_vault_path
-            vault_path = _resolve_vault_path(payload.get("vault")).resolve()
+            from memorius.obsidian import resolve_vault_path
+            vault_path = resolve_vault_path(payload.get("vault")).resolve()
             source_vault = _validate_name(payload.get("source_vault", "main"), "vault")
             source_shelf = payload.get("source_shelf")
             dry_run = payload.get("dry_run", False)

@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from memorius.embeddings import EmbeddingProvider
+from memorius.vector_store_base import VectorStore
 
 logger = logging.getLogger("memorius.vector.sqlite_vec")
 
@@ -47,7 +48,7 @@ def _cosine_distance(a: list[float], b: list[float]) -> float:
     return 1.0 - (dot / (norm_a * norm_b))
 
 
-class SqliteVecStore:
+class SqliteVecStore(VectorStore):
     """Vector store backed by sqlite-vec (single-file, no ChromaDB dependency)."""
 
     def __init__(self, path: Path, embedding_provider: EmbeddingProvider):

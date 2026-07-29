@@ -19,29 +19,24 @@ from pathlib import Path
 from typing import Any
 
 from memorius.vault import VaultEngine
+from memorius.obsidian import (
+    resolve_vault_path as _resolve_vault_path,
+    scan_vault as _scan_vault,
+    parse_note as _parse_note,
+    parse_frontmatter as _parse_frontmatter,
+    FRONTMATTER_RE,
+)
 
 logger = logging.getLogger("memorius.obsidian")
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 WIKILINK_RE = re.compile(r"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]")
 
 OBSIDIAN_VAULT_HINT = (
     "Set $OBSIDIAN_VAULT_PATH or pass --vault. "
     "Default: ~/Documents/Obsidian Vault"
 )
-
-
-def _resolve_vault_path(vault_arg: str | None) -> Path:
-    """Resolve the Obsidian vault path from arg, env var, or default."""
-    raw = (
-        vault_arg
-        or os.environ.get("OBSIDIAN_VAULT_PATH")
-        or Path.home().as_posix() + "/Documents/Obsidian Vault"
-    )
-    path = Path(raw).expanduser().resolve()
-    return path
 
 
 def _yaml_safe(v: Any) -> str:
@@ -57,41 +52,6 @@ def _yaml_safe(v: Any) -> str:
     if any(c in s for c in (":", "#", "{", "}", "[", "]", ",", "&", "*", "?", "|", "-", "<", ">", "=", "!", "%", "@", "`", '"', "'")):
         return repr(s)
     return s
-
-
-def _parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
-    """Extract YAML frontmatter and body from an Obsidian markdown file.
-
-    Returns (frontmatter_dict, body_text). Frontmatter is empty dict if absent.
-    Frontmatter keys are lowercased for consistency.
-    """
-    m = FRONTMATTER_RE.match(content)
-    if not m:
-        return {}, content.strip()
-
-    raw_yaml = m.group(1)
-    body = content[m.end() :].strip()
-
-    # Minimal YAML parse (supports only key: value, no nested structures)
-    meta: dict[str, Any] = {}
-    for line in raw_yaml.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if ":" in line:
-            key, _, val = line.partition(":")
-            key = key.strip().lower()
-            val = val.strip()
-            # Try basic type coercion
-            if val in ("true", "True"):
-                meta[key] = True
-            elif val in ("false", "False"):
-                meta[key] = False
-            elif val and val[0] in ("'", '"') and val[-1] == val[0]:
-                meta[key] = val[1:-1]
-            else:
-                meta[key] = val
-    return meta, body
 
 
 def _make_wikilink(title: str) -> str:
