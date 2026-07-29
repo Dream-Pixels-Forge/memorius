@@ -11,6 +11,7 @@
   <a href="https://github.com/Dream-Pixels-Forge/memorius/actions/workflows/publish.yml"><img src="https://github.com/Dream-Pixels-Forge/memorius/actions/workflows/publish.yml/badge.svg" alt="PyPI publish"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   <a href="https://python.org"><img src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue" alt="Python 3.11 | 3.12"></a>
+  <a href="https://github.com/Dream-Pixels-Forge/memorius/blob/main/CHANGELOG.md"><img src="https://img.shields.io/badge/changelog-v0.6.1-green" alt="Changelog"></a>
 </p>
 
 > **Works with Claude Code, Codex CLI, Gemini CLI, OpenClaude, OpenCode, Pi, and any MCP-compatible agent.**
@@ -75,6 +76,26 @@ memorius diary "session-001" --title "Research findings"
 
 <img width="979" height="632" alt="Screenshot from 2026-06-18 15-14-39" src="https://github.com/user-attachments/assets/6cbca59b-1a3c-4b1d-85e8-dd5b256b9061" />
 
+## What's New in v0.6.1
+
+### Architecture Improvements
+- **Modular VaultEngine** — extracted `SearchModule` (5-stage search pipeline) and `StoreModule` (CRUD operations). VaultEngine reduced from 692 to 328 lines (53% reduction).
+- **VectorStore ABC** — `ChromaStore` and `SqliteVecStore` now share an abstract base class for swappable backends.
+- **Sealed `_conn()` leakage** — all external callers now use `SQLiteStore` public API (`execute`, `fetchone`, `fetchall`, `transaction`, graph/temporal adapters, import/export methods).
+- **Shared Obsidian module** — `memorius/obsidian.py` consolidates helpers used by REST server and CLI.
+
+### Code Quality
+- **Type hints** — complete type annotations on `SQLiteStore` public API.
+- **Exception documentation** — 30 `except Exception` blocks annotated as best-effort with reasons.
+- **Dead code removal** — HNSW switchover path removed from consolidation.
+- **26 new tests** — `SearchModule` (7) and `StoreModule` (19) unit tests.
+
+### Fixed
+- **Version mismatch** — `__version__` now uses `importlib.metadata.version()` consistently.
+- **Legacy test references** — `test_features.py` updated to use `SQLiteStore` public API instead of `_conn()`.
+
+See [CHANGELOG.md](CHANGELOG.md) for full release history.
+
 
 ## Architecture
 
@@ -88,13 +109,25 @@ memorius diary "session-001" --title "Research findings"
 │  Hooks      Auto-detect: Claude Code, Codex, Gemini, ...    │
 │  Obsidian   Import / export notes from Obsidian vaults       │
 ├──────────────────────────────────────────────────────────────┤
-│  Vault Engine                                                │
-│  ├── ChromaStore    Vector search (ChromaDB HNSW)            │
-│  ├── SqliteVecStore Single-file alternative (sqlite-vec)     │
-│  ├── SQLiteStore    Metadata & hierarchy (SQLite)            │
-│  ├── KnowledgeGraph Auto-linked memories + contradictions    │
-│  ├── TemporalDecay  Ebbinghaus forgetting curve              │
-│  └── Embeddings     Pluggable providers (ONNX / SF / OA)    │
+│  Vault Engine (thin orchestrator)                            │
+│  ├── SearchModule    5-stage search pipeline                 │
+│  │   ├── Filter      folder/note/tags metadata filters       │
+│  │   ├── Vector      ChromaDB/sqlite-vec cosine search       │
+│  │   ├── Temporal    Ebbinghaus decay scoring                │
+│  │   ├── Rerank      Cross-encoder precision ranking         │
+│  │   └── Graph       1-hop BFS expansion                     │
+│  ├── StoreModule     Memory CRUD operations                  │
+│  │   ├── Store       Create with embedding + metadata        │
+│  │   ├── Update      Content change + re-embed               │
+│  │   ├── Delete      Remove from vector + meta stores        │
+│  │   ├── Touch       Record access for decay reinforcement   │
+│  │   └── List        Cursor-paginated retrieval               │
+│  ├── ChromaStore     Vector search (ChromaDB HNSW)           │
+│  ├── SqliteVecStore  Single-file alternative (sqlite-vec)    │
+│  ├── SQLiteStore     Metadata & hierarchy (SQLite)           │
+│  ├── KnowledgeGraph  Auto-linked memories + contradictions   │
+│  ├── TemporalDecay   Ebbinghaus forgetting curve             │
+│  └── Embeddings      Pluggable providers (ONNX / SF / OA)   │
 ├──────────────────────────────────────────────────────────────┤
 │  Vault  >  Shelf  >  Folder  >  Note  hierarchy              │
 │  Diaries          Session diary entries                      │
@@ -158,6 +191,8 @@ Environment variable overrides:
 | `MEMORIUS_MODEL_CACHE_DIR` | ONNX model cache directory |
 
 ## Vector Store Backends
+
+Memorius uses a **VectorStore ABC** (abstract base class) for swappable backends. Both backends implement the same interface (`add`, `delete`, `search`, `get_collections`, `count`, `get_by_ids`):
 
 | Backend | Dependency | Description |
 |---|---|---|
@@ -279,7 +314,7 @@ memorius consolidate --threshold 0.80 --dry-run
 memorius consolidate --vault main
 ```
 
-Two algorithms: O(N^2) pairwise for <500 memories, HNSW per-collection for >500. Archives originals after consolidation.
+Uses O(N^2) pairwise comparison for clustering. Archives originals after consolidation.
 
 ## Memory Pruning
 
@@ -303,7 +338,7 @@ memorius import ./backup/backup.json            # merge import
 memorius import ./backup/backup.json --replace  # overwrite mode
 ```
 
-JSON export includes hierarchy, memories, diaries, and graph edges (schema versioned). Markdown export creates `.md` files with YAML frontmatter.
+JSON export includes hierarchy, memories, diaries, and graph edges (schema versioned). Markdown export creates `.md` files with YAML frontmatter. Uses `SQLiteStore` export/import methods for atomic operations.
 
 ## CLI Reference
 
@@ -690,7 +725,7 @@ Builds a session profile analyzing recent diaries, memories, and access patterns
 memorius doctor
 ```
 
-Runs 6 checks: config parseable, storage writable, ONNX model present, vector/meta count drift, collection name length, graph health. Returns structured report with ok/warn/fail/skip per check.
+Runs 6 checks: config parseable, storage writable, ONNX model present, vector/meta count drift, collection name length, graph health. Returns structured report with ok/warn/fail/skip per check. Uses `SQLiteStore` public API for metadata queries.
 
 ## Validation
 
@@ -755,12 +790,25 @@ pip install -e ".[dev]"
 # Run tests
 pytest
 
+# Run specific test modules
+pytest tests/test_domain_modules.py -v  # SearchModule + StoreModule tests
+pytest tests/test_core.py -v            # Core vault tests
+
 # Run end-to-end
 memorius init
 memorius store "test memory"
 memorius search "test"
 memorius serve-rest         # REST server available out of the box
 ```
+
+### Test Structure
+
+| Test File | Coverage |
+|---|---|
+| `test_domain_modules.py` | SearchModule (7 tests) + StoreModule (19 tests) |
+| `test_core.py` | Core vault operations, config, embeddings |
+| `test_feature_*.py` | Feature-specific tests (backup, batch, consolidation, etc.) |
+| `test_regression_*.py` | Regression tests for specific bugs |
 
 ## License
 
