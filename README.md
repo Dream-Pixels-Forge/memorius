@@ -11,7 +11,7 @@
   <a href="https://github.com/Dream-Pixels-Forge/memorius/actions/workflows/publish.yml"><img src="https://github.com/Dream-Pixels-Forge/memorius/actions/workflows/publish.yml/badge.svg" alt="PyPI publish"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   <a href="https://python.org"><img src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue" alt="Python 3.11 | 3.12"></a>
-  <a href="https://github.com/Dream-Pixels-Forge/memorius/blob/main/CHANGELOG.md"><img src="https://img.shields.io/badge/changelog-v0.6.1-green" alt="Changelog"></a>
+  <a href="https://github.com/Dream-Pixels-Forge/memorius/blob/main/CHANGELOG.md"><img src="https://img.shields.io/badge/changelog-v1.2.4-green" alt="Changelog"></a>
 </p>
 
 > **Works with Claude Code, Codex CLI, Gemini CLI, OpenClaude, OpenCode, Pi, and any MCP-compatible agent.**
@@ -76,7 +76,7 @@ memorius diary "session-001" --title "Research findings"
 
 <img width="979" height="632" alt="Screenshot from 2026-06-18 15-14-39" src="https://github.com/user-attachments/assets/6cbca59b-1a3c-4b1d-85e8-dd5b256b9061" />
 
-## What's New in v0.6.1
+## What's New in v1.2.4
 
 ### Architecture Improvements
 - **Modular VaultEngine** — extracted `SearchModule` (5-stage search pipeline) and `StoreModule` (CRUD operations). VaultEngine reduced from 692 to 328 lines (53% reduction).

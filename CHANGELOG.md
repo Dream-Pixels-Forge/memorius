@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.2.4 (2026-07-29)
+
+### Fixed
+- Critical bug fix patch release.
+
+## v0.7.0 (2026-07-29)
+
+Release v0.7.0 — see git log for full details.
+
+## v1.2.3 (2026-07-29)
+
+### Changed
+- Major version bump to 1.2.3.
+
 ## v0.6.1 (2026-07-29)
 
 ### Refactored
