@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.6.0 (2026-07-29)
+## v0.6.1 (2026-07-29)
 
 ### Refactored
 - **VaultEngine decomposition** — extracted `SearchModule` (5-stage search pipeline) and `StoreModule` (CRUD operations). VaultEngine reduced from 692 to 328 lines (53% reduction).
