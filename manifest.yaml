@@ -3,7 +3,7 @@
 # Run: memorius-plugin-gen generate
 
 name: memorius
-version: "0.7.0"
+version: "1.2.3"
 description: "Memorius — universal memory vault for any AI agent"
 author: "dimonapatrick243"
 license: MIT

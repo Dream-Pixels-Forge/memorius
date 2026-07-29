@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.2.3 (2026-07-29)
+
+### Refactored
+- **VaultEngine decomposition** — extracted `SearchModule` and `StoreModule`. VaultEngine reduced from 692 to 328 lines (53% reduction).
+- **VectorStore ABC** — `ChromaStore` and `SqliteVecStore` now share an abstract base class for swappable backends.
+- **Type hints** — complete type annotations on `SQLiteStore` public API.
+
+### Added
+- **26 new tests** — `SearchModule` (7) and `StoreModule` (19) unit tests.
+
+### Fixed
+- **Version mismatch** — `__version__` now uses `importlib.metadata.version()` consistently.
+
 ## v1.2.4 (2026-07-29)
 
 ### Fixed
