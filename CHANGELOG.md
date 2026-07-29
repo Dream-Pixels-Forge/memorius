@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.6.0 (2026-07-29)
+
+### Refactored
+- **VaultEngine decomposition** — extracted `SearchModule` (5-stage search pipeline) and `StoreModule` (CRUD operations). VaultEngine reduced from 692 to 328 lines (53% reduction).
+- **VectorStore ABC** — `ChromaStore` and `SqliteVecStore` now share an abstract base class for swappable backends.
+- **Sealed `_conn()` leakage** — all external callers now use `SQLiteStore` public API (`execute`, `fetchone`, `fetchall`, `transaction`, graph/temporal adapters, import/export methods).
+- **Shared Obsidian module** — `memorius/obsidian.py` consolidates helpers used by REST server and CLI.
+- **Dead code removal** — HNSW switchover path removed from consolidation.
+- **Type hints** — complete type annotations on `SQLiteStore` public API.
+- **Exception documentation** — 30 `except Exception` blocks annotated as best-effort with reasons.
+
+### Added
+- **26 new tests** — `SearchModule` (7) and `StoreModule` (19) unit tests in `test_domain_modules.py`.
+
+### Fixed
+- **Version mismatch** — `__version__` now uses `importlib.metadata.version()` consistently.
+- **Legacy test references** — `test_features.py` updated to use `SQLiteStore` public API instead of `_conn()`.
+
 ## v0.5.0 (2026-07-28)
 
 ### Features
