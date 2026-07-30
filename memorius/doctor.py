@@ -16,8 +16,6 @@ Checks
 from __future__ import annotations
 
 import logging
-import os
-import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -48,7 +46,7 @@ def run_checks(engine=None) -> dict[str, Any]:
             _add("config", "warn", f"Missing keys: {', '.join(missing)}")
         else:
             _add("config", "ok")
-    except Exception as exc:
+    except Exception as exc:  # best-effort: config load failure — proceed with empty defaults
         _add("config", "fail", str(exc))
         config = {}
 
@@ -61,7 +59,7 @@ def run_checks(engine=None) -> dict[str, Any]:
         test_file.write_text("ok", encoding="utf-8")
         test_file.unlink()
         _add("storage_dir", "ok", str(storage_path))
-    except Exception as exc:
+    except Exception as exc:  # best-effort: storage directory may not be writable — report but don't crash
         _add("storage_dir", "fail", str(exc))
 
     # 3. ONNX model
@@ -70,7 +68,7 @@ def run_checks(engine=None) -> dict[str, Any]:
             _add("onnx_model", "ok")
         else:
             _add("onnx_model", "warn", "Model not downloaded; run 'memorius setup'")
-    except Exception as exc:
+    except Exception as exc:  # best-effort: model check failure — report but continue
         _add("onnx_model", "fail", str(exc))
 
     # 4–6 require an engine
@@ -91,7 +89,7 @@ def run_checks(engine=None) -> dict[str, Any]:
             else:
                 _add("vector_count_match", "warn",
                      f"Drift detected: memory_meta={meta_count}, vectors={vector_count}")
-        except Exception as exc:
+        except Exception as exc:  # best-effort: drift check may fail if ChromaDB is unhealthy — report, don't halt
             _add("vector_count_match", "fail", str(exc))
 
         # 5. Collection name length
@@ -106,7 +104,7 @@ def run_checks(engine=None) -> dict[str, Any]:
                      f"{len(long_names)} collection(s) exceed 63 chars: {long_names[:3]}")
             else:
                 _add("collection_names", "ok")
-        except Exception as exc:
+        except Exception as exc:  # best-effort: collection name check failure — report but continue
             _add("collection_names", "fail", str(exc))
 
         # 6. Graph health
@@ -118,7 +116,7 @@ def run_checks(engine=None) -> dict[str, Any]:
                      f"{meta_count} memories but 0 graph edges — graph may not be building")
             else:
                 _add("graph_health", "ok", f"{edge_count} edges, {meta_count} memories")
-        except Exception as exc:
+        except Exception as exc:  # best-effort: graph health check failure — report but continue
             _add("graph_health", "fail", str(exc))
 
     healthy = all(c["status"] in ("ok", "skip") for c in checks)

@@ -128,7 +128,6 @@ def find_stale_memories(
     ``expires_at`` ISO timestamp that is strictly in the past.
     """
     now = datetime.now(timezone.utc)
-    now_iso = now.isoformat()
     rows = conn.execute(
         """SELECT id, vault, shelf, folder, note, content, created_at,
                   last_accessed, access_count, metadata

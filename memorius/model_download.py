@@ -9,7 +9,6 @@ import hashlib
 import os
 import sys
 import tarfile
-import tempfile
 from pathlib import Path
 from typing import Callable, Optional
 

@@ -119,10 +119,12 @@ def main():
 
     serve_rest_p = subparsers.add_parser("serve-rest", help="Start REST API server")
     serve_rest_p.add_argument("--port", type=int, default=None, help="Port")
-    serve_rest_p.add_argument("--host", default=None, help="Host")
+    serve_rest_p.add_argument("--host", default=None, help="Host (default: 127.0.0.1)")
     serve_rest_p.add_argument("--daemon", action="store_true", help="Run as background daemon")
     serve_rest_p.add_argument("--stop", action="store_true", help="Stop running daemon")
     serve_rest_p.add_argument("--pid-file", default=None, help="PID file path")
+    serve_rest_p.add_argument("--tls-cert", default=None, help="Path to TLS certificate file (PEM)")
+    serve_rest_p.add_argument("--tls-key", default=None, help="Path to TLS private key file (PEM)")
 
     config_p = subparsers.add_parser("config", help="Show configuration")
     config_p.add_argument("--show", action="store_true", default=True, help="Show config")
@@ -525,10 +527,18 @@ def cmd_serve_rest(engine, args, config):
         return
 
     if getattr(args, "daemon", False):
-        _start_daemon(engine, host, port, pid_file)
+        _start_daemon(
+            engine, host, port, pid_file,
+            tls_cert=getattr(args, "tls_cert", None),
+            tls_key=getattr(args, "tls_key", None),
+        )
     else:
         from memorius.rest_server import run_rest_server
-        run_rest_server(engine, host=host, port=port)
+        run_rest_server(
+            engine, host=host, port=port,
+            tls_cert=getattr(args, "tls_cert", None),
+            tls_key=getattr(args, "tls_key", None),
+        )
 
 
 def _stop_daemon(pid_file: Path):
@@ -582,12 +592,16 @@ def _stop_daemon(pid_file: Path):
     print("Daemon stopped")
 
 
-def _start_daemon(engine, host: str, port: int, pid_file: Path):
+def _start_daemon(engine, host: str, port: int, pid_file: Path,
+                   tls_cert: str | None = None, tls_key: str | None = None):
     """Start REST server as a background daemon."""
     import os
     import sys
     import subprocess
-    import time
+
+    tls_args = ""
+    if tls_cert and tls_key:
+        tls_args = f", tls_cert='{tls_cert}', tls_key='{tls_key}'"
 
     if os.name == "nt":
         # Windows: launch detached subprocess
@@ -600,7 +614,7 @@ def _start_daemon(engine, host: str, port: int, pid_file: Path):
                 f"from memorius.vault import VaultEngine; "
                 f"from memorius.config import load_config; "
                 f"e = VaultEngine(load_config()); "
-                f"run_rest_server(e, host='{host}', port={port})"
+                f"run_rest_server(e, host='{host}', port={port}{tls_args})"
             ),
         ]
         proc = subprocess.Popen(

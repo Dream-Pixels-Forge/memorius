@@ -49,7 +49,7 @@ def main():
 
         # 5. Show vault status
         status = engine.status()
-        print(f"\nVault status:")
+        print("\nVault status:")
         print(f"  Vaults:              {status['vaults']}")
         print(f"  Memories:            {status['memories']}")
         print(f"  Embedding provider:  {status['embedding_provider']}")

@@ -3,10 +3,26 @@
 Re-exports from validation.py for backwards compatibility.
 """
 
-from typing import List
+import json
+from typing import Any, List
 
 # Re-export from validation module for backwards compatibility
 from memorius.validation import validate_name, MAX_NAME_LENGTH  # noqa: F401
+
+
+def safe_parse_json(s: str) -> dict[str, Any]:
+    """Parse a JSON string, returning an empty dict on failure.
+
+    Handles None, empty strings, and corrupted JSON without raising.
+    Used by store_module, search_module, and others for best-effort
+    metadata parsing.
+    """
+    if not s:
+        return {}
+    try:
+        return json.loads(s)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return {}
 
 
 def cosine_similarity(a: List[float], b: List[float]) -> float:

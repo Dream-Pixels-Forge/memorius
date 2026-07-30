@@ -296,7 +296,6 @@ def extract_memories(
     # Auto: try backends in order
     # 1. Try OpenAI if available
     try:
-        from openai import OpenAI
         results = _extract_with_openai(conversation, model or "gpt-4o-mini")
         if results:
             return results

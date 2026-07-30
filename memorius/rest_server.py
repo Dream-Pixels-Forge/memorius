@@ -23,6 +23,13 @@ class MemoriusAPI:
     """FastAPI application with all route handlers as methods.
 
     This makes routes testable without starting the server.
+
+    Note on rate limiting:
+        The in-memory sliding-window rate limiter resets on process restart.
+        When using multiple uvicorn workers (``--workers N``), each worker
+        has its own counter, so the effective limit is ``N × rate_limit_max``.
+        For persistent rate limiting across restarts or workers, use an external
+        reverse proxy (nginx, Caddy) or a shared store (Redis).
     """
 
     def __init__(self, engine):
@@ -34,7 +41,7 @@ class MemoriusAPI:
     def create_app(self):
         """Build and return the FastAPI app with all routes registered."""
         try:
-            from fastapi import FastAPI, Request, HTTPException
+            from fastapi import FastAPI, Request
             from fastapi.middleware.cors import CORSMiddleware
             from fastapi.responses import JSONResponse
         except ImportError:
@@ -106,6 +113,7 @@ class MemoriusAPI:
 
     def _register_routes(self, app):
         """Register all route handlers on the app."""
+        from fastapi import HTTPException
         engine = self._engine
 
         @app.get("/health")
@@ -415,8 +423,16 @@ class MemoriusAPI:
             return {"count": len(out), "next_cursor": next_cursor, "memories": out}
 
 
-def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912):
-    """Start the FastAPI REST server."""
+def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912,
+                    tls_cert: str | None = None, tls_key: str | None = None):
+    """Start the FastAPI REST server.
+
+    Args:
+        host: Bind address (default 127.0.0.1).
+        port: Listen port (default 8912).
+        tls_cert: Optional path to TLS certificate file for HTTPS.
+        tls_key: Optional path to TLS private key file for HTTPS.
+    """
     try:
         import uvicorn
     except ImportError:
@@ -432,8 +448,27 @@ def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912):
         print("  API key authentication: enabled")
     else:
         print("  API key authentication: disabled (set MEMORIUS_API_KEY to enable)")
+        if host not in ("127.0.0.1", "localhost", "::1"):
+            logger.warning(
+                "REST server bound to %s without API key auth — "
+                "any LAN-reachable client can access the vault. "
+                "Set MEMORIUS_API_KEY or bind to 127.0.0.1.",
+                host,
+            )
+            print("  WARNING: binding to non-localhost without auth — see logs for details")
+
+    ssl_certfile = tls_cert
+    ssl_keyfile = tls_key
+    if tls_cert and tls_key:
+        print("  TLS: enabled")
+    elif tls_cert or tls_key:
+        print("  WARNING: both --tls-cert and --tls-key required for TLS — running without TLS")
+
     try:
-        uvicorn.run(app, host=host, port=port, log_level="info")
+        uvicorn.run(
+            app, host=host, port=port, log_level="info",
+            ssl_certfile=ssl_certfile, ssl_keyfile=ssl_keyfile,
+        )
     except KeyboardInterrupt:
         logger.info("Shutting down REST server")
     finally:

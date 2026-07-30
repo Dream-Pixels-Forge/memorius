@@ -1,33 +1,18 @@
 # Changelog
 
-## v1.2.3 (2026-07-29)
+## Unreleased
 
-### Refactored
-- **VaultEngine decomposition** — extracted `SearchModule` and `StoreModule`. VaultEngine reduced from 692 to 328 lines (53% reduction).
-- **VectorStore ABC** — `ChromaStore` and `SqliteVecStore` now share an abstract base class for swappable backends.
-- **Type hints** — complete type annotations on `SQLiteStore` public API.
-
-### Added
-- **26 new tests** — `SearchModule` (7) and `StoreModule` (19) unit tests.
-
-### Fixed
-- **Version mismatch** — `__version__` now uses `importlib.metadata.version()` consistently.
-
-## v1.2.4 (2026-07-29)
-
-### Fixed
-- Critical bug fix patch release.
+### Code Quality
+- **Extracted lazy-init pattern** — VaultEngine now uses `_get_store_module()` and `_get_search_module()` helpers, eliminating 8 repeated `if self._X is None: from ... import ...` blocks.
+- **Deduplicated JSON parsing** — added `safe_parse_json()` to `utils.py`; used by `store_module.py` (3 call sites) and `search_module.py` (1 call site), removing inline `try/except/json` cargo-cult.
+- **Added missing exception annotations** — 6 unannotated `except Exception` blocks in `doctor.py` and 1 in `context_inject.py` now have best-effort rationale comments. (56 total `except Exception` blocks, 39 annotated.)
+- **Sealed message-chain breach** — MCP server now calls `engine.list_diaries()` instead of `_engine._meta.list_diaries()`. Added `list_diaries()` public method to `VaultEngine`.
+- **Clarified HookEngine naming** — `_get_engine()` → `_get_vault()`, `self._engine` → `self._vault` to avoid confusion with the HookEngine class itself.
+- **Cleaned changelog** — Removed duplicate/bogus v1.2.3 and v1.2.4 entries (experimental bumps that didn't stick).
+- **Fixed README MCP tool count** — corrected from 22 to 21.
+- **Fixed badge version** — updated changelog badge from v1.2.4 to v0.7.0.
 
 ## v0.7.0 (2026-07-29)
-
-Release v0.7.0 — see git log for full details.
-
-## v1.2.3 (2026-07-29)
-
-### Changed
-- Major version bump to 1.2.3.
-
-## v0.6.1 (2026-07-29)
 
 ### Refactored
 - **VaultEngine decomposition** — extracted `SearchModule` (5-stage search pipeline) and `StoreModule` (CRUD operations). VaultEngine reduced from 692 to 328 lines (53% reduction).
@@ -44,6 +29,11 @@ Release v0.7.0 — see git log for full details.
 ### Fixed
 - **Version mismatch** — `__version__` now uses `importlib.metadata.version()` consistently.
 - **Legacy test references** — `test_features.py` updated to use `SQLiteStore` public API instead of `_conn()`.
+
+## v0.6.1 (2026-07-29)
+
+### Refactored
+- **Initial domain module extraction** — early version of VaultEngine decomposition into `SearchModule` and `StoreModule`. Superseded by v0.7.0 with full sealing and documentation.
 
 ## v0.5.0 (2026-07-28)
 

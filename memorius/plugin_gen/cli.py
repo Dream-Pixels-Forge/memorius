@@ -71,11 +71,9 @@ Universal manifest format:
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Any, Optional
 
 import yaml
 
@@ -417,8 +415,6 @@ def generate_agents_plugin(manifest: dict, output_dir: Path):
 def generate_cursor_config(manifest: dict, output_dir: Path):
     """Generate .cursor/mcp.json snippet."""
     name = manifest.get("name", "memorius")
-    agent_cfg = manifest.get("agents", {}).get("cursor", {})
-    config_file = agent_cfg.get("config_file", ".cursor/mcp.json")
 
     cursor_json = {
         "mcpServers": {
@@ -617,7 +613,7 @@ exit $EXIT_CODE
 
 def _generate_skill_card(name: str) -> str:
     """Generate a skill card for the agent."""
-    return f"""You have access to a memory vault via MCP tools.
+    return """You have access to a memory vault via MCP tools.
 
 Key rules:
 1. Call `memorius_search` before answering questions about past work.

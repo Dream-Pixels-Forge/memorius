@@ -13,15 +13,27 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from memorius.validation import validate_name as _validate_name
+
 logger = logging.getLogger("memorius.backup")
 
 SCHEMA_VERSION = 1
+
+
+def _validate_hierarchy_names(vaults, shelves, folders, notes):
+    """Validate all hierarchy items before import to prevent path traversal."""
+    for v in vaults:
+        _validate_name(v.get("name", ""), "vault")
+    for s in shelves:
+        _validate_name(s.get("name", ""), "shelf")
+    for f in folders:
+        _validate_name(f.get("name", ""), "folder")
+    for n in notes:
+        _validate_name(n.get("name", ""), "note")
 
 
 # ── JSON export / import ─────────────────────────────────────────────────────
@@ -99,6 +111,13 @@ def import_json(engine, src: str | Path, *, merge: bool = True) -> dict[str, Any
     }
 
     # ── hierarchy ──
+    # Validate all imported names to prevent path traversal
+    _validate_hierarchy_names(
+        payload.get("vaults", []),
+        payload.get("shelves", []),
+        payload.get("folders", []),
+        payload.get("notes", []),
+    )
     engine._meta.import_hierarchy(
         payload.get("vaults", []),
         payload.get("shelves", []),
@@ -112,6 +131,11 @@ def import_json(engine, src: str | Path, *, merge: bool = True) -> dict[str, Any
 
     # ── memories ──
     for m in payload.get("memories", []):
+        # Validate memory hierarchy fields to prevent path traversal
+        _validate_name(m["vault"], "vault")
+        _validate_name(m["shelf"], "shelf")
+        _validate_name(m["folder"], "folder")
+        _validate_name(m["note"], "note")
         engine._meta.ensure_note(m["vault"], m["shelf"], m["folder"], m["note"])
         imported = engine._meta.import_memory_meta(m, merge=merge)
         if imported:
@@ -174,6 +198,11 @@ def export_markdown(engine, dest: str | Path) -> Path:
         edges = edges_by_source.get(mid, [])
 
         md_path = dest / m["vault"] / m["shelf"] / m["folder"] / m["note"] / f"{mid}.md"
+        # Path traversal guard: resolved path must stay inside dest
+        md_path_resolved = md_path.resolve()
+        if not str(md_path_resolved).startswith(str(dest.resolve())):
+            logger.warning("Skipping memory %s: path traversal detected", mid)
+            continue
         md_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Build YAML frontmatter

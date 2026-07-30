@@ -13,7 +13,7 @@ Usage:
 
 from __future__ import annotations
 
-import json
+import argparse
 import logging
 import sys
 from pathlib import Path
@@ -22,7 +22,6 @@ from . import (
     NORMALIZERS,
     detect_format,
     normalize,
-    normalize_file,
 )
 
 logger = logging.getLogger("memorius.normalizers.cli")
@@ -138,8 +137,6 @@ def cmd_pipe(parsed: argparse.Namespace):
 
 def main():
     """Main entry point."""
-    import argparse
-
     parser = argparse.ArgumentParser(
         "memorius-normalize",
         description="Conversation format normalizers for Memorius (Discord, Telegram, WhatsApp, etc.)",

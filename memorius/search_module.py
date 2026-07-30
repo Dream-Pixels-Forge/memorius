@@ -21,6 +21,7 @@ from typing import Any
 from memorius.models import Memory
 from memorius.vector_store_base import VectorStore
 from memorius.validation import validate_name
+from memorius.utils import safe_parse_json
 
 logger = logging.getLogger("memorius.search")
 
@@ -84,11 +85,8 @@ class SearchModule:
             for mem in results:
                 md_tags = (mem.metadata or {}).get("tags") or []
                 if isinstance(md_tags, str):
-                    try:
-                        import json as _json
-                        md_tags = _json.loads(md_tags)
-                    except Exception:  # best-effort: corrupted JSON tags — treat as string literal
-                        md_tags = [md_tags]
+                    parsed = safe_parse_json(md_tags)
+                    md_tags = parsed if isinstance(parsed, list) else [md_tags]
                 if wanted.issubset({str(t) for t in (md_tags or [])}):
                     filtered.append(mem)
             results = filtered
@@ -173,7 +171,6 @@ class SearchModule:
         if not expanded_ids:
             return []
         # Fetch and filter
-        from memorius.vault import VaultEngine  # avoid circular
         # Use meta to fetch by IDs — lightweight, no vectors
         metas = self._meta.get_memory_meta_batch(expanded_ids)
         seed_ids = {m.id for m in seeds}

@@ -5,12 +5,10 @@ from __future__ import annotations
 import json
 import logging
 import sys
-from typing import Any
 
 from memorius import __version__ as _memorius_version
 from memorius.validation import (
     validate_name as _validate_name,
-    MAX_NAME_LENGTH,
     MAX_CONTENT_LENGTH,
     MAX_FIELD_LENGTH,
     MAX_SEARCH_LIMIT,
@@ -409,7 +407,6 @@ class McpServer:
         rerank = bool(args.get("rerank", False))
         tags_in = args.get("tags")
         tags = [str(t) for t in tags_in] if isinstance(tags_in, list) and tags_in else None
-        cursor = args.get("cursor") if isinstance(args.get("cursor"), str) else None
 
         results = self._engine.search(
             query=query,
@@ -460,7 +457,7 @@ class McpServer:
         return hierarchy
 
     def tool_memorius_diary_list(self, args: dict) -> dict:
-        diaries = self._engine._meta.list_diaries(
+        diaries = self._engine.list_diaries(
             vault=args.get("vault"),
             limit=args.get("limit", 10),
         )

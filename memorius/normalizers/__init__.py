@@ -17,9 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
 
 logger = logging.getLogger("memorius.normalizers")
 
@@ -79,8 +77,6 @@ def detect_format(content: str, filename: str = "") -> str | None:
 
 def detect_text_format(content: str) -> str | None:
     """Detect format from plain text content."""
-    lines = content.strip().split("\n")
-
     # WhatsApp format: [date, time] Person: message
     whatsapp_pattern = re.compile(r"^\[\d{1,2}[/-]\d{1,2}[/-]\d{2,4}.+?\].+?:", re.MULTILINE)
     whatsapp_matches = sum(1 for _ in whatsapp_pattern.finditer(content[:5000]))

@@ -52,8 +52,8 @@ class VaultEngine:
         else:
             self._vector = ChromaStore(storage_path / "vectors", self._embed)
         self._meta = SQLiteStore(storage_path)
-        self._search = None  # lazy init
-        self._store = None  # lazy init
+        self._search_mod = None  # lazy init
+        self._store_mod = None  # lazy init
 
     def __enter__(self):
         return self
@@ -85,6 +85,22 @@ class VaultEngine:
     def meta(self) -> SQLiteStore:
         return self._meta
 
+    # ── Private helpers ──
+
+    def _get_store_module(self):
+        """Lazy-init and return the StoreModule singleton."""
+        if self._store_mod is None:
+            from memorius.store_module import StoreModule
+            self._store_mod = StoreModule(self._vector, self._meta)
+        return self._store_mod
+
+    def _get_search_module(self):
+        """Lazy-init and return the SearchModule singleton."""
+        if self._search_mod is None:
+            from memorius.search_module import SearchModule
+            self._search_mod = SearchModule(self._vector, self._meta)
+        return self._search_mod
+
     # ── Memory operations ──
 
     def store(self, content: str, vault: str = "main", shelf: str = "default",
@@ -101,10 +117,7 @@ class VaultEngine:
                 metadata.
             _vector: pre-computed embedding vector (internal use for batch ops).
         """
-        if self._store is None:
-            from memorius.store_module import StoreModule
-            self._store = StoreModule(self._vector, self._meta)
-        return self._store.store(
+        return self._get_store_module().store(
             content, vault=vault, shelf=shelf, folder=folder, note=note,
             metadata=metadata, ttl_days=ttl_days, _vector=_vector,
         )
@@ -136,10 +149,7 @@ class VaultEngine:
             Python after the vector query (over all ``n_results`` hits, so
             the limit is still honored when the universe shrinks).
         """
-        if self._search is None:
-            from memorius.search_module import SearchModule
-            self._search = SearchModule(self._vector, self._meta)
-        return self._search.search(
+        return self._get_search_module().search(
             query, vault=vault, shelf=shelf, limit=limit,
             expand_graph=expand_graph, graph_hops=graph_hops,
             graph_min_weight=graph_min_weight, folder=folder, note=note,
@@ -152,20 +162,14 @@ class VaultEngine:
         Use when an agent actually reads/uses a memory and you want the
         reinforcement model to credit it. Idempotent: safe to call on
         a missing id (no-op)."""
-        if self._store is None:
-            from memorius.store_module import StoreModule
-            self._store = StoreModule(self._vector, self._meta)
-        self._store.touch(memory_id)
+        self._get_store_module().touch(memory_id)
 
     def get_memories_by_ids(self, ids: list[str],
                             with_vectors: bool = True) -> list[Memory]:
         """Fetch memories by exact ID. Vectors are pulled from ChromaDB only
         when ``with_vectors=True``. Memories whose meta row is missing or
         whose vector is unfetchable are skipped."""
-        if self._store is None:
-            from memorius.store_module import StoreModule
-            self._store = StoreModule(self._vector, self._meta)
-        return self._store.get_by_ids(ids, with_vectors=with_vectors)
+        return self._get_store_module().get_by_ids(ids, with_vectors=with_vectors)
 
     def get_contradictions(self, memory_id: str) -> list[Memory]:
         """Return memories that contradict ``memory_id`` in the knowledge
@@ -190,10 +194,7 @@ class VaultEngine:
     def get_memory(self, memory_id: str) -> Memory | None:
         """Fetch a single memory by ID. Returns None when the id is invalid
         or the memory does not exist."""
-        if self._store is None:
-            from memorius.store_module import StoreModule
-            self._store = StoreModule(self._vector, self._meta)
-        return self._store.get(memory_id)
+        return self._get_store_module().get(memory_id)
 
     def update_memory(self, memory_id: str, content: str | None = None,
                       metadata: dict[str, Any] | None = None) -> Memory | None:
@@ -203,10 +204,7 @@ class VaultEngine:
         metadata dict (new keys overwrite, existing keys without a new
         value are preserved).  Returns the updated Memory or None when the
         id is invalid / not found."""
-        if self._store is None:
-            from memorius.store_module import StoreModule
-            self._store = StoreModule(self._vector, self._meta)
-        return self._store.update(memory_id, content=content, metadata=metadata)
+        return self._get_store_module().update(memory_id, content=content, metadata=metadata)
 
     def list_memories(self, vault: str | None = None, shelf: str | None = None,
                       limit: int | None = None, with_vectors: bool = True,
@@ -221,13 +219,14 @@ class VaultEngine:
             - next_cursor: ISO timestamp of the last memory (use as cursor
               for the next page), or None if no more results
         """
-        if self._store is None:
-            from memorius.store_module import StoreModule
-            self._store = StoreModule(self._vector, self._meta)
-        return self._store.list_memories(
+        return self._get_store_module().list_memories(
             vault=vault, shelf=shelf, limit=limit,
             with_vectors=with_vectors, cursor=cursor,
         )
+
+    def list_diaries(self, vault: str | None = None, limit: int = 10) -> list[dict[str, Any]]:
+        """List recent diary entries."""
+        return self._meta.list_diaries(vault=vault, limit=limit)
 
     def delete(self, memory_id: str, vault: str | None = None,
                shelf: str | None = None, dry_run: bool = False) -> dict[str, Any]:
@@ -250,10 +249,7 @@ class VaultEngine:
             ValueError: if memory_id is invalid/missing, or if a provided
                 vault/shelf does not match the memory's actual location.
         """
-        if self._store is None:
-            from memorius.store_module import StoreModule
-            self._store = StoreModule(self._vector, self._meta)
-        return self._store.delete(memory_id, vault=vault, shelf=shelf, dry_run=dry_run)
+        return self._get_store_module().delete(memory_id, vault=vault, shelf=shelf, dry_run=dry_run)
 
     def mine(self, text: str, vault: str = "main", shelf: str = "conversations",
              folder: str = "mined", note: str = "transcript") -> list[Memory]:

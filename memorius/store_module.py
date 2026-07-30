@@ -21,6 +21,7 @@ from typing import Any
 from memorius.models import Memory
 from memorius.vector_store_base import VectorStore
 from memorius.validation import validate_name, validate_memory_id
+from memorius.utils import safe_parse_json
 
 logger = logging.getLogger("memorius.store")
 
@@ -168,12 +169,7 @@ class StoreModule:
         updated_meta = updated_metas.get(memory_id, meta)
         # Build the Memory object to upsert into vector store.
         new_content = content if content is not None else updated_meta.get("content", meta["content"])
-        merged_metadata = {}
-        try:
-            import json as _json
-            merged_metadata = _json.loads(updated_meta.get("metadata") or "{}")
-        except Exception:  # best-effort: corrupted JSON metadata — fall back to empty dict
-            pass
+        merged_metadata = safe_parse_json(updated_meta.get("metadata", ""))
         if metadata is not None:
             merged_metadata.update(metadata)
         mem = Memory(
@@ -319,13 +315,7 @@ class StoreModule:
                     memories.append(mem)
                 else:
                     # Vector missing: fall back to meta-only record.
-                    try:
-                        md = row.get("metadata") or "{}"
-                        if isinstance(md, str):
-                            import json as _json
-                            md = (_json.loads(md) if md else {})
-                    except Exception:  # best-effort: corrupted JSON metadata — fall back to empty dict
-                        md = {}
+                    md = safe_parse_json(row.get("metadata", ""))
                     memories.append(Memory(
                         id=row["id"],
                         vault=v,

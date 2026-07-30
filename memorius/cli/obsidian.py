@@ -11,9 +11,7 @@ Usage:
 
 from __future__ import annotations
 
-import json
 import logging
-import os
 import re
 from pathlib import Path
 from typing import Any
@@ -21,10 +19,7 @@ from typing import Any
 from memorius.vault import VaultEngine
 from memorius.obsidian import (
     resolve_vault_path as _resolve_vault_path,
-    scan_vault as _scan_vault,
-    parse_note as _parse_note,
     parse_frontmatter as _parse_frontmatter,
-    FRONTMATTER_RE,
 )
 
 logger = logging.getLogger("memorius.obsidian")
@@ -158,7 +153,7 @@ def import_notes(
         metadata["obsidian_path"] = str(relative)
         metadata["obsidian_title"] = title
 
-        memory = engine.store(
+        engine.store(
             content=store_content,
             vault=target_vault,
             shelf=target_shelf,

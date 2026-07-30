@@ -19,9 +19,7 @@ import sys
 from pathlib import Path
 
 from . import (
-    HookEvent,
     HookEventType,
-    HookResult,
     detect_agent,
 )
 from .engine import HookConfig, HookEngine

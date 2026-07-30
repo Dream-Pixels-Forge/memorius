@@ -34,10 +34,8 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 import subprocess
-import sys
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -47,12 +45,8 @@ from typing import Any, Optional
 import yaml
 
 from . import (
-    AGENT_ADAPTERS,
-    GenericAgentAdapter,
     HookEvent,
-    HookEventType,
     HookResult,
-    detect_agent,
 )
 from memorius.vault import VaultEngine
 from memorius.config import load_config
@@ -251,14 +245,14 @@ class HookEngine:
         self.config = config or HookConfig.default()
         self.state_manager = HookStateManager(self.config.state_dir)
         self._last_event_time: dict[str, float] = {}
-        self._engine: VaultEngine | None = None
+        self._vault: VaultEngine | None = None
 
-    def _get_engine(self) -> VaultEngine:
+    def _get_vault(self) -> VaultEngine:
         """Lazy-init the VaultEngine from config."""
-        if self._engine is None:
+        if self._vault is None:
             cfg = load_config()
-            self._engine = VaultEngine(cfg)
-        return self._engine
+            self._vault = VaultEngine(cfg)
+        return self._vault
 
     def process(self, event: HookEvent) -> HookResult:
         """Process a normalized hook event through the lifecycle engine."""
@@ -391,9 +385,8 @@ class HookEngine:
         if not path.exists():
             return {"action": action.name, "status": "skipped", "reason": f"path not found: {path}"}
 
-        vault = action.config.get("vault", "main")
-        synchronous = action.config.get("synchronous", False)
-        engine = self._get_engine()
+        vault_cfg = action.config.get("vault", "main")
+        engine = self._get_vault()
 
         try:
             if path.is_file():
@@ -426,7 +419,7 @@ class HookEngine:
         """Write a diary entry via VaultEngine directly."""
         message_template = action.config.get("message", "Hook event: {event_type}")
         message = self._format_template(message_template, context)
-        engine = self._get_engine()
+        engine = self._get_vault()
 
         try:
             entry = engine.write_diary(
@@ -540,7 +533,7 @@ class HookEngine:
         max_memories = action.config.get("max_memories", 5)
 
         try:
-            engine = self._get_engine()
+            engine = self._get_vault()
             context_text = engine.get_context(query, max_items=max_memories)
             return {
                 "action": action.name,
@@ -555,7 +548,7 @@ class HookEngine:
     def _action_consolidate(self, action: HookAction, event: HookEvent, context: dict) -> dict:
         """Run memory consolidation."""
         try:
-            engine = self._get_engine()
+            engine = self._get_vault()
             threshold = action.config.get("similarity_threshold", 0.80)
             dry_run = action.config.get("dry_run", False)
             result = engine.consolidate(
@@ -584,7 +577,7 @@ class HookEngine:
             return {"action": action.name, "status": "skipped", "reason": "no statement to check"}
 
         try:
-            engine = self._get_engine()
+            engine = self._get_vault()
             result = engine.check_fact(statement)
             return {
                 "action": action.name,
