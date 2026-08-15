@@ -46,3 +46,17 @@ def test_vault_no_daemon_when_disabled():
     vault = VaultEngine(config=cfg)
     assert hasattr(vault, '_consolidation_daemon')
     assert vault._consolidation_daemon is None
+
+
+def test_vault_close_stops_daemon():
+    """VaultEngine.close() should stop the consolidation daemon."""
+    from memorius.vault import VaultEngine
+    cfg = get_config()
+    cfg["consolidation"]["enabled"] = True
+    vault = VaultEngine(config=cfg)
+    daemon = vault._consolidation_daemon
+    assert daemon is not None
+    assert daemon.is_alive()
+    vault.close()
+    assert vault._consolidation_daemon is None
+    assert not daemon.is_alive()
