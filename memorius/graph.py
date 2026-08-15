@@ -109,6 +109,22 @@ def link_memories(
         link_memories(conn, source_id, target_id, weight, relation)
 
 
+def invalidate_edge(conn: sqlite3.Connection, source_id: str, target_id: str,
+                    relation: str | None = None) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    if relation:
+        conn.execute(
+            "UPDATE memory_graph SET tinvalid=? WHERE source_id=? AND target_id=? AND relation=?",
+            (now, source_id, target_id, relation),
+        )
+    else:
+        conn.execute(
+            "UPDATE memory_graph SET tinvalid=? WHERE source_id=? AND target_id=?",
+            (now, source_id, target_id),
+        )
+    conn.commit()
+
+
 def get_linked(
     conn: sqlite3.Connection,
     memory_id: str,

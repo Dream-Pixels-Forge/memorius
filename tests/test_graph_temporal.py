@@ -1,6 +1,6 @@
 """Tests for temporal graph edge functionality (v0.8.0)."""
 import sqlite3
-from memorius.graph import init_graph_schema, link_memories
+from memorius.graph import init_graph_schema, link_memories, invalidate_edge
 
 
 def test_graph_schema_has_temporal_columns():
@@ -24,4 +24,32 @@ def test_link_memories_sets_tvalid():
     assert row is not None
     assert row[0] is not None  # tvalid
     assert row[1] is None  # tinvalid
+    conn.close()
+
+
+def test_invalidate_edge_sets_tinvalid():
+    """invalidate_edge should set tinvalid on the edge."""
+    conn = sqlite3.connect(":memory:")
+    init_graph_schema(conn)
+    link_memories(conn, "m1", "m2", relation="supports")
+    invalidate_edge(conn, "m1", "m2", relation="supports")
+    row = conn.execute(
+        "SELECT tvalid, tinvalid FROM memory_graph WHERE source_id='m1' AND target_id='m2'"
+    ).fetchone()
+    assert row is not None
+    assert row[1] is not None  # tinvalid should be set
+    conn.close()
+
+
+def test_invalidate_edge_without_relation():
+    """invalidate_edge should handle missing relation gracefully."""
+    conn = sqlite3.connect(":memory:")
+    init_graph_schema(conn)
+    link_memories(conn, "m1", "m2", relation="supports")
+    invalidate_edge(conn, "m1", "m2")
+    row = conn.execute(
+        "SELECT tinvalid FROM memory_graph WHERE source_id='m1' AND target_id='m2'"
+    ).fetchone()
+    assert row is not None
+    assert row[0] is not None
     conn.close()
