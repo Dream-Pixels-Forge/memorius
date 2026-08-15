@@ -56,6 +56,18 @@ class VaultEngine:
         self._search_mod = None  # lazy init
         self._store_mod = None  # lazy init
 
+        cons_cfg = self._config.get("consolidation", {})
+        if cons_cfg.get("enabled", False):
+            from memorius.consolidation import ConsolidationDaemon
+            self._consolidation_daemon = ConsolidationDaemon(
+                meta_store=self._meta,
+                vector_store=self._vector,
+                config=self._config,
+            )
+            self._consolidation_daemon.start()
+        else:
+            self._consolidation_daemon = None
+
     def __enter__(self):
         return self
 
@@ -65,6 +77,10 @@ class VaultEngine:
 
     def close(self):
         """Release all resources (DB connections, ChromaDB client)."""
+        if self._consolidation_daemon is not None:
+            self._consolidation_daemon.stop()
+            self._consolidation_daemon.join(timeout=2)
+            self._consolidation_daemon = None
         try:
             self._meta.close_connection(self._meta._db_path)
         except Exception:  # best-effort: prevent cleanup errors from propagating

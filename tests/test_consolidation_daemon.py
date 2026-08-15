@@ -24,3 +24,25 @@ def test_daemon_stops():
     daemon.stop()
     daemon.join(timeout=2)
     assert not daemon.is_alive()
+
+
+def test_vault_starts_daemon_when_enabled():
+    """VaultEngine should start consolidation daemon when enabled."""
+    from memorius.vault import VaultEngine
+    cfg = get_config()
+    cfg["consolidation"]["enabled"] = True
+    vault = VaultEngine(config=cfg)
+    assert hasattr(vault, '_consolidation_daemon')
+    assert vault._consolidation_daemon is not None
+    vault._consolidation_daemon.stop()
+    vault._consolidation_daemon.join(timeout=2)
+
+
+def test_vault_no_daemon_when_disabled():
+    """VaultEngine should not start consolidation daemon when disabled."""
+    from memorius.vault import VaultEngine
+    cfg = get_config()
+    cfg["consolidation"]["enabled"] = False
+    vault = VaultEngine(config=cfg)
+    assert hasattr(vault, '_consolidation_daemon')
+    assert vault._consolidation_daemon is None
