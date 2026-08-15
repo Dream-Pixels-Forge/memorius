@@ -83,6 +83,18 @@ class StoreModule:
             folder=folder, note=note, content=content, metadata=merged_metadata,
             created_at=memory.created_at,
         )
+        # Verify storage: confirm memory exists in both stores
+        verified = self._meta.get_memory_meta(memory.id)
+        if verified is None:
+            raise RuntimeError(
+                f"Storage verification failed: memory {memory.id} not found in meta store after store"
+            )
+        # Verify vector store has the memory
+        vector_check = self._vector.get_by_ids([memory.id], vault, shelf, include_vectors=False)
+        if not vector_check:
+            raise RuntimeError(
+                f"Storage verification failed: memory {memory.id} not found in vector store after store"
+            )
         # Semantic dedup: check for near-duplicates after storing
         _DEDUP_SIMILARITY_THRESHOLD = 0.92
         try:
