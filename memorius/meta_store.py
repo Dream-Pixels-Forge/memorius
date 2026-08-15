@@ -139,7 +139,7 @@ class SQLiteStore:
         support parameterized table names, so the whitelist is the
         security boundary here.
         """
-        _VALID_TABLES = frozenset({"diaries", "memories", "hierarchy", "graph_edges", "memory_meta"})
+        _VALID_TABLES = frozenset({"diaries", "memories", "hierarchy", "graph_edges", "memory_meta", "memory_fts"})
         if table not in _VALID_TABLES:
             raise ValueError(f"Invalid table name: {table}")
         cur = conn.execute(f"PRAGMA table_info({table})")
@@ -326,6 +326,27 @@ class SQLiteStore:
                 CREATE INDEX IF NOT EXISTS idx_memory_meta_vault ON memory_meta(vault);
                 CREATE INDEX IF NOT EXISTS idx_memory_meta_archived ON memory_meta(archived);
                 CREATE INDEX IF NOT EXISTS idx_memory_meta_cursor ON memory_meta(created_at, id);
+            """)
+            conn.commit()
+
+            conn.executescript("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts
+                USING fts5(memory_id, content);
+
+                CREATE TRIGGER IF NOT EXISTS memory_fts_insert AFTER INSERT ON memory_meta BEGIN
+                    INSERT INTO memory_fts(memory_id, content)
+                    VALUES (new.id, new.content);
+                END;
+
+                CREATE TRIGGER IF NOT EXISTS memory_fts_delete AFTER DELETE ON memory_meta BEGIN
+                    DELETE FROM memory_fts WHERE memory_id = old.id;
+                END;
+
+                CREATE TRIGGER IF NOT EXISTS memory_fts_update AFTER UPDATE ON memory_meta BEGIN
+                    DELETE FROM memory_fts WHERE memory_id = old.id;
+                    INSERT INTO memory_fts(memory_id, content)
+                    VALUES (new.id, new.content);
+                END;
             """)
             conn.commit()
 
@@ -625,6 +646,16 @@ class SQLiteStore:
         conn = self._conn()
         row = conn.execute("SELECT * FROM memory_meta WHERE id = ?", (memory_id,)).fetchone()
         return dict(row) if row else None
+
+    def bm25_search(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
+        """Full-text search using BM25 ranking via FTS5."""
+        conn = self._conn()
+        rows = conn.execute(
+            "SELECT memory_id, content, rank FROM memory_fts "
+            "WHERE memory_fts MATCH ? ORDER BY rank LIMIT ?",
+            (query, limit),
+        ).fetchall()
+        return [{"id": r[0], "content": r[1], "rank": r[2]} for r in rows]
 
     def get_memory_meta_batch(self, memory_ids: list[str]) -> dict[str, dict[str, Any]]:
         """Get metadata for multiple memories in a single query.
