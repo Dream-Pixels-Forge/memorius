@@ -29,6 +29,63 @@ WEIGHT_TEMPORAL = 0.25          # weight for temporal decay in search
 WEIGHT_ACCESS = 0.15            # weight for access count in search
 
 
+def _parse_dt(iso_str: str | None) -> datetime:
+    """Parse an ISO timestamp string into a UTC datetime.
+
+    Returns the current UTC time if *iso_str* is None or unparseable.
+    """
+    if not iso_str:
+        return datetime.now(timezone.utc)
+    try:
+        return datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return datetime.now(timezone.utc)
+
+
+def calculate_heat_score(
+    created_at: str,
+    accessed_at: str | None = None,
+    access_count: int = 0,
+    half_life_days: float = 30.0,
+) -> float:
+    """Calculate a heat score for a memory (0.0 = cold, 1.0 = hot).
+
+    Combines three factors:
+      - Recency of last access (exponential decay)
+      - Access frequency (linear, capped at 10)
+      - Freshness since creation (exponential decay, 90-day half-life)
+    """
+    now = datetime.now(timezone.utc)
+    created = _parse_dt(created_at)
+    last_accessed = _parse_dt(accessed_at) if accessed_at else created
+
+    recency = math.exp(
+        -0.693 * (now - last_accessed).total_seconds() / 86400 / half_life_days
+    )
+    freq = min(1.0, access_count / 10.0)
+    freshness = math.exp(
+        -0.693 * (now - created).total_seconds() / 86400 / 90.0
+    )
+    return round(0.4 * recency + 0.3 * freq + 0.3 * freshness, 4)
+
+
+def classify_tier(score: float) -> str:
+    """Map a heat score to a tier label."""
+    if score >= 0.7:
+        return "hot"
+    if score >= 0.3:
+        return "warm"
+    if score >= 0.1:
+        return "cold"
+    return "archived"
+
+
+def calculate_combined_score_with_tier(base_score: float, tier: str) -> float:
+    """Apply a tier-based boost to a base search score."""
+    BOOST = {"hot": 0.15, "warm": 0.05, "cold": -0.05, "archived": -0.15}
+    return base_score + BOOST.get(tier, 0.0)
+
+
 def calculate_decay_score(
     created_at: str,
     last_accessed: str | None = None,
@@ -44,12 +101,7 @@ def calculate_decay_score(
       - Access frequency (more accesses = higher, logarithmic)
     """
     now = datetime.now(timezone.utc)
-
-    # Parse creation time
-    try:
-        created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-    except (ValueError, AttributeError):
-        return 1.0  # can't parse → assume fresh
+    created = _parse_dt(created_at)
 
     days_old = max((now - created).total_seconds() / 86400, 0)
 
@@ -58,12 +110,9 @@ def calculate_decay_score(
 
     # Recency boost from last access
     if last_accessed:
-        try:
-            accessed = datetime.fromisoformat(last_accessed.replace("Z", "+00:00"))
-            days_since_access = max((now - accessed).total_seconds() / 86400, 0)
-            recency_boost = 1.0 / (1.0 + days_since_access * decay_rate * 2)
-        except (ValueError, AttributeError):
-            recency_boost = 0.5
+        accessed = _parse_dt(last_accessed)
+        days_since_access = max((now - accessed).total_seconds() / 86400, 0)
+        recency_boost = 1.0 / (1.0 + days_since_access * decay_rate * 2)
     else:
         recency_boost = 0.5
 

@@ -234,6 +234,15 @@ class SQLiteStore:
 
         logger.info("Migrated hierarchy: palaces/wings/rooms/drawers -> vaults/shelves/folders/notes")
 
+    def _migrate_add_heat_score(self, conn: sqlite3.Connection):
+        """Add heat_score column to memory_meta if missing."""
+        cols = self._get_columns(conn, "memory_meta")
+        if "heat_score" not in cols:
+            logger.warning("Migrating memory_meta: adding heat_score column")
+            conn.execute("ALTER TABLE memory_meta ADD COLUMN heat_score REAL DEFAULT 0.0")
+            conn.commit()
+            logger.info("Migrated memory_meta: added heat_score column")
+
     def _init_db(self) -> None:
         conn = self._conn()
         with self._lock:
@@ -300,11 +309,13 @@ class SQLiteStore:
                     access_count INTEGER DEFAULT 0,
                     archived INTEGER DEFAULT 0,
                     metadata TEXT DEFAULT '{}',
-                    updated_at TEXT NOT NULL
+                    updated_at TEXT NOT NULL,
+                    heat_score REAL DEFAULT 0.0
                 );
             """)
             conn.commit()
 
+            self._migrate_add_heat_score(conn)
             self._migrate_hierarchy(conn)
 
             conn.executescript("""
@@ -543,8 +554,8 @@ class SQLiteStore:
         conn = self._conn()
         with self._lock:
             conn.execute(
-                "INSERT OR REPLACE INTO memory_meta (id, vault, shelf, folder, note, content, created_at, last_accessed, access_count, archived, metadata, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)",
+                "INSERT OR REPLACE INTO memory_meta (id, vault, shelf, folder, note, content, created_at, last_accessed, access_count, archived, metadata, updated_at, heat_score) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, 0.0)",
                 (memory_id, vault, shelf, folder, note, content, now, now,
                  json.dumps(metadata or {}), now),
             )
