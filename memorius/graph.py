@@ -130,19 +130,23 @@ def get_linked(
     memory_id: str,
     relation: str | None = None,
     min_weight: float = 0.0,
+    include_invalidated: bool = False,
 ) -> list[dict[str, Any]]:
     """Get all memories linked to a given memory."""
+    temporal_filter = "" if include_invalidated else "AND tinvalid IS NULL"
     if relation:
         rows = conn.execute(
-            """SELECT target_id, weight, relation FROM memory_graph
+            f"""SELECT target_id, weight, relation FROM memory_graph
                WHERE source_id = ? AND relation = ? AND weight >= ?
+               {temporal_filter}
                ORDER BY weight DESC""",
             (memory_id, relation, min_weight),
         ).fetchall()
     else:
         rows = conn.execute(
-            """SELECT target_id, weight, relation FROM memory_graph
+            f"""SELECT target_id, weight, relation FROM memory_graph
                WHERE source_id = ? AND weight >= ?
+               {temporal_filter}
                ORDER BY weight DESC""",
             (memory_id, min_weight),
         ).fetchall()
@@ -155,6 +159,7 @@ def expand_graph(
     hops: int = 1,
     min_weight: float = 0.3,
     max_nodes: int = 50,
+    include_invalidated: bool = False,
 ) -> GraphResult:
     """Expand from seed IDs through the graph.
 
@@ -167,7 +172,7 @@ def expand_graph(
     for hop in range(hops):
         next_frontier = []
         for node_id in frontier:
-            links = get_linked(conn, node_id, min_weight=min_weight)
+            links = get_linked(conn, node_id, min_weight=min_weight, include_invalidated=include_invalidated)
             for link in links:
                 tid = link["target_id"]
                 if tid not in visited:
