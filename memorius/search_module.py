@@ -93,13 +93,19 @@ class SearchModule:
 
         # ── 3. Temporal stage ────────────────────────────────────────────
         try:
-            from memorius.temporal import calculate_decay_score, calculate_search_score
+            from memorius.temporal import (
+                calculate_decay_score,
+                calculate_search_score,
+                classify_tier,
+                calculate_combined_score_with_tier,
+            )
             meta_map = self._meta.get_memory_meta_batch([m.id for m in results])
             scored = []
             for rank_pos, mem in enumerate(results):
                 meta = meta_map.get(mem.id)
                 decay = 1.0
                 access_count = 0
+                heat = 0.0
                 if meta:
                     decay = calculate_decay_score(
                         created_at=meta.get("created_at", ""),
@@ -107,6 +113,7 @@ class SearchModule:
                         access_count=meta.get("access_count", 0),
                     )
                     access_count = meta.get("access_count", 0)
+                    heat = meta.get("heat_score", 0.0)
                 distance = float((mem.metadata or {}).get("__distance__", 0.0) or 0.0)
                 semantic_sim = max(0.0, min(1.0, 1.0 - distance))
                 final_score = calculate_search_score(
@@ -114,6 +121,8 @@ class SearchModule:
                     decay_score=decay,
                     access_count=access_count,
                 )
+                tier = classify_tier(heat)
+                final_score = calculate_combined_score_with_tier(final_score, tier)
                 scored.append((mem, final_score))
             scored.sort(key=lambda x: x[1], reverse=True)
             results = [m for m, _ in scored[:limit]]

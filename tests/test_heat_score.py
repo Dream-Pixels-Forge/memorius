@@ -132,3 +132,48 @@ def test_search_updates_heat_score(store):
     assert results[0].id == mid
     meta = store.get_memory_meta(mid)
     assert meta["heat_score"] > 0.0
+
+
+def test_tier_boosted_search(store):
+    """Hot memories should rank higher than cold memories with same base score."""
+    import uuid
+    from memorius.search_module import SearchModule
+    from memorius.models import Memory
+
+    mid1 = str(uuid.uuid4())
+    mid2 = str(uuid.uuid4())
+    now = "2025-08-15T00:00:00+00:00"
+
+    mem1 = Memory(
+        id=mid1, vault="test", shelf="test", folder="test", note="test",
+        content="hot memory about cats", metadata={"__distance__": 0.2},
+        created_at=now, updated_at=now,
+    )
+    mem2 = Memory(
+        id=mid2, vault="test", shelf="test", folder="test", note="test",
+        content="cold memory about cats", metadata={"__distance__": 0.2},
+        created_at=now, updated_at=now,
+    )
+
+    class FakeVectorStore:
+        def search(self, query, vault=None, shelf=None, n_results=10, filter_metadata=None):
+            return [mem2, mem1]
+        def add(self, memory): pass
+        def delete(self, memory_id, vault, shelf): pass
+        def get_collections(self): return []
+        def count(self, vault=None, shelf=None): return 0
+        def get_by_ids(self, ids, vault, shelf, include_vectors=True): return []
+
+    store.track_memory(mid1, vault="test", shelf="test", folder="test", note="test", content="hot memory about cats")
+    store.track_memory(mid2, vault="test", shelf="test", folder="test", note="test", content="cold memory about cats")
+    store._conn().execute("UPDATE memory_meta SET heat_score=0.9 WHERE id=?", (mid1,))
+    store._conn().execute("UPDATE memory_meta SET heat_score=0.05 WHERE id=?", (mid2,))
+    store._conn().commit()
+
+    vector = FakeVectorStore()
+    sm = SearchModule(vector, store)
+    results = sm.search("cats")
+    ids = [r.id for r in results]
+    assert mid1 in ids
+    assert mid2 in ids
+    assert ids.index(mid1) < ids.index(mid2)
