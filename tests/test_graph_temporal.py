@@ -1,6 +1,15 @@
 """Tests for temporal graph edge functionality (v0.8.0)."""
+import datetime
 import sqlite3
-from memorius.graph import init_graph_schema, link_memories, invalidate_edge, get_linked, expand_graph
+from memorius.graph import (
+    get_active_edge_count,
+    get_edges_at_time,
+    init_graph_schema,
+    invalidate_edge,
+    link_memories,
+    expand_graph,
+    get_linked,
+)
 
 
 def test_graph_schema_has_temporal_columns():
@@ -114,4 +123,31 @@ def test_link_memories_invalidates_conflicting():
     assert len(new) == 1
     assert old[0]["tinvalid"] is not None
     assert new[0]["tinvalid"] is None
+    conn.close()
+
+
+def test_get_edges_at_time():
+    """get_edges_at_time should return edges valid at a specific timestamp."""
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    init_graph_schema(conn)
+    link_memories(conn, "m1", "m2", relation="supports")
+    link_memories(conn, "m1", "m3", relation="related")
+    invalidate_edge(conn, "m1", "m2", relation="supports")
+    edges = get_edges_at_time(conn, "m1", at_time=datetime.datetime.now().isoformat())
+    target_ids = [e["target_id"] for e in edges]
+    assert "m2" not in target_ids
+    assert "m3" in target_ids
+    conn.close()
+
+
+def test_get_active_edge_count():
+    """get_active_edge_count should return count of non-invalidated edges."""
+    conn = sqlite3.connect(":memory:")
+    init_graph_schema(conn)
+    link_memories(conn, "m1", "m2", relation="supports")
+    link_memories(conn, "m1", "m3", relation="related")
+    assert get_active_edge_count(conn, "m1") == 2
+    invalidate_edge(conn, "m1", "m2", relation="supports")
+    assert get_active_edge_count(conn, "m1") == 1
     conn.close()

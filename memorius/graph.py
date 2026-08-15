@@ -205,6 +205,29 @@ def expand_graph(
     return result
 
 
+def get_edges_at_time(conn: sqlite3.Connection, memory_id: str,
+                      at_time: str | None = None) -> list[dict]:
+    """Return edges involving memory_id that were valid at at_time."""
+    if at_time is None:
+        at_time = datetime.now(timezone.utc).isoformat()
+    rows = conn.execute(
+        "SELECT source_id, target_id, weight, relation, created_at, tvalid, tinvalid "
+        "FROM memory_graph "
+        "WHERE (source_id=? OR target_id=?) AND tvalid <= ? AND (tinvalid IS NULL OR tinvalid > ?)",
+        (memory_id, memory_id, at_time, at_time),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_active_edge_count(conn: sqlite3.Connection, memory_id: str) -> int:
+    """Count non-invalidated outgoing edges from memory_id."""
+    row = conn.execute(
+        "SELECT COUNT(*) FROM memory_graph WHERE source_id=? AND tinvalid IS NULL",
+        (memory_id,),
+    ).fetchone()
+    return row[0] if row else 0
+
+
 def auto_link_by_proximity(
     conn: sqlite3.Connection,
     memory_id: str,
