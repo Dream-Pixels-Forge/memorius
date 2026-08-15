@@ -119,9 +119,22 @@ def download_model(
         
         print("Hash verified. Extracting...")
         
-        # Extract
+        # Extract safely — guard against path traversal (zip-slip)
         with tarfile.open(archive_path, "r:gz") as tar:
-            tar.extractall(path=model_dir)
+            if sys.version_info >= (3, 12):
+                # filter="data" blocks absolute paths and path traversal (PEP 706)
+                tar.extractall(path=model_dir, filter="data")
+            else:
+                # Manual check for Python 3.11
+                resolved_base = model_dir.resolve()
+                for member in tar.getmembers():
+                    member_path = (model_dir / member.name).resolve()
+                    if not str(member_path).startswith(str(resolved_base) + os.sep) \
+                            and member_path != resolved_base:
+                        raise RuntimeError(
+                            f"Path traversal detected in archive member: {member.name}"
+                        )
+                tar.extractall(path=model_dir)
         
         # Clean up archive
         archive_path.unlink()

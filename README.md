@@ -1,5 +1,5 @@
 # Memorius
-<img width="1584" height="672" alt="memorius" src="https://github.com/user-attachments/assets/1a62163d-1ff5-4112-8b8f-1a6b19afab7a" />
+<img alt="memorius" src="assets/banner.png" />
 
 <p align="center">
   <strong>Universal memory vault for any AI agent.</strong>
@@ -11,7 +11,7 @@
   <a href="https://github.com/Dream-Pixels-Forge/memorius/actions/workflows/publish.yml"><img src="https://github.com/Dream-Pixels-Forge/memorius/actions/workflows/publish.yml/badge.svg" alt="PyPI publish"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   <a href="https://python.org"><img src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue" alt="Python 3.11 | 3.12"></a>
-  <a href="https://github.com/Dream-Pixels-Forge/memorius/blob/main/CHANGELOG.md"><img src="https://img.shields.io/badge/changelog-v0.7.0-green" alt="Changelog"></a>
+  <a href="https://github.com/Dream-Pixels-Forge/memorius/blob/main/CHANGELOG.md"><img src="https://img.shields.io/badge/changelog-v0.7.1-green" alt="Changelog"></a>
 </p>
 
 > **Works with Claude Code, Codex CLI, Gemini CLI, OpenClaude, OpenCode, Pi, and any MCP-compatible agent.**

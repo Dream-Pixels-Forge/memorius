@@ -1,6 +1,18 @@
 # Changelog
 
-## Unreleased
+## v0.7.1 (2026-08-15)
+
+### Security Hardening
+- **Tar-slip prevention** — `model_download.py` now uses `filter="data"` on Python 3.12+ (PEP 706) and verifies all member paths stay within destination bounds on Python <=3.11.
+- **SSRF DNS resolution check** — `hooks/engine.py` webhooks now resolve hostnames via `socket.getaddrinfo` and reject any private, loopback, link-local, reserved, or multicast IP addresses.
+- **Command hook authorization gate** — `hooks/engine.py` gates the `command` action type behind an explicit `allow_command_hooks: true` config flag (default: `false`).
+- **Timing-safe API key validation** — `rest_server.py` uses `hmac.compare_digest` for constant-time comparison and emits a warning if `MEMORIUS_API_KEY` is under 16 characters.
+- **Chunked transfer-encoding size limit** — `rest_server.py` streams and validates incoming chunked bodies against `MAX_CONTENT_LENGTH`.
+- **Rate-limiter memory leak fix** — `rest_server.py` performs periodic eviction sweeps to prevent unbounded dict growth across unique IPs.
+- **Session ID validation** — Added `validate_session_id()` in `validation.py`; applied to REST `/diary` and MCP `memorius_diary_write`.
+- **Obsidian path containment** — REST `/obsidian` endpoints ensure target vault paths stay within the user's home directory.
+- **Filesystem-friendly name limits** — Lowered `MAX_NAME_LENGTH` in `validation.py` from 1000 to 128 characters.
+- **Output-driven LLM validation** — Removed brittle regex injection blacklist in `llm_extract.py` in favor of strict structured output schema validation.
 
 ### Code Quality
 - **Extracted lazy-init pattern** — VaultEngine now uses `_get_store_module()` and `_get_search_module()` helpers, eliminating 8 repeated `if self._X is None: from ... import ...` blocks.
@@ -8,9 +20,6 @@
 - **Added missing exception annotations** — 6 unannotated `except Exception` blocks in `doctor.py` and 1 in `context_inject.py` now have best-effort rationale comments. (56 total `except Exception` blocks, 39 annotated.)
 - **Sealed message-chain breach** — MCP server now calls `engine.list_diaries()` instead of `_engine._meta.list_diaries()`. Added `list_diaries()` public method to `VaultEngine`.
 - **Clarified HookEngine naming** — `_get_engine()` → `_get_vault()`, `self._engine` → `self._vault` to avoid confusion with the HookEngine class itself.
-- **Cleaned changelog** — Removed duplicate/bogus v1.2.3 and v1.2.4 entries (experimental bumps that didn't stick).
-- **Fixed README MCP tool count** — corrected from 22 to 21.
-- **Fixed badge version** — updated changelog badge from v1.2.4 to v0.7.0.
 
 ## v0.7.0 (2026-07-29)
 

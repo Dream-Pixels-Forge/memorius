@@ -35,6 +35,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import socket
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -140,6 +141,7 @@ class HookConfig:
     """Complete hook lifecycle configuration."""
     save_interval: int = DEFAULT_SAVE_INTERVAL
     state_dir: str = "~/.memorius/hook_state"
+    allow_command_hooks: bool = False  # explicit opt-in required for command action type
     actions: dict[str, list[HookAction]] = field(default_factory=dict)
     raw: dict = field(default_factory=dict)
 
@@ -167,6 +169,7 @@ class HookConfig:
         """Build from a parsed dict (for in-memory construction)."""
         save_interval = int(raw.get("save_interval", DEFAULT_SAVE_INTERVAL))
         state_dir = raw.get("state_dir", "~/.memorius/hook_state")
+        allow_command_hooks = bool(raw.get("allow_command_hooks", False))
         hooks_raw = raw.get("hooks", {})
 
         # Template substitution is done once at config load so that action
@@ -192,6 +195,7 @@ class HookConfig:
         return cls(
             save_interval=save_interval,
             state_dir=state_dir,
+            allow_command_hooks=allow_command_hooks,
             actions=actions,
             raw=raw,
         )
@@ -442,6 +446,18 @@ class HookEngine:
     def _action_command(self, action: HookAction, event: HookEvent, context: dict) -> dict:
         import shlex
 
+        # Require explicit opt-in — command hooks can run arbitrary binaries
+        if not self.config.allow_command_hooks:
+            logger.warning(
+                "Command hook '%s' skipped: set allow_command_hooks: true in hooks.yaml to enable",
+                action.name,
+            )
+            return {
+                "action": action.name,
+                "status": "skipped",
+                "reason": "command hooks disabled (set allow_command_hooks: true to enable)",
+            }
+
         cmd_template = action.config.get("command", "")
         cmd = self._format_template(cmd_template, context)
 
@@ -471,8 +487,8 @@ class HookEngine:
             return {"action": action.name, "status": "error", "error": str(e)}
 
     def _action_webhook(self, action: HookAction, event: HookEvent, context: dict) -> dict:
-        from urllib.parse import urlparse
         import ipaddress
+        from urllib.parse import urlparse
 
         url_template = action.config.get("url", "")
         url = self._format_template(url_template, context)
@@ -487,20 +503,33 @@ class HookEngine:
         if parsed.scheme not in ("http", "https"):
             return {"action": action.name, "status": "error", "error": f"URL scheme '{parsed.scheme}' not allowed"}
 
-        # Block private/internal IPs
         hostname = parsed.hostname or ""
-        if hostname in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
-            return {"action": action.name, "status": "error", "error": "Webhook to localhost is not allowed"}
+        if not hostname:
+            return {"action": action.name, "status": "error", "error": "Missing hostname"}
+
+        # Resolve hostname to IPs and check every resolved address.
+        # This prevents SSRF via DNS rebinding (e.g. evil.com -> 169.254.169.254).
+        blocked_metadata_hosts = ("metadata.google.internal", "instance-data")
+        if hostname in blocked_metadata_hosts:
+            return {"action": action.name, "status": "error", "error": "Webhook to metadata endpoint is not allowed"}
 
         try:
-            ip = ipaddress.ip_address(hostname)
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
-                return {"action": action.name, "status": "error", "error": "Webhook to private/internal IP is not allowed"}
-        except ValueError:
-            # hostname is a domain name, not an IP — check for metadata endpoints
-            blocked_hosts = ("169.254.169.254", "metadata.google.internal", "instance-data")
-            if hostname in blocked_hosts:
-                return {"action": action.name, "status": "error", "error": "Webhook to metadata endpoint is not allowed"}
+            resolved = socket.getaddrinfo(hostname, parsed.port or (443 if parsed.scheme == "https" else 80))
+        except socket.gaierror as e:
+            return {"action": action.name, "status": "error", "error": f"DNS resolution failed: {e}"}
+
+        for _family, _type, _proto, _canonname, sockaddr in resolved:
+            ip_str = sockaddr[0]
+            try:
+                ip = ipaddress.ip_address(ip_str)
+                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                    return {
+                        "action": action.name,
+                        "status": "error",
+                        "error": f"Webhook to private/internal address is not allowed ({ip_str})",
+                    }
+            except ValueError:
+                pass
 
         payload = event.raw_payload
 

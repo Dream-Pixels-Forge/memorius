@@ -9,6 +9,7 @@ import sys
 from memorius import __version__ as _memorius_version
 from memorius.validation import (
     validate_name as _validate_name,
+    validate_session_id as _validate_session_id,
     MAX_CONTENT_LENGTH,
     MAX_FIELD_LENGTH,
     MAX_SEARCH_LIMIT,
@@ -427,9 +428,17 @@ class McpServer:
         }
 
     def tool_memorius_diary_write(self, args: dict) -> dict:
+        try:
+            session_id = _validate_session_id(args.get("session_id", ""))
+        except ValueError as e:
+            return {"error": str(e)}
+        try:
+            vault = _validate_name(args.get("vault", "main"), "vault")
+        except ValueError as e:
+            return {"error": str(e)}
         entry = self._engine.write_diary(
-            session_id=args["session_id"],
-            vault=args.get("vault", "main"),
+            session_id=session_id,
+            vault=vault,
             title=args.get("title", ""),
             summary=args.get("summary", ""),
             content=args.get("content", ""),

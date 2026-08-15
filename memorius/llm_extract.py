@@ -37,31 +37,17 @@ class ExtractedMemory:
 
 
 def _sanitize_conversation(conversation: str) -> str:
-    """Sanitize conversation text before sending to LLM.
+    """Truncate conversation to the maximum allowed length before sending to LLM.
 
-    Strips prompt injection attempts while preserving legitimate content.
+    Note: Blacklist-based injection filtering is intentionally absent here.
+    Regex blacklists are easily bypassed by unicode variants, multi-language
+    phrasing, and obfuscation. The correct defence is on the *output* side:
+    ``_validate_extracted_memory`` enforces a category allowlist, caps content
+    length, and sanitises all fields returned by the LLM.
     """
     if not conversation:
         return ""
-
-    # Truncate to prevent token overflow
-    conversation = conversation[:MAX_CONVERSATION_LENGTH]
-
-    # Remove common injection patterns that try to manipulate the extraction
-    injection_patterns = [
-        re.compile(r'(?i)ignore\s+(?:all\s+)?previous\s+instructions'),
-        re.compile(r'(?i)disregard\s+(?:all\s+)?previous'),
-        re.compile(r'(?i)you\s+are\s+now\s+'),
-        re.compile(r'(?i)new\s+instructions?:'),
-        re.compile(r'(?i)system\s*prompt:'),
-        re.compile(r'(?i)override\s+instructions'),
-    ]
-
-    sanitized = conversation
-    for pattern in injection_patterns:
-        sanitized = pattern.sub("[content]", sanitized)
-
-    return sanitized
+    return conversation[:MAX_CONVERSATION_LENGTH]
 
 
 def _validate_extracted_memory(memory: dict) -> ExtractedMemory | None:

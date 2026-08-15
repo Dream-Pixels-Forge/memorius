@@ -4,7 +4,9 @@ import pytest
 from memorius.validation import (
     validate_name,
     validate_content,
+    validate_session_id,
     MAX_NAME_LENGTH,
+    MAX_SESSION_ID_LENGTH,
     MAX_CONTENT_LENGTH,
     MAX_FIELD_LENGTH,
     MAX_SEARCH_LIMIT,
@@ -47,6 +49,26 @@ def test_validate_name_invalid_chars():
 def test_validate_name_strips_whitespace():
     """Leading/trailing whitespace should be stripped."""
     assert validate_name("  main  ", "vault") == "main"
+
+
+def test_validate_session_id_valid():
+    """Valid session IDs should pass."""
+    assert validate_session_id("sess-123_abc.1") == "sess-123_abc.1"
+    assert validate_session_id("  session-42  ") == "session-42"
+
+
+def test_validate_session_id_invalid():
+    """Invalid session IDs should raise ValueError."""
+    with pytest.raises(ValueError, match="required"):
+        validate_session_id("")
+    with pytest.raises(ValueError, match="required"):
+        validate_session_id("   ")
+    with pytest.raises(ValueError, match="too long"):
+        validate_session_id("a" * (MAX_SESSION_ID_LENGTH + 1))
+    with pytest.raises(ValueError, match="letters, numbers"):
+        validate_session_id("session/123")
+    with pytest.raises(ValueError, match="letters, numbers"):
+        validate_session_id("session name")
 
 
 def test_validate_content_valid():

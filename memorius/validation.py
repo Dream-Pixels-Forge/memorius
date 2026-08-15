@@ -11,7 +11,7 @@ import uuid as _uuid
 # ── Name validation ──────────────────────────────────────────────────────────
 
 VALID_NAME_RE = re.compile(r"^[a-zA-Z0-9_\-]+$")
-MAX_NAME_LENGTH = 1000
+MAX_NAME_LENGTH = 128
 
 
 def validate_name(value: str, label: str = "name") -> str:
@@ -65,6 +65,41 @@ def validate_memory_id(value: str) -> str:
         _uuid.UUID(value)
     except (ValueError, AttributeError, TypeError):
         raise ValueError("memory_id must be a valid UUID")
+    return value
+
+
+# ── Session ID validation ────────────────────────────────────────────────────
+
+VALID_SESSION_ID_RE = re.compile(r"^[a-zA-Z0-9_\-.]+$")
+MAX_SESSION_ID_LENGTH = 128
+
+
+def validate_session_id(value: str) -> str:
+    """Validate a session ID.
+
+    Session IDs are free-form agent strings but must be safe for use as
+    database keys and filesystem paths. Allows alphanumeric characters,
+    hyphens, underscores, and dots.
+
+    Args:
+        value: The session ID string to validate.
+
+    Returns:
+        The validated (stripped) session ID.
+
+    Raises:
+        ValueError: If the ID is missing/blank, too long, or contains
+            unsafe characters.
+    """
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("session_id is required")
+    value = value.strip()
+    if len(value) > MAX_SESSION_ID_LENGTH:
+        raise ValueError(f"session_id too long (max {MAX_SESSION_ID_LENGTH} chars)")
+    if not VALID_SESSION_ID_RE.match(value):
+        raise ValueError(
+            "session_id can only contain letters, numbers, hyphens, underscores, and dots"
+        )
     return value
 
 

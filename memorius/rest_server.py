@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import hmac
 import logging
 import os
+from pathlib import Path
 from typing import Any
 
 from memorius import __version__ as _memorius_version
 from memorius.validation import (
     validate_name as _validate_name,
+    validate_session_id as _validate_session_id,
     validate_content as _validate_content,
     MAX_CONTENT_LENGTH,
     MAX_FIELD_LENGTH,
@@ -37,6 +40,7 @@ class MemoriusAPI:
         self._request_counts: dict[str, list[float]] = {}  # IP -> [timestamps]
         self._rate_limit_max = 500  # requests per minute
         self._rate_limit_window = 60  # seconds
+        self._rate_limit_sweep_counter = 0  # periodic cleanup counter
 
     def create_app(self):
         """Build and return the FastAPI app with all routes registered."""
@@ -62,6 +66,10 @@ class MemoriusAPI:
 
         # API key authentication
         api_key = os.environ.get("MEMORIUS_API_KEY")
+        if api_key and len(api_key) < 16:
+            logger.warning(
+                "MEMORIUS_API_KEY is shorter than 16 characters — use a longer, randomly generated key."
+            )
 
         @app.middleware("http")
         async def auth_middleware(request: Request, call_next):
@@ -69,7 +77,9 @@ class MemoriusAPI:
                 return await call_next(request)
             if api_key:
                 auth_header = request.headers.get("Authorization", "")
-                if not auth_header.startswith("Bearer ") or auth_header[7:] != api_key:
+                token = auth_header[7:] if auth_header.startswith("Bearer ") else ""
+                # Use compare_digest to prevent timing-based key enumeration
+                if not hmac.compare_digest(token.encode(), api_key.encode()):
                     return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key"})
             return await call_next(request)
 
@@ -82,6 +92,21 @@ class MemoriusAPI:
                         return JSONResponse(status_code=413, content={"detail": "Request body too large"})
                 except ValueError:
                     return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length header"})
+            elif request.method in ("POST", "PUT", "PATCH"):
+                # Chunked transfer encoding: stream and enforce limit
+                chunks: list[bytes] = []
+                total = 0
+                async for chunk in request.stream():
+                    total += len(chunk)
+                    if total > MAX_CONTENT_LENGTH:
+                        return JSONResponse(status_code=413, content={"detail": "Request body too large"})
+                    chunks.append(chunk)
+                body = b"".join(chunks)
+
+                async def _receive():
+                    return {"type": "http.request", "body": body, "more_body": False}
+
+                request._receive = _receive
             return await call_next(request)
 
         # Rate limiting middleware
@@ -97,7 +122,7 @@ class MemoriusAPI:
                 return await call_next(request)
             client_ip = request.client.host if request.client else "unknown"
             now = _time.time()
-            # Clean old entries
+            # Clean old entries for this IP
             if client_ip in rate_store:
                 rate_store[client_ip] = [t for t in rate_store[client_ip] if now - t < rate_window]
             else:
@@ -105,6 +130,17 @@ class MemoriusAPI:
             if len(rate_store[client_ip]) >= rate_max:
                 return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded"})
             rate_store[client_ip].append(now)
+            # Periodic sweep: every 1000 requests, evict fully-expired IP entries
+            # to prevent unbounded dict growth from many unique source IPs.
+            self._rate_limit_sweep_counter += 1
+            if self._rate_limit_sweep_counter >= 1000:
+                self._rate_limit_sweep_counter = 0
+                expired_ips = [
+                    ip for ip, ts in rate_store.items()
+                    if not ts or (now - ts[-1]) > rate_window
+                ]
+                for ip in expired_ips:
+                    del rate_store[ip]
             return await call_next(request)
 
         # Register all routes
@@ -182,9 +218,10 @@ class MemoriusAPI:
 
         @app.post("/diary")
         async def diary(payload: dict[str, Any]):
-            session_id = payload.get("session_id", "")
-            if not session_id:
-                raise HTTPException(status_code=400, detail="session_id is required")
+            try:
+                session_id = _validate_session_id(payload.get("session_id", ""))
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
             vault = _validate_name(payload.get("vault", "main"), "vault")
             content = payload.get("content", "")
             if content and len(content) > MAX_DIARY_CONTENT:
@@ -269,6 +306,9 @@ class MemoriusAPI:
         async def obsidian_list(vault: str | None = None):
             from memorius.obsidian import resolve_vault_path, scan_vault
             path = resolve_vault_path(vault)
+            home = Path.home().resolve()
+            if not str(path).startswith(str(home)):
+                raise HTTPException(status_code=400, detail="Vault path must be within the home directory")
             if not path.exists():
                 raise HTTPException(status_code=404, detail=f"Vault not found: {path}")
             notes = scan_vault(path)
@@ -280,6 +320,9 @@ class MemoriusAPI:
                 raise HTTPException(status_code=400, detail="Import requires confirm=true or dry_run=true")
             from memorius.obsidian import resolve_vault_path, scan_vault, parse_note
             vault_path = resolve_vault_path(payload.get("vault"))
+            home = Path.home().resolve()
+            if not str(vault_path).startswith(str(home)):
+                raise HTTPException(status_code=400, detail="Vault path must be within the home directory")
             if not vault_path.exists():
                 raise HTTPException(status_code=404, detail=f"Vault not found: {vault_path}")
             target_vault = _validate_name(payload.get("target_vault", "main"), "vault")
@@ -304,6 +347,9 @@ class MemoriusAPI:
         async def obsidian_export(payload: dict[str, Any]):
             from memorius.obsidian import resolve_vault_path
             vault_path = resolve_vault_path(payload.get("vault")).resolve()
+            home = Path.home().resolve()
+            if not str(vault_path).startswith(str(home)):
+                raise HTTPException(status_code=400, detail="Vault path must be within the home directory")
             source_vault = _validate_name(payload.get("source_vault", "main"), "vault")
             source_shelf = payload.get("source_shelf")
             dry_run = payload.get("dry_run", False)
