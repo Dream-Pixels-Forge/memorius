@@ -144,6 +144,10 @@ class SearchModule:
             if expanded:
                 results = results + expanded
 
+        # ── 6. Update heat scores ──────────────────────────────────────
+        for mem in results:
+            self._meta.update_heat_score(mem.id)
+
         return results
 
     def _expand_from_graph(

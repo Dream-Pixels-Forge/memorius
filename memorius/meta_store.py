@@ -389,6 +389,22 @@ class SQLiteStore:
         from memorius.temporal import find_stale_memories
         return find_stale_memories(self._conn(), threshold, limit)
 
+    def update_heat_score(self, memory_id: str) -> None:
+        """Recalculate and store the heat score for a memory."""
+        meta = self.get_memory_meta(memory_id)
+        if not meta:
+            return
+        from memorius.temporal import calculate_heat_score
+        score = calculate_heat_score(
+            meta.get("created_at", ""),
+            meta.get("last_accessed"),
+            meta.get("access_count", 0),
+        )
+        self.execute(
+            "UPDATE memory_meta SET heat_score=? WHERE id=?",
+            (score, memory_id),
+        )
+
     # ── Hierarchy operations ──
 
     def ensure_vault(self, name: str, description: str = "") -> dict[str, Any]:

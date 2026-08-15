@@ -73,3 +73,62 @@ def test_meta_store_has_heat_score(store):
     ).fetchone()
     assert heat is not None
     assert heat[0] == 0.0
+
+
+def test_update_heat_score(store):
+    """update_heat_score should recalculate and store heat score."""
+    import uuid
+    mid = str(uuid.uuid4())
+    store.track_memory(
+        mid,
+        vault="test", shelf="test", folder="test", note="test",
+        content="test update heat",
+    )
+    meta = store.get_memory_meta(mid)
+    assert meta["heat_score"] == 0.0
+    store.update_heat_score(mid)
+    meta2 = store.get_memory_meta(mid)
+    assert meta2["heat_score"] > 0.0
+
+
+def test_search_updates_heat_score(store):
+    """search should update heat scores for returned memories."""
+    from memorius.search_module import SearchModule
+    from memorius.models import Memory
+    import uuid
+    
+    # Create a fake vector store that returns a known memory
+    class FakeVectorStore:
+        def __init__(self, memories):
+            self._memories = memories
+        def search(self, query, vault=None, shelf=None, n_results=10, filter_metadata=None):
+            return self._memories
+        def add(self, memory): pass
+        def delete(self, memory_id, vault, shelf): pass
+        def get_collections(self): return []
+        def count(self, vault=None, shelf=None): return 0
+        def get_by_ids(self, ids, vault, shelf, include_vectors=True): return []
+    
+    mid = str(uuid.uuid4())
+    # Track memory in meta store with heat_score 0
+    store.track_memory(
+        mid,
+        vault="test", shelf="test", folder="test", note="test",
+        content="test search heat",
+    )
+    # Create a Memory object that will be returned by vector search
+    mem = Memory(
+        id=mid,
+        vault="test", shelf="test", folder="test", note="test",
+        content="test search heat",
+        metadata={},
+        created_at="2025-01-01T00:00:00+00:00",
+        updated_at="2025-01-01T00:00:00+00:00",
+    )
+    vector = FakeVectorStore([mem])
+    search = SearchModule(vector, store)
+    results = search.search("test query", vault="test")
+    assert len(results) == 1
+    assert results[0].id == mid
+    meta = store.get_memory_meta(mid)
+    assert meta["heat_score"] > 0.0
