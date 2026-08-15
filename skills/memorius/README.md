@@ -25,7 +25,12 @@ memorius search "important"      # Find it later
 | `memorius diary <session>` | Write session diary |
 | `memorius diaries` | List recent diaries |
 | `memorius context <topic>` | Get context for injection |
-| `memorius factcheck <statement>` | Verify against vault |
+| `memorius facts` | Fact-check with ML inference |
+| `memorius learn <learning>` | Store a learning (bug fix, strategy, pattern, etc.) |
+| `memorius recall <query>` | Search stored learnings |
+| `memorius learnings` | List all learnings |
+| `memorius apply-learning <id>` | Mark a learning as applied |
+| `memorius learning-stats` | Learning statistics by category |
 | `memorius consolidate` | Merge similar memories |
 | `memorius ls` | Explore vault hierarchy |
 | `memorius stats` | Memory statistics |

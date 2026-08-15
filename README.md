@@ -11,7 +11,7 @@
   <a href="https://github.com/Dream-Pixels-Forge/memorius/actions/workflows/publish.yml"><img src="https://github.com/Dream-Pixels-Forge/memorius/actions/workflows/publish.yml/badge.svg" alt="PyPI publish"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   <a href="https://python.org"><img src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue" alt="Python 3.11 | 3.12"></a>
-  <a href="https://github.com/Dream-Pixels-Forge/memorius/blob/main/CHANGELOG.md"><img src="https://img.shields.io/badge/changelog-v0.7.1-green" alt="Changelog"></a>
+  <a href="https://github.com/Dream-Pixels-Forge/memorius/blob/main/CHANGELOG.md"><img src="https://img.shields.io/badge/changelog-v0.8.2-green" alt="Changelog"></a>
 </p>
 
 > **Works with Claude Code, Codex CLI, Gemini CLI, OpenClaude, OpenCode, Pi, and any MCP-compatible agent.**
@@ -488,7 +488,7 @@ any MCP-compatible client by pointing it at the MCP server:
 }
 ```
 
-Available MCP tools (21 tools):
+Available MCP tools (28 tools, including 6 new learning tools):
 
 | Tool | Description |
 |---|---|
@@ -513,6 +513,12 @@ Available MCP tools (21 tools):
 | `memorius_memory_stats` | Memory tracking statistics (total, active, archived, by vault) |
 | `memorius_prune` | Find stale memories by decay score, archive or delete |
 | `memorius_doctor` | Run health checks (config, storage, vector store, graph) |
+| `memorius_stats` | Compact vault statistics (memories, vaults, graph, learnings) |
+| `memorius_learn` | Store a learning with category, context, and solution |
+| `memorius_recall` | Search learnings with optional category/tag filtering |
+| `memorius_learnings` | List learnings with pagination and filtering |
+| `memorius_apply_learning` | Mark a learning as applied |
+| `memorius_learning_stats` | Get statistics on stored learnings by category |
 
 ## REST API
 
