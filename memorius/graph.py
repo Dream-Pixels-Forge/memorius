@@ -93,6 +93,14 @@ def link_memories(
     """Create a bidirectional link between two memories."""
     now = datetime.now(timezone.utc).isoformat()
     try:
+        existing = conn.execute(
+            "SELECT relation FROM memory_graph WHERE source_id=? AND target_id=? AND tinvalid IS NULL",
+            (source_id, target_id),
+        ).fetchone()
+        if existing and existing[0] != relation:
+            invalidate_edge(conn, source_id, target_id, relation=existing[0])
+            invalidate_edge(conn, target_id, source_id, relation=existing[0])
+
         conn.execute(
             "INSERT OR IGNORE INTO memory_graph (source_id, target_id, weight, relation, created_at, tvalid) "
             "VALUES (?, ?, ?, ?, ?, ?)",

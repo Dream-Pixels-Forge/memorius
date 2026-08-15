@@ -96,3 +96,22 @@ def test_expand_graph_excludes_invalidated():
     assert "m2" not in expanded_ids
     assert "m3" not in expanded_ids
     conn.close()
+
+
+def test_link_memories_invalidates_conflicting():
+    """link_memories should invalidate old edge when relation changes."""
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    init_graph_schema(conn)
+    link_memories(conn, "m1", "m2", relation="supports")
+    link_memories(conn, "m1", "m2", relation="contradicts")
+    rows = conn.execute(
+        "SELECT relation, tinvalid FROM memory_graph WHERE source_id='m1' AND target_id='m2'"
+    ).fetchall()
+    old = [r for r in rows if r["relation"] == "supports"]
+    new = [r for r in rows if r["relation"] == "contradicts"]
+    assert len(old) == 1
+    assert len(new) == 1
+    assert old[0]["tinvalid"] is not None
+    assert new[0]["tinvalid"] is None
+    conn.close()
