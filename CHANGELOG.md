@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.8.1 (2026-08-15)
+
+### Fixed
+- **Storage verification** — `store()` now verifies that memories are actually persisted to both the vector store and meta store after writing. Raises `RuntimeError` if either verification fails, preventing silent storage failures.
+
 ## v0.8.0 (2026-08-15)
 
 ### Temporal Graph Edges
