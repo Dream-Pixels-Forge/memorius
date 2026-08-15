@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.7.2 (2026-08-15)
+
+### Security Hardening (Comprehensive Audit)
+- **Path traversal guard on graph export** — `vault.py:export_graph_html` now validates destination path stays within the configured storage directory.
+- **Path traversal guard on CLI obsidian export** — `cli/obsidian.py` validates output subdirectory resolves within the export directory.
+- **HTML injection prevention** — `graph_visualizer.py` escapes the title via `html.escape()` to prevent XSS in HTML output.
+- **Command injection prevention** — Windows daemon startup in `cli/main.py` passes host/port/tls via environment variables instead of string interpolation.
+- **LLM extraction trust model** — `llm_extract.py` uses system/user message split to isolate extraction rules from user-provided conversation content. Applied to both OpenAI and Ollama extraction paths.
+- **Template injection prevention** — `hooks/engine.py:_substitute_templates` recursion depth limited to 10 to prevent infinite loops.
+- **UUID validation on MCP handlers** — `memorius_contradictions`, `memorius_get`, `memorius_update`, `memorius_delete` now validate memory_id format via `validate_memory_id()`.
+- **Dependency version pinning** — Minimum versions set for `chromadb>=0.4.22`, `sentence-transformers>=2.6.0`, `httpx>=0.25.0`, `openai>=1.1.0`, `pyyaml>=6.0.1`.
+- **Rate limiter memory growth fix** — Sweep frequency reduced to 200 requests; added IP count cap (10,000) to prevent unbounded dict growth.
+- **Security documentation** — MCP tool descriptions include security notes about treating memory content as untrusted data. README documents API key security and LLM extraction trust model.
+
 ## v0.7.1 (2026-08-15)
 
 ### Security Hardening

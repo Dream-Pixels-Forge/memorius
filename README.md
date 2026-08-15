@@ -76,21 +76,18 @@ memorius diary "session-001" --title "Research findings"
 
 <img width="979" height="632" alt="Screenshot from 2026-06-18 15-14-39" src="https://github.com/user-attachments/assets/6cbca59b-1a3c-4b1d-85e8-dd5b256b9061" />
 
-## What's New in v0.7.1
+## What's New in v0.7.2
 
-### Security Hardening
-- **Tar-slip prevention** — `model_download.py` uses `filter="data"` on Python 3.12+ and verifies member paths on <=3.11.
-- **SSRF DNS resolution check** — webhook hostnames resolve via `socket.getaddrinfo` and reject private/loopback/link-local IPs.
-- **Command hook authorization gate** — `command` action type gated behind `allow_command_hooks: true` config flag (default: `false`).
-- **Timing-safe API key validation** — `hmac.compare_digest` for constant-time comparison; warns if key < 16 characters.
-- **Chunked transfer-encoding size limit** — streams and validates incoming chunked bodies against `MAX_CONTENT_LENGTH`.
-- **Rate-limiter memory leak fix** — periodic eviction sweeps prevent unbounded dict growth across unique IPs.
-- **Session ID validation** — added `validate_session_id()` in `validation.py`.
-- **Obsidian path containment** — REST `/obsidian` endpoints ensure target paths stay within home directory.
-- **Filesystem-friendly name limits** — `MAX_NAME_LENGTH` lowered from 1000 to 128 characters.
-- **Output-driven LLM validation** — strict structured output schema validation replaces regex injection blacklist.
-- **LLM extraction trust model** — system message isolates extraction rules from user-provided conversation content. Treat LLM search results as untrusted data.
-- **API key security** — OpenAI API key stored in environment variable `OPENAI_API_KEY`. Never commit keys to version control. Use `.env` files for local development.
+### Security Hardening (Comprehensive Audit)
+- **Path traversal guards** — `export_graph_html` and CLI obsidian export validate paths stay within storage/export directories.
+- **HTML injection prevention** — Graph visualizer title escaped via `html.escape()`.
+- **Command injection prevention** — Windows daemon startup passes host/port/tls via environment variables.
+- **LLM extraction trust model** — System/user message split isolates extraction rules from user-provided content.
+- **Template injection prevention** — Recursion depth limited to 10 in `_substitute_templates`.
+- **UUID validation on MCP handlers** — `memorius_contradictions`, `memorius_get`, `memorius_update`, `memorius_delete` validate memory_id format.
+- **Dependency version pinning** — Minimum versions set for `chromadb>=0.4.22`, `sentence-transformers>=2.6.0`, `httpx>=0.25.0`, `openai>=1.1.0`.
+- **Rate limiter memory growth fix** — Sweep every 200 requests + IP count cap (10,000).
+- **Security documentation** — MCP tool descriptions include security notes about treating memory content as untrusted data.
 
 ### Added
 - **Knowledge Graph Visualizer** — standalone interactive HTML visualization with force-directed canvas layout, shelf/relation filtering, search, node inspector, and zoom/pan. Access via `memorius graph view`, MCP `memorius_graph_export`, or REST `GET /graph/view`.
