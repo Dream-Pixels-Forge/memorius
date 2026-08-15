@@ -64,10 +64,13 @@ CREATE TABLE IF NOT EXISTS memory_graph (
     weight REAL DEFAULT 1.0,
     relation TEXT DEFAULT 'related',
     created_at TEXT NOT NULL,
+    tvalid TEXT NOT NULL,
+    tinvalid TEXT,
     UNIQUE(source_id, target_id, relation)
 );
 CREATE INDEX IF NOT EXISTS idx_graph_source ON memory_graph(source_id);
 CREATE INDEX IF NOT EXISTS idx_graph_target ON memory_graph(target_id);
+CREATE INDEX IF NOT EXISTS idx_graph_tvalid ON memory_graph(tvalid);
 """
 
 
@@ -91,14 +94,14 @@ def link_memories(
     now = datetime.now(timezone.utc).isoformat()
     try:
         conn.execute(
-            "INSERT OR IGNORE INTO memory_graph (source_id, target_id, weight, relation, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (source_id, target_id, weight, relation, now),
+            "INSERT OR IGNORE INTO memory_graph (source_id, target_id, weight, relation, created_at, tvalid) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (source_id, target_id, weight, relation, now, now),
         )
         conn.execute(
-            "INSERT OR IGNORE INTO memory_graph (source_id, target_id, weight, relation, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (target_id, source_id, weight, relation, now),
+            "INSERT OR IGNORE INTO memory_graph (source_id, target_id, weight, relation, created_at, tvalid) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (target_id, source_id, weight, relation, now, now),
         )
         conn.commit()
     except sqlite3.OperationalError:
