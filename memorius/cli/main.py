@@ -23,6 +23,11 @@ Usage:
   memorius graph view        Open interactive knowledge graph in browser
   memorius graph export-html Export standalone interactive HTML graph
   memorius web <query>     Search the internet (web fallback)
+  memorius learn <text>      Store an agent learning
+  memorius recall <query>    Recall past agent learnings
+  memorius learnings         List all agent learnings with stats
+  memorius apply-learning    Mark a learning as applied
+  memorius learning-stats    Get learning statistics
 """
 
 from __future__ import annotations
@@ -254,6 +259,45 @@ def main():
     export_p.add_argument("--source-shelf", default=None, help="Filter by shelf (default: all)")
     export_p.add_argument("--dry-run", action="store_true", help="Show what would be exported without writing")
 
+    # ── Learning subcommands ──
+    learn_p = subparsers.add_parser("learn", help="Store an agent learning")
+    learn_p.add_argument("content", nargs="?", default=None, help="Learning content")
+    learn_p.add_argument("--category", required=True,
+                         choices=["bug_fix", "strategy", "pattern", "self_improvement",
+                                  "tool_usage", "code_snippet", "workflow"],
+                         help="Learning category")
+    learn_p.add_argument("--context", default="", help="What was the situation/problem")
+    learn_p.add_argument("--solution", default="", help="How it was solved")
+    learn_p.add_argument("--tag", action="append", default=None, help="Additional tags (repeatable)")
+    learn_p.add_argument("--vault", default="main", help="Target vault")
+    learn_p.add_argument("--confidence", type=float, default=1.0, help="Confidence score 0-1")
+
+    recall_p = subparsers.add_parser("recall", help="Recall past agent learnings")
+    recall_p.add_argument("query", nargs="?", default=None, help="What to search for")
+    recall_p.add_argument("--category", default=None,
+                          choices=["bug_fix", "strategy", "pattern", "self_improvement",
+                                   "tool_usage", "code_snippet", "workflow"],
+                          help="Filter by category")
+    recall_p.add_argument("--tag", action="append", default=None, help="Filter by tags (repeatable)")
+    recall_p.add_argument("--vault", default=None, help="Filter by vault")
+    recall_p.add_argument("--limit", type=int, default=10, help="Max results")
+
+    learnings_p = subparsers.add_parser("learnings", help="List all agent learnings with stats")
+    learnings_p.add_argument("--category", default=None,
+                             choices=["bug_fix", "strategy", "pattern", "self_improvement",
+                                      "tool_usage", "code_snippet", "workflow"],
+                             help="Filter by category")
+    learnings_p.add_argument("--vault", default=None, help="Filter by vault")
+    learnings_p.add_argument("--limit", type=int, default=50, help="Max results")
+    learnings_p.add_argument("--json", dest="output_json", action="store_true", help="Output as JSON")
+
+    apply_p = subparsers.add_parser("apply-learning", help="Mark a learning as applied")
+    apply_p.add_argument("learning_id", help="Memory UUID of the learning to mark")
+
+    learning_stats_p = subparsers.add_parser("learning-stats", help="Get learning statistics")
+    learning_stats_p.add_argument("--vault", default=None, help="Filter by vault")
+    learning_stats_p.add_argument("--json", dest="output_json", action="store_true", help="Output as JSON")
+
     args = parser.parse_args()
 
     if args.version:
@@ -302,6 +346,11 @@ def main():
         "doctor": cmd_doctor,
         "list": cmd_list,
         "graph": cmd_graph,
+        "learn": cmd_learn,
+        "recall": cmd_recall,
+        "learnings": cmd_learnings,
+        "apply-learning": cmd_apply_learning,
+        "learning-stats": cmd_learning_stats,
     }
     handler = commands.get(args.command)
     if handler:
@@ -1151,6 +1200,162 @@ def cmd_delete(engine, args, config):
         print(f"  Path: {path}")
     else:
         print(f"Nothing deleted (found={result['found']}).")
+
+
+def cmd_learn(engine, args, config):
+    """Store an agent learning."""
+    content = args.content
+    if not content:
+        content = sys.stdin.read().strip()
+    if not content:
+        print("Error: no content provided. Pass as argument or via stdin.")
+        return
+
+    try:
+        memory = engine.store_learning(
+            content=content,
+            category=args.category,
+            context=args.context,
+            solution=args.solution,
+            tags=args.tag or [],
+            vault=args.vault,
+            confidence=args.confidence,
+        )
+        print(f"Learning stored: {memory.id}")
+        print(f"  Category: {args.category}")
+        print(f"  Path: {memory.shelf}/{memory.folder}/{memory.note}")
+        if args.context:
+            print(f"  Context: {args.context[:100]}...")
+        if args.solution:
+            print(f"  Solution: {args.solution[:100]}...")
+    except ValueError as e:
+        print(f"Error: {e}")
+
+
+def cmd_recall(engine, args, config):
+    """Recall past agent learnings."""
+    query = args.query
+    if not query:
+        query = input("Search query: ").strip()
+    if not query:
+        print("Error: no query provided.")
+        return
+
+    results = engine.recall_learnings(
+        query=query,
+        category=args.category,
+        tags=args.tag or [],
+        vault=args.vault,
+        limit=args.limit,
+    )
+
+    if not results:
+        print("No learnings found.")
+        return
+
+    print(f"Found {len(results)} learning(s):\n")
+    for i, mem in enumerate(results, 1):
+        cat = mem.metadata.get("category", "unknown")
+        confidence = mem.metadata.get("confidence", 1.0)
+        applied = mem.metadata.get("applied_count", 0)
+        content_preview = (mem.content[:100] + "...") if len(mem.content or "") > 100 else (mem.content or "")
+
+        print(f"  {i}. [{cat.upper()}] {mem.id[:8]}")
+        print(f"     {content_preview}")
+        if mem.metadata.get("context"):
+            print(f"     Context: {mem.metadata['context'][:80]}...")
+        if mem.metadata.get("solution"):
+            print(f"     Solution: {mem.metadata['solution'][:80]}...")
+        print(f"     Confidence: {confidence:.2f} | Applied: {applied} times")
+        print()
+
+
+def cmd_learnings(engine, args, config):
+    """List all agent learnings with stats."""
+    result = engine.list_learnings(
+        category=args.category,
+        vault=args.vault,
+        limit=args.limit,
+    )
+
+    if getattr(args, "output_json", False):
+        import json
+        print(json.dumps(result, indent=2))
+        return
+
+    learnings = result["learnings"]
+    summary = result["summary"]
+
+    if not learnings:
+        print("No learnings found.")
+        return
+
+    print(f"Agent Learnings: {summary['total']} total\n")
+
+    # Category breakdown
+    if summary["by_category"]:
+        print("By category:")
+        for cat, count in sorted(summary["by_category"].items()):
+            print(f"  {cat}: {count}")
+        print()
+
+    # List learnings
+    print("Learnings:")
+    for i, learning in enumerate(learnings, 1):
+        content_preview = (learning["content"][:80] + "...") if len(learning["content"] or "") > 80 else (learning["content"] or "")
+        applied = learning.get("applied_count", 0)
+        confidence = learning.get("confidence", 1.0)
+        print(f"  {i}. [{learning['category'].upper()}] {learning['id'][:8]}")
+        print(f"     {content_preview}")
+        print(f"     Confidence: {confidence:.2f} | Applied: {applied} times")
+        print()
+
+
+def cmd_apply_learning(engine, args, config):
+    """Mark a learning as applied."""
+    from memorius.validation import validate_memory_id as _validate_memory_id
+
+    try:
+        learning_id = _validate_memory_id(args.learning_id)
+    except ValueError as e:
+        print(f"Error: {e}")
+        return
+
+    mem = engine.apply_learning(learning_id)
+    if mem is None:
+        print(f"Error: learning not found: {learning_id}")
+        return
+
+    applied_count = mem.metadata.get("applied_count", 0)
+    print(f"Learning marked as applied: {learning_id}")
+    print(f"  Total applications: {applied_count}")
+
+
+def cmd_learning_stats(engine, args, config):
+    """Get learning statistics."""
+    stats = engine.get_learning_stats(vault=args.vault)
+
+    if getattr(args, "output_json", False):
+        import json
+        print(json.dumps(stats, indent=2))
+        return
+
+    print("Learning Statistics:")
+    print(f"  Total learnings: {stats['total']}")
+    print(f"  Total applications: {stats['total_applied']}")
+    print(f"  Average confidence: {stats['avg_confidence']:.3f}")
+
+    if stats["by_category"]:
+        print("\nBy category:")
+        for cat, count in sorted(stats["by_category"].items()):
+            print(f"  {cat}: {count}")
+
+    if stats["most_applied"]:
+        ma = stats["most_applied"]
+        print(f"\nMost applied learning:")
+        print(f"  {ma['id'][:8]} [{ma['category']}]")
+        print(f"  {ma['content'][:80]}...")
+        print(f"  Applied {ma['applied_count']} times")
 
 
 if __name__ == "__main__":

@@ -451,3 +451,214 @@ class VaultEngine:
                 self.delete(mid)
             result["archived_count"] = len(ids)
         return result
+
+    # ── Learning methods (v0.8.2) ──
+
+    def store_learning(
+        self,
+        content: str,
+        category: str,
+        context: str = "",
+        solution: str = "",
+        tags: list[str] | None = None,
+        vault: str = "main",
+        confidence: float = 1.0,
+    ) -> Memory:
+        """Store an agent learning with structured metadata.
+
+        Learnings are stored in a dedicated 'learnings' shelf with rich
+        metadata for efficient retrieval and categorization.
+
+        Args:
+            content: The learning to store.
+            category: Learning category (bug_fix, strategy, pattern,
+                self_improvement, tool_usage, code_snippet, workflow).
+            context: What was the situation/problem.
+            solution: How it was solved.
+            tags: Additional tags for categorization.
+            vault: Target vault.
+            confidence: Confidence score (0-1).
+
+        Returns:
+            The stored Memory object.
+        """
+        from memorius.learning import validate_category, LEARNINGS_SHELF
+
+        category = validate_category(category)
+        folder = category
+        note = "default"
+
+        metadata = {
+            "category": category,
+            "context": context,
+            "solution": solution,
+            "confidence": max(0.0, min(1.0, confidence)),
+            "applied_count": 0,
+            "last_applied": None,
+            "learning": True,
+        }
+
+        # Only include tags if non-empty (ChromaDB rejects empty lists)
+        if tags:
+            metadata["tags"] = tags
+
+        return self.store(
+            content=content,
+            vault=vault,
+            shelf=LEARNINGS_SHELF,
+            folder=folder,
+            note=note,
+            metadata=metadata,
+        )
+
+    def recall_learnings(
+        self,
+        query: str,
+        category: str | None = None,
+        tags: list[str] | None = None,
+        vault: str | None = None,
+        limit: int = 10,
+    ) -> list[Memory]:
+        """Search past learnings by semantic similarity.
+
+        Args:
+            query: What to search for.
+            category: Filter by category.
+            tags: Filter by tags (must match ALL).
+            vault: Filter by vault.
+            limit: Max results.
+
+        Returns:
+            List of matching Memory objects.
+        """
+        from memorius.learning import LEARNINGS_SHELF
+
+        shelf_filter = LEARNINGS_SHELF
+        folder_filter = category if category else None
+
+        results = self.search(
+            query=query,
+            vault=vault,
+            shelf=shelf_filter,
+            folder=folder_filter,
+            limit=limit,
+            tags=tags,
+        )
+
+        # Filter to only learning memories (in case shelf has non-learning content)
+        return [m for m in results if m.metadata.get("learning") is True]
+
+    def list_learnings(
+        self,
+        category: str | None = None,
+        vault: str | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        """List all learnings with statistics.
+
+        Args:
+            category: Filter by category.
+            vault: Filter by vault.
+            limit: Max results.
+
+        Returns:
+            Dict with learnings list and summary statistics.
+        """
+        from memorius.learning import (
+            LEARNINGS_SHELF,
+            Learning,
+            format_learnings_summary,
+        )
+
+        # List memories from learnings shelf
+        result = self.list_memories(
+            vault=vault,
+            shelf=LEARNINGS_SHELF,
+            limit=limit,
+            with_vectors=False,
+        )
+
+        learnings = []
+        for mem in result["memories"]:
+            if mem.metadata.get("learning") is True:
+                if category and mem.metadata.get("category") != category:
+                    continue
+                learnings.append(Learning(
+                    id=mem.id,
+                    content=mem.content,
+                    category=mem.metadata.get("category", "strategy"),
+                    context=mem.metadata.get("context", ""),
+                    solution=mem.metadata.get("solution", ""),
+                    tags=mem.metadata.get("tags") or [],
+                    confidence=float(mem.metadata.get("confidence", 1.0)),
+                    applied_count=int(mem.metadata.get("applied_count", 0)),
+                    last_applied=mem.metadata.get("last_applied"),
+                    created_at=mem.created_at,
+                    vault=mem.vault,
+                ))
+
+        summary = format_learnings_summary(learnings)
+        return {
+            "learnings": [l.to_dict() for l in learnings],
+            "summary": summary,
+        }
+
+    def apply_learning(self, learning_id: str) -> Memory | None:
+        """Mark a learning as applied (increment counter).
+
+        Args:
+            learning_id: UUID of the learning to mark as applied.
+
+        Returns:
+            Updated Memory or None if not found.
+        """
+        from datetime import datetime, timezone
+
+        mem = self.get_memory(learning_id)
+        if mem is None:
+            return None
+
+        current_count = int(mem.metadata.get("applied_count", 0))
+        return self.update_memory(
+            learning_id,
+            metadata={
+                "applied_count": current_count + 1,
+                "last_applied": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
+    def get_learning_stats(self, vault: str | None = None) -> dict[str, Any]:
+        """Get statistics about agent learnings.
+
+        Args:
+            vault: Filter by vault.
+
+        Returns:
+            Dict with learning statistics.
+        """
+        from memorius.learning import LEARNINGS_SHELF
+
+        result = self.list_learnings(vault=vault, limit=1000)
+        summary = result["summary"]
+
+        # Calculate additional stats
+        learnings = result["learnings"]
+        if learnings:
+            avg_confidence = sum(l["confidence"] for l in learnings) / len(learnings)
+            most_applied = max(learnings, key=lambda l: l["applied_count"])
+        else:
+            avg_confidence = 0.0
+            most_applied = None
+
+        return {
+            "total": summary["total"],
+            "by_category": summary["by_category"],
+            "total_applied": summary["total_applied"],
+            "avg_confidence": round(avg_confidence, 3),
+            "most_applied": {
+                "id": most_applied["id"],
+                "content": most_applied["content"][:100],
+                "category": most_applied["category"],
+                "applied_count": most_applied["applied_count"],
+            } if most_applied else None,
+        }

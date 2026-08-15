@@ -286,6 +286,92 @@ class McpServer:
                 },
             },
         },
+        # ── New v0.8.2 learning tools ──
+        {
+            "name": "memorius_learn",
+            "description": "Store an agent learning — bug fixes, reusable strategies, patterns, self-improvement insights, tool usage tips, code snippets, or workflows. Use this to capture what you learn during sessions for future recall.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "content": {"type": "string", "description": "The learning to store"},
+                    "category": {
+                        "type": "string",
+                        "enum": ["bug_fix", "strategy", "pattern", "self_improvement", "tool_usage", "code_snippet", "workflow"],
+                        "description": "Learning category"
+                    },
+                    "context": {"type": "string", "description": "What was the situation/problem"},
+                    "solution": {"type": "string", "description": "How it was solved"},
+                    "tags": {"type": "array", "items": {"type": "string"}, "description": "Additional tags for categorization"},
+                    "vault": {"type": "string", "description": "Target vault (default: main)"},
+                    "confidence": {"type": "number", "description": "Confidence score 0-1 (default: 1.0)", "default": 1.0},
+                },
+                "required": ["content", "category"],
+            },
+        },
+        {
+            "name": "memorius_recall",
+            "description": "Recall past agent learnings — search for bug fixes, strategies, patterns, and self-improvement insights you've stored. Use before solving problems to check if you've seen similar issues before.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "What to search for"},
+                    "category": {
+                        "type": "string",
+                        "enum": ["bug_fix", "strategy", "pattern", "self_improvement", "tool_usage", "code_snippet", "workflow"],
+                        "description": "Filter by category"
+                    },
+                    "tags": {"type": "array", "items": {"type": "string"}, "description": "Filter by tags (must match ALL)"},
+                    "vault": {"type": "string", "description": "Filter by vault"},
+                    "limit": {"type": "number", "description": "Max results (default: 10)", "default": 10},
+                },
+                "required": ["query"],
+            },
+        },
+        {
+            "name": "memorius_learnings",
+            "description": "List all agent learnings with statistics — shows categories, application counts, and summary. Use to review what you've learned over time.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "enum": ["bug_fix", "strategy", "pattern", "self_improvement", "tool_usage", "code_snippet", "workflow"],
+                        "description": "Filter by category"
+                    },
+                    "vault": {"type": "string", "description": "Filter by vault"},
+                    "limit": {"type": "number", "description": "Max results (default: 50)", "default": 50},
+                },
+            },
+        },
+        {
+            "name": "memorius_apply_learning",
+            "description": "Mark a learning as applied (increment its application counter). Use when you successfully apply a past learning to track its usefulness.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "learning_id": {"type": "string", "description": "Memory UUID of the learning to mark as applied"},
+                },
+                "required": ["learning_id"],
+            },
+        },
+        {
+            "name": "memorius_learning_stats",
+            "description": "Get statistics about agent learnings — total count, categories, application rates, confidence scores. Use to understand your learning patterns.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "vault": {"type": "string", "description": "Filter by vault"},
+                },
+            },
+        },
+        {
+            "name": "memorius_stats",
+            "description": "Get compact vault statistics for status display — memories, vaults, learnings, graph edges. Use for quick status checks.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {},
+            },
+        },
     ]
 
     # ── Tool dispatch ──
@@ -681,6 +767,143 @@ class McpServer:
             "count": len(memories),
             "next_cursor": next_cursor,
             "memories": [{k: v for k, v in m.to_dict().items() if k != "vector"} for m in memories],
+        }
+
+    # ── New v0.8.2 learning tool handlers ──
+
+    def tool_memorius_learn(self, args: dict) -> dict:
+        content = args.get("content", "")
+        if not isinstance(content, str) or not content.strip():
+            return {"error": "Content must be a non-empty string"}
+        if len(content) > MAX_CONTENT_LENGTH:
+            return {"error": f"Content too long (max {MAX_CONTENT_LENGTH} chars)"}
+
+        category = args.get("category", "")
+        if not category:
+            return {"error": "category is required"}
+
+        vault = _validate_name(args.get("vault", "main"), "vault")
+        context = args.get("context", "")
+        solution = args.get("solution", "")
+        tags_in = args.get("tags")
+        tags = [str(t) for t in tags_in] if isinstance(tags_in, list) and tags_in else []
+        confidence = float(args.get("confidence", 1.0))
+
+        try:
+            memory = self._engine.store_learning(
+                content=content,
+                category=category,
+                context=context,
+                solution=solution,
+                tags=tags,
+                vault=vault,
+                confidence=confidence,
+            )
+        except ValueError as e:
+            return {"error": str(e)}
+
+        return {
+            "id": memory.id,
+            "category": category,
+            "vault": memory.vault,
+            "path": f"{memory.shelf}/{memory.folder}/{memory.note}",
+        }
+
+    def tool_memorius_recall(self, args: dict) -> dict:
+        query = args.get("query", "")
+        if not isinstance(query, str) or not query.strip():
+            return {"error": "Query must be a non-empty string"}
+
+        category = args.get("category")
+        if category:
+            from memorius.learning import validate_category
+            try:
+                category = validate_category(category)
+            except ValueError as e:
+                return {"error": str(e)}
+
+        vault = _validate_name(args.get("vault"), "vault") if args.get("vault") else None
+        tags_in = args.get("tags")
+        tags = [str(t) for t in tags_in] if isinstance(tags_in, list) and tags_in else None
+        limit = min(args.get("limit", 10), MAX_SEARCH_LIMIT)
+
+        results = self._engine.recall_learnings(
+            query=query,
+            category=category,
+            tags=tags,
+            vault=vault,
+            limit=limit,
+        )
+
+        return {
+            "query": query,
+            "count": len(results),
+            "learnings": [{k: v for k, v in m.to_dict().items() if k != "vector"} for m in results],
+        }
+
+    def tool_memorius_learnings(self, args: dict) -> dict:
+        category = args.get("category")
+        if category:
+            from memorius.learning import validate_category
+            try:
+                category = validate_category(category)
+            except ValueError as e:
+                return {"error": str(e)}
+
+        vault = _validate_name(args.get("vault"), "vault") if args.get("vault") else None
+        limit = min(args.get("limit", 50), MAX_SEARCH_LIMIT)
+
+        result = self._engine.list_learnings(
+            category=category,
+            vault=vault,
+            limit=limit,
+        )
+        return result
+
+    def tool_memorius_apply_learning(self, args: dict) -> dict:
+        learning_id = args.get("learning_id", "")
+        if not learning_id or not isinstance(learning_id, str):
+            return {"error": "learning_id is required"}
+        try:
+            learning_id = _validate_memory_id(learning_id)
+        except ValueError as e:
+            return {"error": str(e)}
+
+        mem = self._engine.apply_learning(learning_id)
+        if mem is None:
+            return {"error": "Learning not found", "learning_id": learning_id}
+
+        d = mem.to_dict()
+        d.pop("vector", None)
+        return {
+            "id": d["id"],
+            "applied_count": d["metadata"].get("applied_count", 0),
+            "last_applied": d["metadata"].get("last_applied"),
+        }
+
+    def tool_memorius_learning_stats(self, args: dict) -> dict:
+        vault = _validate_name(args.get("vault"), "vault") if args.get("vault") else None
+        return self._engine.get_learning_stats(vault=vault)
+
+    def tool_memorius_stats(self, args: dict) -> dict:
+        """Compact vault statistics for status display."""
+        status = self._engine.status()
+        learning_stats = self._engine.get_learning_stats()
+        graph_stats = self._engine.get_graph_stats()
+
+        return {
+            "memories": status["memories"],
+            "vaults": status["vaults"],
+            "embedding": f"{status['embedding_provider']} ({status['embedding_dimension']}d)",
+            "learnings": {
+                "total": learning_stats["total"],
+                "by_category": learning_stats["by_category"],
+                "applied": learning_stats["total_applied"],
+            },
+            "graph": {
+                "nodes": graph_stats.get("node_count", 0),
+                "edges": graph_stats.get("edge_count", 0),
+            },
         }
 
     # ── Response helpers ──
