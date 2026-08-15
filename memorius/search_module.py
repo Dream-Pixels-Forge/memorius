@@ -51,6 +51,7 @@ class SearchModule:
         note: str | None = None,
         tags: list[str] | None = None,
         rerank: bool = False,
+        use_hybrid: bool = False,
     ) -> list[Memory]:
         """Search vault contents by semantic similarity with temporal decay
         ranking.
@@ -90,6 +91,34 @@ class SearchModule:
                 if wanted.issubset({str(t) for t in (md_tags or [])}):
                     filtered.append(mem)
             results = filtered
+
+        # ── 2c. Hybrid vector + BM25 blending ───────────────────────────
+        if use_hybrid and results:
+            try:
+                bm25_hits = self._meta.bm25_search(query, limit=fetch_n)
+                bm25_map: dict[str, float] = {}
+                if bm25_hits:
+                    abs_ranks = [abs(h["rank"]) for h in bm25_hits]
+                    rank_min = min(abs_ranks)
+                    rank_max = max(abs_ranks)
+                    rank_range = rank_max - rank_min
+                    for h in bm25_hits:
+                        if rank_range > 0:
+                            bm25_map[h["id"]] = 1.0 - (abs(h["rank"]) - rank_min) / rank_range
+                        else:
+                            bm25_map[h["id"]] = 1.0
+
+                blended: list[tuple[Memory, float]] = []
+                for mem in results:
+                    distance = float((mem.metadata or {}).get("__distance__", 0.0) or 0.0)
+                    vector_score = max(0.0, min(1.0, 1.0 - distance))
+                    bm25_score = bm25_map.get(mem.id, 0.0)
+                    blended.append((mem, 0.6 * vector_score + 0.4 * bm25_score))
+
+                blended.sort(key=lambda x: x[1], reverse=True)
+                results = [m for m, _ in blended]
+            except Exception:
+                logger.debug("Hybrid BM25 blending failed, using vector results")
 
         # ── 3. Temporal stage ────────────────────────────────────────────
         try:
