@@ -16,10 +16,10 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any
 
 from memorius.models import Memory
 from memorius.vector_store_base import VectorStore
+from memorius.meta_store import SQLiteStore
 from memorius.validation import validate_name
 from memorius.utils import safe_parse_json
 
@@ -29,7 +29,7 @@ logger = logging.getLogger("memorius.search")
 class SearchModule:
     """Stateless search pipeline — all methods take explicit dependencies."""
 
-    def __init__(self, vector: VectorStore, meta: Any):
+    def __init__(self, vector: VectorStore, meta: SQLiteStore):
         """
         Args:
             vector: The vector store (ChromaStore or SqliteVecStore).

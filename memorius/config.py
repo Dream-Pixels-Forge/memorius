@@ -15,7 +15,7 @@ DEFAULT_CONFIG_YAML = """
 # Path: ~/.memorius/config.yaml
 
 storage:
-  type: chroma  # chroma | sqlite (chroma is always primary for vectors)
+  type: chroma  # chroma | sqlite-vec
   path: ~/.memorius/data
 
 embeddings:

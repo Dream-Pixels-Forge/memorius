@@ -67,7 +67,7 @@ class SqliteVecStore(VectorStore):
         except ImportError:
             raise ImportError(
                 "sqlite-vec not installed. "
-                "Install: pip install memorius[single-file]"
+                "Install: pip install memorius"
             )
         self._path.mkdir(parents=True, exist_ok=True)
         db_path = self._path / "vectors.db"

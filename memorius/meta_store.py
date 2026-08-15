@@ -132,11 +132,17 @@ class SQLiteStore:
 
     @staticmethod
     def _get_columns(conn: sqlite3.Connection, table: str) -> set[str]:
-        """Return column names for a table."""
-        _VALID_TABLES = {"diaries", "memories", "hierarchy", "graph_edges", "memory_meta"}
+        """Return column names for a table.
+
+        Table names are validated against a fixed allowlist before being
+        interpolated into the PRAGMA statement.  SQLite PRAGMA does not
+        support parameterized table names, so the whitelist is the
+        security boundary here.
+        """
+        _VALID_TABLES = frozenset({"diaries", "memories", "hierarchy", "graph_edges", "memory_meta"})
         if table not in _VALID_TABLES:
             raise ValueError(f"Invalid table name: {table}")
-        cur = conn.execute("PRAGMA table_info(" + table + ")")
+        cur = conn.execute(f"PRAGMA table_info({table})")
         return {row["name"] for row in cur.fetchall()}
 
     def _migrate_diaries_table(self, conn: sqlite3.Connection):
@@ -224,7 +230,7 @@ class SQLiteStore:
             """)
             conn.commit()
         except Exception as e:  # best-effort: old table drop failure is non-critical
-            logger.warning(f"Could not drop old tables: {e}")
+            logger.warning("Could not drop old tables: %s", e)
 
         logger.info("Migrated hierarchy: palaces/wings/rooms/drawers -> vaults/shelves/folders/notes")
 
@@ -342,6 +348,16 @@ class SQLiteStore:
         """Get knowledge graph statistics."""
         from memorius.graph import get_graph_stats
         return get_graph_stats(self._conn())
+
+    def get_graph_data(self, vault: str | None = None, shelf: str | None = None,
+                       relation: str | None = None, min_weight: float = 0.0,
+                       limit: int = 500) -> dict[str, Any]:
+        """Get complete graph topology (nodes and edges) for visualization."""
+        from memorius.graph import get_graph_data
+        return get_graph_data(
+            self._conn(), vault=vault, shelf=shelf, relation=relation,
+            min_weight=min_weight, limit=limit,
+        )
 
     def expand_graph(self, seed_ids: list[str], hops: int = 1,
                      min_weight: float = 0.3, max_nodes: int = 50) -> dict[str, Any]:
@@ -584,15 +600,27 @@ class SQLiteStore:
         return dict(row) if row else None
 
     def get_memory_meta_batch(self, memory_ids: list[str]) -> dict[str, dict[str, Any]]:
-        """Get metadata for multiple memories in a single query."""
+        """Get metadata for multiple memories in a single query.
+
+        Each ID is validated as a UUID to prevent SQL injection via the
+        ``WHERE IN`` clause.  Invalid IDs are silently skipped.
+        """
         if not memory_ids:
             return {}
         conn = self._conn()
-        # Validate all IDs are non-empty strings to prevent injection
-        safe_ids = [str(mid) for mid in memory_ids if mid]
+        safe_ids = []
+        for mid in memory_ids:
+            if not mid:
+                continue
+            try:
+                import uuid as _uuid
+                _uuid.UUID(str(mid))
+                safe_ids.append(str(mid))
+            except (ValueError, TypeError, AttributeError):
+                continue
         if not safe_ids:
             return {}
-        placeholders = ",".join("?" * len(safe_ids))
+        placeholders = ",".join("?" for _ in safe_ids)
         rows = conn.execute(
             "SELECT * FROM memory_meta WHERE id IN (" + placeholders + ")",
             safe_ids,
@@ -890,3 +918,21 @@ class SQLiteStore:
     def close(self) -> None:
         """Close the current thread's connection."""
         _close_thread_conn()
+
+    def close_connection(self, db_path: Path) -> None:
+        """Close only the connection for this specific db_path on the current thread.
+
+        Unlike ``close()`` which closes *all* memorius connections for the
+        thread, this method scopes cleanup to this instance's database file,
+        leaving other VaultEngine instances untouched.
+        """
+        conns = getattr(local, "memorius_conns", None)
+        if not conns:
+            return
+        key = str(db_path)
+        conn = conns.pop(key, None)
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:  # best-effort: prevent close errors during cleanup
+                pass

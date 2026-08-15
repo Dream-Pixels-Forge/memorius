@@ -245,3 +245,137 @@ def get_graph_stats(conn: sqlite3.Connection) -> dict[str, Any]:
         }
     except sqlite3.OperationalError:
         return {"total_edges": 0, "unique_nodes": 0, "relations": {}}
+
+
+def get_graph_data(
+    conn: sqlite3.Connection,
+    vault: str | None = None,
+    shelf: str | None = None,
+    relation: str | None = None,
+    min_weight: float = 0.0,
+    limit: int = 500,
+) -> dict[str, Any]:
+    """Fetch complete graph topology (nodes and edges) for visualization.
+
+    Args:
+        conn: SQLite connection.
+        vault: Optional vault filter.
+        shelf: Optional shelf filter.
+        relation: Optional relation type filter.
+        min_weight: Minimum edge weight threshold.
+        limit: Maximum number of nodes to return.
+
+    Returns:
+        Dictionary with 'nodes', 'edges', and 'summary' keys.
+    """
+    import json
+
+    init_graph_schema(conn)
+
+    # 1. Fetch memories matching vault/shelf filters
+    mem_query = (
+        "SELECT id, vault, shelf, folder, note, content, metadata, "
+        "access_count, last_accessed, created_at FROM memory_meta WHERE archived = 0"
+    )
+    mem_params: list[Any] = []
+    if vault:
+        mem_query += " AND vault = ?"
+        mem_params.append(vault)
+    if shelf:
+        mem_query += " AND shelf = ?"
+        mem_params.append(shelf)
+
+    mem_query += " ORDER BY access_count DESC, created_at DESC LIMIT ?"
+    mem_params.append(limit)
+
+    memory_rows = conn.execute(mem_query, mem_params).fetchall()
+    memories_by_id = {}
+    nodes = []
+
+    for r in memory_rows:
+        row_dict = dict(r)
+        mid = row_dict["id"]
+        meta_str = row_dict.get("metadata") or "{}"
+        try:
+            meta = json.loads(meta_str) if isinstance(meta_str, str) else meta_str
+        except Exception:
+            meta = {}
+        
+        content = row_dict.get("content") or ""
+        snippet = content[:180] + ("..." if len(content) > 180 else "")
+
+        node = {
+            "id": mid,
+            "label": f"{row_dict.get('shelf', '')}/{row_dict.get('note', '')}",
+            "vault": row_dict.get("vault", "main"),
+            "shelf": row_dict.get("shelf", "default"),
+            "folder": row_dict.get("folder", "default"),
+            "note": row_dict.get("note", "default"),
+            "snippet": snippet,
+            "content": content,
+            "category": meta.get("category", "general"),
+            "tags": meta.get("tags", []),
+            "access_count": row_dict.get("access_count", 0),
+            "created_at": row_dict.get("created_at", ""),
+            "last_accessed": row_dict.get("last_accessed", ""),
+        }
+        nodes.append(node)
+        memories_by_id[mid] = node
+
+    if not nodes:
+        return {"nodes": [], "edges": [], "summary": {"node_count": 0, "edge_count": 0}}
+
+    # 2. Fetch edges connecting these nodes
+    id_set = set(memories_by_id.keys())
+    edge_query = (
+        "SELECT source_id, target_id, weight, relation, created_at "
+        "FROM memory_graph WHERE weight >= ?"
+    )
+    edge_params: list[Any] = [min_weight]
+    if relation:
+        edge_query += " AND relation = ?"
+        edge_params.append(relation)
+
+    edge_rows = conn.execute(edge_query, edge_params).fetchall()
+    edges = []
+    seen_undirected_pairs = set()
+
+    for er in edge_rows:
+        ed = dict(er)
+        s_id = ed["source_id"]
+        t_id = ed["target_id"]
+
+        # Only include edges between visible nodes
+        if s_id in id_set and t_id in id_set:
+            pair = tuple(sorted([s_id, t_id])) + (ed["relation"],)
+            if pair in seen_undirected_pairs:
+                continue
+            seen_undirected_pairs.add(pair)
+
+            edges.append({
+                "source": s_id,
+                "target": t_id,
+                "weight": ed.get("weight", 1.0),
+                "relation": ed.get("relation", "related"),
+                "created_at": ed.get("created_at", ""),
+            })
+
+    # Degree / connection count on nodes
+    degree_map: dict[str, int] = {n["id"]: 0 for n in nodes}
+    for e in edges:
+        degree_map[e["source"]] = degree_map.get(e["source"], 0) + 1
+        degree_map[e["target"]] = degree_map.get(e["target"], 0) + 1
+
+    for n in nodes:
+        n["degree"] = degree_map.get(n["id"], 0)
+
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "summary": {
+            "node_count": len(nodes),
+            "edge_count": len(edges),
+            "vault": vault or "all",
+            "shelf": shelf or "all",
+        },
+    }

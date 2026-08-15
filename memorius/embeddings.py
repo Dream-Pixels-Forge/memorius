@@ -47,7 +47,7 @@ class SentenceTransformerProvider(EmbeddingProvider):
         except ImportError:
             raise ImportError(
                 "sentence-transformers not installed. "
-                "Install: pip install memorius[local-embeddings]"
+                "Install: pip install memorius"
             )
 
     def embed(self, texts: list[str]) -> list[list[float]]:
@@ -84,7 +84,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         except ImportError:
             raise ImportError(
                 "openai package not installed. "
-                "Install: pip install memorius[openai]"
+                "Install: pip install memorius"
             )
 
     def embed(self, texts: list[str]) -> list[list[float]]:
@@ -150,6 +150,10 @@ class ChromaDefaultProvider(EmbeddingProvider):
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         result = self._fn(texts)
+        # ChromaDB's embedding function may return numpy arrays;
+        # convert to plain Python lists for downstream compatibility.
+        if hasattr(result, "tolist"):
+            return [v.tolist() for v in result]
         return result
 
     @property

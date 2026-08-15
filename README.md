@@ -76,23 +76,34 @@ memorius diary "session-001" --title "Research findings"
 
 <img width="979" height="632" alt="Screenshot from 2026-06-18 15-14-39" src="https://github.com/user-attachments/assets/6cbca59b-1a3c-4b1d-85e8-dd5b256b9061" />
 
-## What's New in v1.2.4
+## What's New in v0.7.1
 
-### Architecture Improvements
-- **Modular VaultEngine** — extracted `SearchModule` (5-stage search pipeline) and `StoreModule` (CRUD operations). VaultEngine reduced from 692 to 328 lines (53% reduction).
-- **VectorStore ABC** — `ChromaStore` and `SqliteVecStore` now share an abstract base class for swappable backends.
-- **Sealed `_conn()` leakage** — all external callers now use `SQLiteStore` public API (`execute`, `fetchone`, `fetchall`, `transaction`, graph/temporal adapters, import/export methods).
-- **Shared Obsidian module** — `memorius/obsidian.py` consolidates helpers used by REST server and CLI.
+### Security Hardening
+- **Tar-slip prevention** — `model_download.py` uses `filter="data"` on Python 3.12+ and verifies member paths on <=3.11.
+- **SSRF DNS resolution check** — webhook hostnames resolve via `socket.getaddrinfo` and reject private/loopback/link-local IPs.
+- **Command hook authorization gate** — `command` action type gated behind `allow_command_hooks: true` config flag (default: `false`).
+- **Timing-safe API key validation** — `hmac.compare_digest` for constant-time comparison; warns if key < 16 characters.
+- **Chunked transfer-encoding size limit** — streams and validates incoming chunked bodies against `MAX_CONTENT_LENGTH`.
+- **Rate-limiter memory leak fix** — periodic eviction sweeps prevent unbounded dict growth across unique IPs.
+- **Session ID validation** — added `validate_session_id()` in `validation.py`.
+- **Obsidian path containment** — REST `/obsidian` endpoints ensure target paths stay within home directory.
+- **Filesystem-friendly name limits** — `MAX_NAME_LENGTH` lowered from 1000 to 128 characters.
+- **Output-driven LLM validation** — strict structured output schema validation replaces regex injection blacklist.
+
+### Added
+- **Knowledge Graph Visualizer** — standalone interactive HTML visualization with force-directed canvas layout, shelf/relation filtering, search, node inspector, and zoom/pan. Access via `memorius graph view`, MCP `memorius_graph_export`, or REST `GET /graph/view`.
+- **Dependency consolidation** — `sentence-transformers`, `openai`, `sqlite-vec` now included by default. `pip install memorius` includes all features.
 
 ### Code Quality
-- **Type hints** — complete type annotations on `SQLiteStore` public API.
-- **Exception documentation** — 30 `except Exception` blocks annotated as best-effort with reasons.
-- **Dead code removal** — HNSW switchover path removed from consolidation.
-- **26 new tests** — `SearchModule` (7) and `StoreModule` (19) unit tests.
-
-### Fixed
-- **Version mismatch** — `__version__` now uses `importlib.metadata.version()` consistently.
-- **Legacy test references** — `test_features.py` updated to use `SQLiteStore` public API instead of `_conn()`.
+- **Extracted lazy-init pattern** — `_get_store_module()` and `_get_search_module()` helpers eliminate repeated init blocks.
+- **Deduplicated JSON parsing** — `safe_parse_json()` in `utils.py` used across `store_module.py` and `search_module.py`.
+- **Missing exception annotations** — 6 unannotated blocks in `doctor.py` and `context_inject.py` now documented.
+- **Sealed message-chain breach** — MCP server calls `engine.list_diaries()` instead of `_engine._meta.list_diaries()`.
+- **Clarified HookEngine naming** — `_get_engine()` → `_get_vault()` to avoid confusion with the HookEngine class.
+- **SQL PRAGMA whitelist** — `_get_columns()` validates table names against `frozenset` allowlist.
+- **UUID validation on batch queries** — `get_memory_meta_batch()` validates IDs before `WHERE IN` interpolation.
+- **Typed module dependencies** — `SearchModule`/`StoreModule` `meta` param typed as `SQLiteStore` (was `Any`).
+- **Scoped connection cleanup** — `VaultEngine.close()` closes only its own DB, not all thread connections.
 
 See [CHANGELOG.md](CHANGELOG.md) for full release history.
 
@@ -196,8 +207,8 @@ Memorius uses a **VectorStore ABC** (abstract base class) for swappable backends
 
 | Backend | Dependency | Description |
 |---|---|---|
-| **ChromaDB** (default) | ChromaDB (bundled) | Persistent HNSW cosine search, auto-migration from legacy collections |
-| **SQLite-vec** | `pip install memorius[single-file]` | Single-file alternative, no ChromaDB dependency |
+| **ChromaDB** (default) | ChromaDB (included) | Persistent HNSW cosine search, auto-migration from legacy collections |
+| **SQLite-vec** | SQLite-vec (included) | Single-file alternative, no ChromaDB dependency |
 
 Set `storage.type: sqlite-vec` in config or `MEMORIUS_STORAGE_TYPE=sqlite-vec` to use the lightweight backend.
 
@@ -205,8 +216,8 @@ Set `storage.type: sqlite-vec` in config or `MEMORIUS_STORAGE_TYPE=sqlite-vec` t
 
 | Provider | Requirement | Quality |
 |---|---|---|
-| `chroma-default` | ChromaDB (bundled ONNX) | Good (384d) |
-| `sentence-transformers` | `pip install memorius[local-embeddings]` | Better (768d+) |
+| `chroma-default` | ChromaDB (included ONNX) | Good (384d) |
+| `sentence-transformers` | `sentence-transformers` (included) | Better (768d+) |
 | `openai` | `OPENAI_API_KEY` env var | Best (1536d or 3072d) |
 
 Providers are extensible via `EmbeddingFactory.register()` for custom runtime providers.
@@ -226,7 +237,8 @@ Memorius implements the **Ebbinghaus forgetting curve** to rank memories by rele
 - **Auto-linking** on every `store()` call by content proximity (Jaccard word overlap or vector cosine)
 - **BFS expansion** from search results (`--expand-graph` on CLI / `expand_graph=True` on MCP)
 - **Contradiction edges** persisted by `factcheck` (bidirectional `relation='contradicts'`)
-- **Graph statistics** via `memorius stats` or MCP `memorius_graph_stats`
+- **Graph visualization** via `memorius graph view` (interactive browser UI) or `memorius graph export-html`
+- **Graph statistics** via `memorius graph stats` or MCP `memorius_graph_stats`
 
 ## Cross-Encoder Reranker
 
@@ -238,7 +250,7 @@ memorius search "query" --rerank
 
 | Provider | Requirement |
 |---|---|
-| `cross-encoder/ms-marco-MiniLM-L-6-v2` | `pip install memorius[ranker]` |
+| `cross-encoder/ms-marco-MiniLM-L-6-v2` | Included out of the box (`pip install memorius`) |
 
 Adds `__rerank_score__` to memory metadata for transparent ranking.
 
@@ -758,15 +770,17 @@ All inputs are validated for security and correctness:
 - CORS: restrictive by default (Obsidian app + localhost only)
 - Path traversal detection on Obsidian export
 
-## Optional Dependencies
-
+## Installation
+ 
 ```bash
-pip install memorius[local-embeddings]  # sentence-transformers
-pip install memorius[openai]            # openai SDK
-pip install memorius[ranker]            # cross-encoder reranker
-pip install memorius[single-file]       # sqlite-vec backend
-pip install memorius[all]               # everything above
-pip install memorius[dev]               # pytest + pytest-asyncio
+pip install memorius
+```
+
+All features — including the cross-encoder reranker, sentence-transformers, SQLite-vec single-file backend, OpenAI embeddings support, REST API server, and graph visualizer — are included out of the box.
+
+For development:
+```bash
+pip install memorius[dev]  # pytest + pytest-asyncio
 ```
 
 ## Installed CLI Entry Points

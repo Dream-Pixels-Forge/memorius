@@ -14,12 +14,25 @@
 - **Filesystem-friendly name limits** — Lowered `MAX_NAME_LENGTH` in `validation.py` from 1000 to 128 characters.
 - **Output-driven LLM validation** — Removed brittle regex injection blacklist in `llm_extract.py` in favor of strict structured output schema validation.
 
+### Added
+- **Knowledge Graph Visualizer** — standalone, zero-dependency interactive HTML visualization of the associative memory graph. Force-directed layout with canvas rendering, shelf/relation filtering, search, node inspector sidebar, and zoom/pan. Accessible via:
+  - CLI: `memorius graph view`, `memorius graph export-html`, `memorius graph stats`, `memorius graph json`
+  - MCP: `memorius_graph_export` tool (json/html format)
+  - REST: `GET /graph/data`, `GET /graph/view`
+- **Dependency consolidation** — `sentence-transformers`, `openai`, and `sqlite-vec` moved from optional extras to core dependencies. `pip install memorius` now includes all features out of the box.
+
 ### Code Quality
 - **Extracted lazy-init pattern** — VaultEngine now uses `_get_store_module()` and `_get_search_module()` helpers, eliminating 8 repeated `if self._X is None: from ... import ...` blocks.
 - **Deduplicated JSON parsing** — added `safe_parse_json()` to `utils.py`; used by `store_module.py` (3 call sites) and `search_module.py` (1 call site), removing inline `try/except/json` cargo-cult.
 - **Added missing exception annotations** — 6 unannotated `except Exception` blocks in `doctor.py` and 1 in `context_inject.py` now have best-effort rationale comments. (56 total `except Exception` blocks, 39 annotated.)
 - **Sealed message-chain breach** — MCP server now calls `engine.list_diaries()` instead of `_engine._meta.list_diaries()`. Added `list_diaries()` public method to `VaultEngine`.
 - **Clarified HookEngine naming** — `_get_engine()` → `_get_vault()`, `self._engine` → `self._vault` to avoid confusion with the HookEngine class itself.
+- **SQL PRAGMA whitelist** — `_get_columns()` validates table names against a `frozenset` allowlist before PRAGMA interpolation.
+- **UUID validation on batch queries** — `get_memory_meta_batch()` validates each memory ID as a UUID before `WHERE IN` interpolation.
+- **Typed module dependencies** — `SearchModule` and `StoreModule` constructor `meta` parameter typed as `SQLiteStore` (was `Any`).
+- **Scoped connection cleanup** — `VaultEngine.close()` closes only its own DB connection via `close_connection(db_path)`, not all thread connections.
+- **Lazy logger formatting** — migrated f-string loggers to `%s` style in `meta_store.py`.
+- **Numpy array conversion** — `ChromaDefaultProvider.embed()` converts numpy arrays to plain Python lists for downstream compatibility.
 
 ## v0.7.0 (2026-07-29)
 

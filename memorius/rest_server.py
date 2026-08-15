@@ -50,7 +50,7 @@ class MemoriusAPI:
             from fastapi.responses import JSONResponse
         except ImportError:
             raise ImportError(
-                "REST server requires extra dependencies. Install: pip install memorius[rest]"
+                "REST server requires extra dependencies. Install: pip install memorius"
             )
 
         app = FastAPI(title="Memorius API", version=_memorius_version)
@@ -449,6 +449,37 @@ class MemoriusAPI:
             graph_stats = engine.get_graph_stats()
             return {"vault": status, "memory_tracking": meta_stats, "knowledge_graph": graph_stats}
 
+        @app.get("/graph/data")
+        async def graph_data(vault: str | None = None, shelf: str | None = None,
+                             relation: str | None = None, min_weight: float = 0.0,
+                             limit: int = 500):
+            if vault:
+                vault = _validate_name(vault, "vault")
+            if shelf:
+                shelf = _validate_name(shelf, "shelf")
+            limit = min(limit, 2000)
+            return engine.get_graph_data(
+                vault=vault, shelf=shelf, relation=relation,
+                min_weight=min_weight, limit=limit,
+            )
+
+        @app.get("/graph/view")
+        @app.get("/visualize")
+        async def graph_view(vault: str | None = None, shelf: str | None = None,
+                             relation: str | None = None, min_weight: float = 0.0,
+                             limit: int = 500):
+            from fastapi.responses import HTMLResponse
+            if vault:
+                vault = _validate_name(vault, "vault")
+            if shelf:
+                shelf = _validate_name(shelf, "shelf")
+            limit = min(limit, 2000)
+            html = engine.export_graph_html(
+                vault=vault, shelf=shelf, relation=relation,
+                min_weight=min_weight, limit=limit,
+            )
+            return HTMLResponse(content=html)
+
         @app.get("/doctor")
         async def doctor():
             from memorius.doctor import run_checks
@@ -482,7 +513,7 @@ def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912,
     try:
         import uvicorn
     except ImportError:
-        print("Error: REST server requires extra dependencies. Install: pip install memorius[rest]")
+        print("Error: REST server requires uvicorn. Install: pip install memorius")
         return
 
     api = MemoriusAPI(engine)

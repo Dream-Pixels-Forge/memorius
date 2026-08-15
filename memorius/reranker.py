@@ -28,7 +28,7 @@ class CrossEncoderReranker:
         except ImportError:
             raise ImportError(
                 "sentence-transformers not installed. "
-                "Install: pip install memorius[ranker]"
+                "Install: pip install memorius"
             )
         self._model = CrossEncoder(self._model_name)
 

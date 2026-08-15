@@ -26,24 +26,12 @@ dependencies = [
     "uvicorn[standard]>=0.24.0",
     "pydantic>=2.0.0",
     "sse-starlette>=1.0.0",
+    "sentence-transformers>=2.2.0",
+    "openai>=1.0.0",
+    "sqlite-vec>=0.1.0",
 ]
 
 [project.optional-dependencies]
-local-embeddings = [
-    "sentence-transformers>=2.2.0",
-]
-openai = [
-    "openai>=1.0.0",
-]
-ranker = [
-    "sentence-transformers>=2.2.0",
-]
-single-file = [
-    "sqlite-vec>=0.1.0",
-]
-all = [
-    "memorius[local-embeddings,openai,ranker,single-file]",
-]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21.0",

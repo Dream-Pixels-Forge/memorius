@@ -20,6 +20,7 @@ from typing import Any
 
 from memorius.models import Memory
 from memorius.vector_store_base import VectorStore
+from memorius.meta_store import SQLiteStore
 from memorius.validation import validate_name, validate_memory_id
 from memorius.utils import safe_parse_json
 
@@ -29,7 +30,7 @@ logger = logging.getLogger("memorius.store")
 class StoreModule:
     """Memory CRUD — orchestrates VectorStore + MetaStore."""
 
-    def __init__(self, vector: VectorStore, meta: Any):
+    def __init__(self, vector: VectorStore, meta: SQLiteStore):
         self._vector = vector
         self._meta = meta
 

@@ -189,7 +189,23 @@ class McpServer:
             "description": "Get knowledge graph statistics — nodes, edges, relations.",
             "inputSchema": {"type": "object", "properties": {}},
         },
-{
+        {
+            "name": "memorius_graph_export",
+            "description": "Export or query knowledge graph topology (nodes, edges, weights, relations) or generate a self-contained interactive HTML visualization.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "vault": {"type": "string", "description": "Filter by vault"},
+                    "shelf": {"type": "string", "description": "Filter by shelf"},
+                    "relation": {"type": "string", "description": "Filter by edge relation (related, references, contradicts, co_occurs)"},
+                    "min_weight": {"type": "number", "description": "Minimum edge similarity weight (0.0 to 1.0, default 0.0)", "default": 0.0},
+                    "limit": {"type": "number", "description": "Max nodes to retrieve (default: 500)", "default": 500},
+                    "format": {"type": "string", "enum": ["json", "html"], "description": "Output format ('json' for raw graph data, 'html' for visualization)", "default": "json"},
+                    "dest": {"type": "string", "description": "Optional file path to save standalone HTML visualization"},
+                },
+            },
+        },
+        {
             "name": "memorius_memory_stats",
             "description": "Get memory tracking statistics - total, active, archived, by vault.",
             "inputSchema": {"type": "object", "properties": {}},
@@ -542,6 +558,33 @@ class McpServer:
 
     def tool_memorius_graph_stats(self, args: dict) -> dict:
         return self._engine.get_graph_stats()
+
+    def tool_memorius_graph_export(self, args: dict) -> dict:
+        vault = _validate_name(args.get("vault"), "vault") if args.get("vault") else None
+        shelf = _validate_name(args.get("shelf"), "shelf") if args.get("shelf") else None
+        relation = args.get("relation") if isinstance(args.get("relation"), str) else None
+        min_weight = float(args.get("min_weight", 0.0))
+        limit = min(int(args.get("limit", 500)), 2000)
+        fmt = args.get("format", "json").lower()
+        dest = args.get("dest")
+
+        if fmt == "html":
+            html = self._engine.export_graph_html(
+                dest=dest, vault=vault, shelf=shelf,
+                relation=relation, min_weight=min_weight, limit=limit,
+            )
+            return {
+                "format": "html",
+                "saved_to": dest if dest else None,
+                "html_length": len(html),
+                "preview": html[:300] + "...",
+            }
+
+        graph_data = self._engine.get_graph_data(
+            vault=vault, shelf=shelf, relation=relation,
+            min_weight=min_weight, limit=limit,
+        )
+        return graph_data
 
     def tool_memorius_memory_stats(self, args: dict) -> dict:
         return self._engine.get_memory_stats()

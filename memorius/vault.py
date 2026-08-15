@@ -19,6 +19,7 @@ from memorius.config import load_config
 from memorius.validation import validate_memory_id
 from memorius.models import Memory  # noqa: F401
 from memorius.vector_store import ChromaStore
+from memorius.vector_store_base import VectorStore
 from memorius.meta_store import SQLiteStore
 
 logger = logging.getLogger("memorius")
@@ -65,7 +66,7 @@ class VaultEngine:
     def close(self):
         """Release all resources (DB connections, ChromaDB client)."""
         try:
-            self._meta.close()
+            self._meta.close_connection(self._meta._db_path)
         except Exception:  # best-effort: prevent cleanup errors from propagating
             pass
         self._vector = None
@@ -78,7 +79,7 @@ class VaultEngine:
         return self._embed
 
     @property
-    def vector(self) -> ChromaStore:
+    def vector(self) -> VectorStore:
         return self._vector
 
     @property
@@ -341,6 +342,47 @@ class VaultEngine:
     def get_graph_stats(self) -> dict:
         """Get knowledge graph statistics."""
         return self._meta.get_graph_stats()
+
+    def get_graph_data(self, vault: str | None = None, shelf: str | None = None,
+                       relation: str | None = None, min_weight: float = 0.0,
+                       limit: int = 500) -> dict[str, Any]:
+        """Fetch complete graph topology (nodes and edges) for visualization."""
+        return self._meta.get_graph_data(
+            vault=vault, shelf=shelf, relation=relation,
+            min_weight=min_weight, limit=limit,
+        )
+
+    def export_graph_html(self, dest: str | None = None, vault: str | None = None,
+                          shelf: str | None = None, relation: str | None = None,
+                          min_weight: float = 0.0, limit: int = 500,
+                          title: str = "Memorius Knowledge Graph") -> str:
+        """Render graph visualization to an interactive HTML string or file.
+
+        Args:
+            dest: Optional file path to save HTML. If omitted, returns HTML string.
+            vault: Optional vault filter.
+            shelf: Optional shelf filter.
+            relation: Optional relation filter.
+            min_weight: Minimum edge weight filter.
+            limit: Maximum nodes to render.
+            title: HTML page title.
+
+        Returns:
+            The HTML content string.
+        """
+        from pathlib import Path
+        from memorius.graph_visualizer import render_graph_html
+
+        graph_data = self.get_graph_data(
+            vault=vault, shelf=shelf, relation=relation,
+            min_weight=min_weight, limit=limit,
+        )
+        html_content = render_graph_html(graph_data, title=title)
+        if dest:
+            out_path = Path(dest)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(html_content, encoding="utf-8")
+        return html_content
 
     def get_memory_stats(self) -> dict:
         """Get memory tracking statistics."""

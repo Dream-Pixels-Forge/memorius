@@ -20,6 +20,8 @@ Usage:
   memorius obsidian list     List notes in an Obsidian vault
   memorius obsidian import   Import Obsidian notes as memories
   memorius obsidian export   Export memories as Obsidian notes
+  memorius graph view        Open interactive knowledge graph in browser
+  memorius graph export-html Export standalone interactive HTML graph
   memorius web <query>     Search the internet (web fallback)
 """
 
@@ -203,6 +205,35 @@ def main():
     list_p.add_argument("--limit", type=int, default=10, help="Max results per page (default: 10)")
     list_p.add_argument("--cursor", help="Cursor for next page (timestamp)")
 
+    # ── Graph subcommands ──
+    graph_p = subparsers.add_parser("graph", help="Visualize and inspect the knowledge graph")
+    graph_sub = graph_p.add_subparsers(dest="subcommand")
+
+    g_view_p = graph_sub.add_parser("view", help="Open interactive knowledge graph visualizer in browser")
+    g_view_p.add_argument("--vault", default=None, help="Filter by vault")
+    g_view_p.add_argument("--shelf", default=None, help="Filter by shelf")
+    g_view_p.add_argument("--relation", default=None, help="Filter by relation type (related, references, contradicts, co_occurs)")
+    g_view_p.add_argument("--min-weight", type=float, default=0.0, help="Minimum edge weight (default: 0.0)")
+    g_view_p.add_argument("--limit", type=int, default=500, help="Max nodes to display (default: 500)")
+    g_view_p.add_argument("--no-open", action="store_true", help="Don't open browser automatically")
+
+    g_export_p = graph_sub.add_parser("export-html", help="Export standalone interactive HTML visualization")
+    g_export_p.add_argument("--output", "-o", default="graph.html", help="Output file path (default: graph.html)")
+    g_export_p.add_argument("--vault", default=None, help="Filter by vault")
+    g_export_p.add_argument("--shelf", default=None, help="Filter by shelf")
+    g_export_p.add_argument("--relation", default=None, help="Filter by relation type")
+    g_export_p.add_argument("--min-weight", type=float, default=0.0, help="Minimum edge weight")
+    g_export_p.add_argument("--limit", type=int, default=500, help="Max nodes to export")
+
+    graph_sub.add_parser("stats", help="Display knowledge graph statistics")
+
+    g_json_p = graph_sub.add_parser("json", help="Output graph topology as JSON")
+    g_json_p.add_argument("--vault", default=None, help="Filter by vault")
+    g_json_p.add_argument("--shelf", default=None, help="Filter by shelf")
+    g_json_p.add_argument("--relation", default=None, help="Filter by relation type")
+    g_json_p.add_argument("--min-weight", type=float, default=0.0, help="Minimum edge weight")
+    g_json_p.add_argument("--limit", type=int, default=500, help="Max nodes")
+
     # ── Obsidian subcommands ──
     obsidian_p = subparsers.add_parser("obsidian", help="Interact with Obsidian vaults")
     obsidian_sub = obsidian_p.add_subparsers(dest="subcommand")
@@ -270,6 +301,7 @@ def main():
         "import": cmd_import,
         "doctor": cmd_doctor,
         "list": cmd_list,
+        "graph": cmd_graph,
     }
     handler = commands.get(args.command)
     if handler:
@@ -860,6 +892,58 @@ def cmd_stats(engine, args, config):
         print("    Relations:")
         for rel, count in relations.items():
             print(f"      {rel}: {count}")
+
+
+def cmd_graph(engine, args, config):
+    """Inspect or visualize knowledge graph."""
+    sub = getattr(args, "subcommand", None)
+    if sub == "stats" or sub is None:
+        graph_stats = engine.get_graph_stats()
+        print("  Knowledge Graph Statistics:")
+        print(f"    Nodes:        {graph_stats.get('unique_nodes', 0)}")
+        print(f"    Edges:        {graph_stats.get('total_edges', 0)}")
+        relations = graph_stats.get('relations', {})
+        if relations:
+            print("    Relations:")
+            for rel, count in relations.items():
+                print(f"      {rel}: {count}")
+    elif sub == "export-html":
+        out_file = args.output
+        engine.export_graph_html(
+            dest=out_file,
+            vault=args.vault,
+            shelf=args.shelf,
+            relation=args.relation,
+            min_weight=args.min_weight,
+            limit=args.limit,
+        )
+        print(f"Knowledge graph visualization saved to: {Path(out_file).resolve()}")
+    elif sub == "view":
+        import tempfile
+        import webbrowser
+        temp_dir = Path(tempfile.gettempdir())
+        html_file = temp_dir / "memorius_graph.html"
+        engine.export_graph_html(
+            dest=str(html_file),
+            vault=args.vault,
+            shelf=args.shelf,
+            relation=args.relation,
+            min_weight=args.min_weight,
+            limit=args.limit,
+        )
+        print(f"Generated visualization: {html_file}")
+        if not getattr(args, "no_open", False):
+            print("Opening in default browser...")
+            webbrowser.open(f"file://{html_file.resolve()}")
+    elif sub == "json":
+        data = engine.get_graph_data(
+            vault=args.vault,
+            shelf=args.shelf,
+            relation=args.relation,
+            min_weight=args.min_weight,
+            limit=args.limit,
+        )
+        print(json.dumps(data, indent=2))
 
 
 def cmd_get(engine, args, config):
