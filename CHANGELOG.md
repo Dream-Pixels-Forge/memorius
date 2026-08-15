@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.8.2 (2026-08-15)
+
+### Learning Module
+- **`LearningCategory` enum** — 7 categories: `bug_fix`, `strategy`, `pattern`, `self_improvement`, `tool_usage`, `code_snippet`, `workflow`.
+- **`Learning` dataclass** — structured representation with `content`, `category`, `context`, `solution`, `tags`, `confidence`, `applied_count`.
+- **`store_learning()`** — store learnings with category, context, and solution in a dedicated `learnings` shelf.
+- **`recall_learnings()`** — search learnings by query, with optional category/tag filtering.
+- **`list_learnings()`** — list learnings with pagination and filtering.
+- **`apply_learning()`** — mark a learning as applied and optionally store application notes.
+- **`get_learning_stats()`** — get statistics on stored learnings by category.
+
+### New MCP Tools
+- **`memorius_learn`** — store a learning with category, context, and solution.
+- **`memorius_recall`** — search learnings with optional category/tag filtering.
+- **`memorius_learnings`** — list learnings with pagination and filtering.
+- **`memorius_apply_learning`** — mark a learning as applied.
+- **`memorius_learning_stats`** — get statistics on stored learnings.
+- **`memorius_stats`** — compact status overview for opencode status bar.
+
+### New CLI Commands
+- **`memorius learn`** — store a learning with category, context, and solution.
+- **`memorius recall`** — search learnings with optional category/tag filtering.
+- **`memorius learnings`** — list learnings with pagination and filtering.
+- **`memorius apply-learning`** — mark a learning as applied.
+- **`memorius learning-stats`** — get statistics on stored learnings.
+
 ## v0.8.1 (2026-08-15)
 
 ### Fixed
