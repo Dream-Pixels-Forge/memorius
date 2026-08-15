@@ -1,5 +1,42 @@
 # Changelog
 
+## v0.8.0 (2026-08-15)
+
+### Temporal Graph Edges
+- **`tvalid`/`tinvalid` columns on `memory_graph`** — edges now track temporal validity for historical queries.
+- **`invalidate_edge()`** — soft-delete edges by setting `tinvalid` timestamp, preserving audit history.
+- **Active edge filtering** — `get_linked()` and `expand_graph()` exclude invalidated edges by default; `include_invalidated=True` to include.
+- **Temporal conflict resolution** — `link_memories()` automatically invalidates old edges when creating a new edge with a different relation between the same memory pair.
+- **`get_edges_at_time()`** — query edges valid at a specific timestamp for temporal graph snapshots.
+- **`get_active_edge_count()`** — count non-invalidated outgoing edges for a memory.
+
+### Heat-Score Promotion
+- **`heat_score` column on `memory_meta`** — tracks memory "temperature" (0.0–1.0) based on recency, frequency, and freshness.
+- **`calculate_heat_score()`** — weighted combination: 0.4×recency + 0.3×frequency + 0.3×freshness with configurable half-life.
+- **`classify_tier()`** — maps heat scores to hot/warm/cold/archived tiers.
+- **Tier-boosted search ranking** — hot memories get +0.15, warm +0.05, cold -0.05, archived -0.15 in final search scores.
+- **Automatic heat score updates** — recalculation triggered on every memory access via search.
+
+### On-Write Deduplication
+- **Semantic dedup on store** — new memories are checked against existing memories for near-duplicates (cosine similarity > 0.92). Duplicate memories are flagged with `duplicate_of` metadata instead of creating full duplicates.
+- **Best-effort dedup** — dedup failure does not prevent storage; errors are caught and logged.
+
+### Auto-Consolidation Daemon
+- **`ConsolidationDaemon`** — optional background thread for periodic memory consolidation (dedup, contradiction resolution, pruning).
+- **Opt-in via config** — `consolidation.enabled: false` by default. Set to `true` to enable.
+- **Configurable interval** — default 3600 seconds (1 hour) between consolidation cycles.
+- **VaultEngine lifecycle integration** — daemon starts/stops with the vault; cleanup on `close()`.
+
+### BM25 Hybrid Retrieval
+- **FTS5 virtual table** — `memory_fts` for full-text keyword search, auto-synced via triggers.
+- **`bm25_search()`** — keyword search method on SQLiteStore returning BM25-ranked results.
+- **Hybrid retrieval** — `search(use_hybrid=True)` blends vector similarity (60%) with BM25 keyword scores (40%) for improved retrieval.
+- **Score normalization** — BM25 ranks are min-max normalized before blending with vector scores.
+
+### Infrastructure
+- **Temporal query helpers** — `get_edges_at_time()` and `get_active_edge_count()` for temporal graph analysis.
+- **Heat score calculation pipeline** — integrated into search module for automatic tier-based ranking.
+
 ## v0.7.2 (2026-08-15)
 
 ### Security Hardening (Comprehensive Audit)
