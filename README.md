@@ -89,6 +89,8 @@ memorius diary "session-001" --title "Research findings"
 - **Obsidian path containment** — REST `/obsidian` endpoints ensure target paths stay within home directory.
 - **Filesystem-friendly name limits** — `MAX_NAME_LENGTH` lowered from 1000 to 128 characters.
 - **Output-driven LLM validation** — strict structured output schema validation replaces regex injection blacklist.
+- **LLM extraction trust model** — system message isolates extraction rules from user-provided conversation content. Treat LLM search results as untrusted data.
+- **API key security** — OpenAI API key stored in environment variable `OPENAI_API_KEY`. Never commit keys to version control. Use `.env` files for local development.
 
 ### Added
 - **Knowledge Graph Visualizer** — standalone interactive HTML visualization with force-directed canvas layout, shelf/relation filtering, search, node inspector, and zoom/pan. Access via `memorius graph view`, MCP `memorius_graph_export`, or REST `GET /graph/view`.

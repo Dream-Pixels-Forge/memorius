@@ -360,6 +360,8 @@ class VaultEngine:
 
         Args:
             dest: Optional file path to save HTML. If omitted, returns HTML string.
+                Must be within the configured export directory or storage path
+                to prevent path traversal.
             vault: Optional vault filter.
             shelf: Optional shelf filter.
             relation: Optional relation filter.
@@ -379,7 +381,16 @@ class VaultEngine:
         )
         html_content = render_graph_html(graph_data, title=title)
         if dest:
-            out_path = Path(dest)
+            out_path = Path(dest).resolve()
+            # Path traversal guard: dest must be within the storage directory
+            storage_cfg = self._config.get("storage", {})
+            storage_path = Path(storage_cfg.get("path", "~/.memorius/data")).expanduser().resolve()
+            safe_parent = out_path.parent if out_path.suffix else out_path
+            if not str(safe_parent).startswith(str(storage_path)) and not str(out_path).startswith(str(storage_path)):
+                raise ValueError(
+                    f"Export path must be under the storage directory ({storage_path}). "
+                    f"Refusing to write to: {out_path}"
+                )
             out_path.parent.mkdir(parents=True, exist_ok=True)
             out_path.write_text(html_content, encoding="utf-8")
         return html_content

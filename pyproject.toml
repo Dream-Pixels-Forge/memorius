@@ -19,15 +19,15 @@ classifiers = [
 ]
 
 dependencies = [
-    "pyyaml>=6.0",
-    "chromadb>=0.4.0",
-    "httpx>=0.24.0",
-    "fastapi>=0.104.0",
+    "pyyaml>=6.0.1",
+    "chromadb>=0.4.22",
+    "httpx>=0.25.0",
+    "fastapi>=0.104.1",
     "uvicorn[standard]>=0.24.0",
     "pydantic>=2.0.0",
     "sse-starlette>=1.0.0",
-    "sentence-transformers>=2.2.0",
-    "openai>=1.0.0",
+    "sentence-transformers>=2.6.0",
+    "openai>=1.10.0",
     "sqlite-vec>=0.1.0",
 ]
 

@@ -13,6 +13,14 @@
 - **Obsidian path containment** — REST `/obsidian` endpoints ensure target vault paths stay within the user's home directory.
 - **Filesystem-friendly name limits** — Lowered `MAX_NAME_LENGTH` in `validation.py` from 1000 to 128 characters.
 - **Output-driven LLM validation** — Removed brittle regex injection blacklist in `llm_extract.py` in favor of strict structured output schema validation.
+- **LLM extraction trust model** — Added `EXTRACTION_SYSTEM` system message to isolate extraction rules from user-provided conversation content. Applied to both OpenAI and Ollama extraction paths.
+- **Path traversal guards** — `export_graph_html` validates destination path stays within storage directory; CLI obsidian export validates output subdirectory paths.
+- **HTML injection prevention** — Graph visualizer title escaped via `html.escape()` to prevent XSS.
+- **Command injection prevention** — Windows daemon startup now passes host/port/tls via environment variables instead of string interpolation.
+- **Template injection prevention** — `_substitute_templates` recursion depth limited to 10 to prevent infinite loops.
+- **UUID validation on MCP handlers** — `memorius_contradictions`, `memorius_get`, `memorius_update`, `memorius_delete` now validate memory_id format.
+- **Dependency version pinning** — Minimum versions set for `chromadb>=0.4.22`, `sentence-transformers>=2.6.0`, `httpx>=0.25.0`, `openai>=1.1.0`, `pyyaml>=6.0.1`.
+- **Security documentation** — MCP tool descriptions include security notes about treating memory content as untrusted data. README documents API key security.
 
 ### Added
 - **Knowledge Graph Visualizer** — standalone, zero-dependency interactive HTML visualization of the associative memory graph. Force-directed layout with canvas rendering, shelf/relation filtering, search, node inspector sidebar, and zoom/pan. Accessible via:

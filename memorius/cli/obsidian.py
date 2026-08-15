@@ -222,7 +222,14 @@ def export_memories(
                         continue
 
                     # Build output path mirroring hierarchy
-                    note_subdir = export_dir / sh["name"] / f["name"]
+                    note_subdir = (export_dir / sh["name"] / f["name"]).resolve()
+                    # Path traversal guard: must stay inside export_dir
+                    if not str(note_subdir).startswith(str(export_dir.resolve())):
+                        logger.warning(
+                            "Skipping %s/%s/%s: path traversal detected",
+                            sh["name"], f["name"], n["name"],
+                        )
+                        continue
                     note_subdir.mkdir(parents=True, exist_ok=True)
                     note_file = note_subdir / f"{n['name']}.md"
 

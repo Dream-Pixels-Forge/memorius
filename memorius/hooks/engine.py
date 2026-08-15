@@ -57,17 +57,23 @@ logger = logging.getLogger("memorius.hooks.engine")
 DEFAULT_SAVE_INTERVAL = 15
 
 
-def _substitute_templates(obj, subs: dict[str, str]):
+def _substitute_templates(obj, subs: dict[str, str], _depth: int = 0):
     """Recursively replace {key} placeholders with string values in a nested structure.
 
     Walks dicts, lists, and scalars. Non-string scalars are passed through
     unchanged. Substitution is done at config-load time so action configs
     can reference top-level scalars like {save_interval}.
+
+    Args:
+        _depth: Recursion depth guard to prevent infinite substitution loops
+                (e.g. if a value contains its own key placeholder).
     """
+    if _depth > 10:
+        return obj
     if isinstance(obj, dict):
-        return {k: _substitute_templates(v, subs) for k, v in obj.items()}
+        return {k: _substitute_templates(v, subs, _depth + 1) for k, v in obj.items()}
     if isinstance(obj, list):
-        return [_substitute_templates(v, subs) for v in obj]
+        return [_substitute_templates(v, subs, _depth + 1) for v in obj]
     if isinstance(obj, str):
         out = obj
         for key, val in subs.items():

@@ -631,24 +631,37 @@ def _start_daemon(engine, host: str, port: int, pid_file: Path,
     import sys
     import subprocess
 
-    tls_args = ""
-    if tls_cert and tls_key:
-        tls_args = f", tls_cert='{tls_cert}', tls_key='{tls_key}'"
-
     if os.name == "nt":
         # Windows: launch detached subprocess
-        cmd = [
-            sys.executable, "-c",
-            (
-                f"import os, sys; sys.stdin = open(os.devnull); "
-                f"Path('{pid_file}').write_text(str(os.getpid())); "
-                f"from memorius.rest_server import run_rest_server; "
-                f"from memorius.vault import VaultEngine; "
-                f"from memorius.config import load_config; "
-                f"e = VaultEngine(load_config()); "
-                f"run_rest_server(e, host='{host}', port={port}{tls_args})"
-            ),
-        ]
+        # Pass configuration via environment variables to avoid shell injection
+        # through string interpolation in python -c commands.
+        daemon_script = (
+            "import os, sys; sys.stdin = open(os.devnull); "
+            "from pathlib import Path; "
+            "Path(os.environ['MEMORIUS_PID_FILE']).write_text(str(os.getpid())); "
+            "from memorius.rest_server import run_rest_server; "
+            "from memorius.vault import VaultEngine; "
+            "from memorius.config import load_config; "
+            "e = VaultEngine(load_config()); "
+            "run_rest_server(e, host=os.environ['MEMORIUS_HOST'], "
+            "port=int(os.environ['MEMORIUS_PORT']))"
+        )
+        env = os.environ.copy()
+        env["MEMORIUS_HOST"] = host
+        env["MEMORIUS_PORT"] = str(port)
+        env["MEMORIUS_PID_FILE"] = str(pid_file)
+        if tls_cert and tls_key:
+            env["MEMORIUS_TLS_CERT"] = tls_cert
+            env["MEMORIUS_TLS_KEY"] = tls_key
+            daemon_script = daemon_script.replace(
+                "run_rest_server(e, host=os.environ['MEMORIUS_HOST'], "
+                "port=int(os.environ['MEMORIUS_PORT']))",
+                "run_rest_server(e, host=os.environ['MEMORIUS_HOST'], "
+                "port=int(os.environ['MEMORIUS_PORT']), "
+                "tls_cert=os.environ.get('MEMORIUS_TLS_CERT'), "
+                "tls_key=os.environ.get('MEMORIUS_TLS_KEY'))",
+            )
+        cmd = [sys.executable, "-c", daemon_script]
         proc = subprocess.Popen(
             cmd,
             creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,

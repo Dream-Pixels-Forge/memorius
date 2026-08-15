@@ -7,6 +7,7 @@ contradictions offline or in the browser.
 
 from __future__ import annotations
 
+import html as _html
 import json
 from typing import Any
 
@@ -19,19 +20,20 @@ def render_graph_html(
 
     Args:
         graph_data: Dict with 'nodes', 'edges', and 'summary' keys.
-        title: Page title.
+        title: Page title (HTML-escaped to prevent injection).
 
     Returns:
         Full HTML string ready to serve or write to disk.
     """
     json_payload = json.dumps(graph_data, ensure_ascii=False)
+    safe_title = _html.escape(str(title))
 
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{title}</title>
+<title>{safe_title}</title>
 <style>
   :root {{
     --bg-primary: #0a0c14;

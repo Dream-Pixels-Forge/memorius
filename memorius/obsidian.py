@@ -15,7 +15,12 @@ FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 
 def resolve_vault_path(vault_arg: str | None = None) -> Path:
-    """Resolve the Obsidian vault path from arg, env var, or default."""
+    """Resolve the Obsidian vault path from arg, env var, or default.
+
+    Security note: This resolves the path but does NOT restrict it.
+    Callers (REST API, CLI) should add their own path validation as needed.
+    For example, the REST API checks that the path is within the home directory.
+    """
     raw = (
         vault_arg
         or os.environ.get("OBSIDIAN_VAULT_PATH")
