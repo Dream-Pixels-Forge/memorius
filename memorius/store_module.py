@@ -83,6 +83,25 @@ class StoreModule:
             folder=folder, note=note, content=content, metadata=merged_metadata,
             created_at=memory.created_at,
         )
+        # Semantic dedup: check for near-duplicates after storing
+        _DEDUP_SIMILARITY_THRESHOLD = 0.92
+        try:
+            similar = self._vector.search(
+                content, vault=vault, shelf=shelf, n_results=5,
+            )
+            for hit in similar:
+                if hit.id == memory.id:
+                    continue
+                dist = hit.metadata.get("__distance__", 1.0)
+                similarity = 1.0 - dist
+                if similarity > _DEDUP_SIMILARITY_THRESHOLD:
+                    merged_metadata["duplicate_of"] = hit.id
+                    self._meta.update_memory_meta(
+                        memory.id, metadata={"duplicate_of": hit.id},
+                    )
+                    break
+        except Exception:
+            logger.debug("Semantic dedup check failed (best-effort)")
         # Auto-link to related memories via content similarity
         try:
             self._meta.init_graph()
