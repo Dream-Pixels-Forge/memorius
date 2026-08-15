@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -21,6 +22,28 @@ from memorius.temporal import calculate_decay_score
 from .utils import cosine_similarity
 
 logger = logging.getLogger("memorius.consolidation")
+
+
+class ConsolidationDaemon(threading.Thread):
+    def __init__(self, meta_store, vector_store, config: dict):
+        super().__init__(daemon=True)
+        self._meta_store = meta_store
+        self._vector_store = vector_store
+        self._config = config.get("consolidation", {})
+        self._stop_event = threading.Event()
+
+    def stop(self):
+        self._stop_event.set()
+
+    def run(self):
+        interval = self._config.get("interval_seconds", 3600)
+        while not self._stop_event.is_set():
+            self._stop_event.wait(interval)
+            if not self._stop_event.is_set():
+                self._run_cycle()
+
+    def _run_cycle(self):
+        pass
 
 
 @dataclass

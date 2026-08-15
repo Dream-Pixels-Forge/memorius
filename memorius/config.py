@@ -47,6 +47,14 @@ retrieval:
 """
 
 
+def get_config() -> dict[str, Any]:
+    """Return default config with env overrides (no file I/O)."""
+    config = _default_config()
+    _apply_env_overrides(config)
+    _ensure_defaults(config)
+    return config
+
+
 def load_config(path: str | Path | None = None) -> dict[str, Any]:
     """Load config from YAML file, merging with env var overrides.
 
@@ -115,6 +123,14 @@ def _ensure_defaults(config: dict[str, Any]):
     hooks = config.setdefault("hooks", {})
     hooks.setdefault("enabled", True)
     hooks.setdefault("config", "~/.memorius/hooks.yaml")
+
+    consolidation = config.setdefault("consolidation", {})
+    consolidation.setdefault("enabled", False)
+    consolidation.setdefault("interval_seconds", 3600)
+    consolidation.setdefault("dedup_threshold", 0.92)
+    consolidation.setdefault("contradiction_check", True)
+    consolidation.setdefault("max_consolidations_per_run", 100)
+    consolidation.setdefault("auto_prune", True)
 
 
 def _apply_env_overrides(config: dict[str, Any]):
