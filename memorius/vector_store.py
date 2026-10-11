@@ -226,6 +226,7 @@ class ChromaStore(VectorStore):
                 return [name]
             except Exception:  # best-effort: collection not found in ChromaDB
                 return []
+        if vault:
             prefix = f"v{len(vault):03d}_{vault}_s"
             return [n for n in self._collections if n.startswith(prefix)]
         return list(self._collections.keys())

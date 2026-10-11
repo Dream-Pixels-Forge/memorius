@@ -217,3 +217,49 @@ def test_rest_search_threads_tags_filter():
     finally:
         eng.close()
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_vault_only_search_no_cross_vault_leakage(engine):
+    """Vault-only search (without shelf) should not leak memories from other vaults.
+    
+    This test addresses the issue where memorius_search ignored vault filter
+    when shelf was omitted, causing cross-vault data leakage.
+    """
+    # Create memories in two different vaults
+    engine.store("alpha vault memory content", vault="vault_alpha", shelf="shelf_alpha")
+    engine.store("beta vault memory content", vault="vault_beta", shelf="shelf_beta")
+    
+    # Also create some memories in each vault with different shelves to ensure
+    # we're testing vault-only (not vault-and-shelf) search
+    engine.store("alpha vault another memory", vault="vault_alpha", shelf="shelf_alpha2")
+    engine.store("beta vault another memory", vault="vault_beta", shelf="shelf_beta2")
+    
+    # Search for "alpha" in vault_alpha only (no shelf specified)
+    results = engine.search("alpha", vault="vault_alpha", limit=10)
+    
+    # Should only return memories from vault_alpha
+    assert len(results) >= 2  # At least the two alpha memories we stored
+    for mem in results:
+        assert mem.vault == "vault_alpha", f"Found memory from wrong vault: {mem.vault}"
+        assert "alpha" in mem.content.lower()
+    
+    # Verify no memories from vault_beta are present
+    beta_memories = [mem for mem in results if mem.vault == "vault_beta"]
+    assert len(beta_memories) == 0, f"Found {len(beta_memories)} memories from vault_beta in vault_alpha search"
+    
+    # Similarly, search for "beta" in vault_beta only
+    results = engine.search("beta", vault="vault_beta", limit=10)
+    
+    # Should only return memories from vault_beta
+    assert len(results) >= 2  # At least the two beta memories we stored
+    for mem in results:
+        assert mem.vault == "vault_beta", f"Found memory from wrong vault: {mem.vault}"
+        assert "beta" in mem.content.lower()
+    
+    # Verify no memories from vault_alpha are present
+    alpha_memories = [mem for mem in results if mem.vault == "vault_alpha"]
+    assert len(alpha_memories) == 0, f"Found {len(alpha_memories)} memories from vault_alpha in vault_beta search"
+    
+    # Test edge case: search in non-existent vault should return empty results
+    results = engine.search("nonexistent", vault="vault_nonexistent", limit=10)
+    assert len(results) == 0, "Search in non-existent vault should return empty results"
