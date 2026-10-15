@@ -5,48 +5,50 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Memorius — Universal memory vault for any AI agent</title>
 <meta name="description" content="Memorius is a self-contained, agent-agnostic memory system that gives LLMs and AI agents persistent, searchable memory with hierarchical knowledge organization. MCP, REST, hooks for 7 agents." />
-<meta name="theme-color" content="#7C3AED" />
+<meta name="theme-color" content="#F97316" />
 <meta property="og:title" content="Memorius — Universal memory vault for any AI agent" />
 <meta property="og:description" content="Drop-in persistent memory for any AI agent. MCP + REST + hooks for 7 agents. Pluggable embeddings, multi-backend vector storage." />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://dream-pixels-forge.github.io/memorius/" />
 <meta name="twitter:card" content="summary_large_image" />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237C3AED'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='ui-monospace,SFMono-Regular,monospace' font-size='34' font-weight='700' fill='white'%3EM%3C/text%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23F97316'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='ui-monospace,SFMono-Regular,monospace' font-size='34' font-weight='700' fill='white'%3EM%3C/text%3E%3C/svg%3E" />
 <style>
   :root {
-    --bg: #06060c;
-    --bg-elev: #0c0c16;
-    --bg-card: #10101c;
-    --border: #1a1a2e;
-    --border-hi: #282840;
-    --fg: #e8e6f2;
-    --fg-dim: #8a86a4;
-    --fg-mute: #565274;
-    --accent: #7C3AED;
-    --accent-hi: #a78bfa;
-    --accent-glow: rgba(124, 58, 237, 0.12);
+    --bg: #09090f;
+    --bg-elev: #10101a;
+    --bg-card: #13131f;
+    --border: #1e1e2e;
+    --border-hi: #2a2a3e;
+    --fg: #edebe8;
+    --fg-dim: #9b97a5;
+    --fg-mute: #5e5a6a;
+    --accent: #F97316;
+    --accent-hi: #FDBA74;
+    --accent-glow: rgba(249, 115, 22, 0.14);
+    --accent-soft: rgba(249, 115, 22, 0.08);
     --green: #34d399;
-    --code-bg: #0a0a14;
-    --code-border: #16162a;
+    --code-bg: #0d0d18;
+    --code-border: #1c1c30;
     --radius: 12px;
-    --radius-lg: 16px;
-    --maxw: 1120px;
+    --radius-lg: 18px;
+    --maxw: 1140px;
     --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   }
   @media (prefers-color-scheme: light) {
     :root {
-      --bg: #f6f5fa;
+      --bg: #faf9f7;
       --bg-elev: #ffffff;
       --bg-card: #ffffff;
-      --border: #ddd8ea;
-      --border-hi: #ccc4e0;
-      --fg: #1a1726;
-      --fg-dim: #5d5978;
-      --fg-mute: #8f8ba8;
-      --accent-glow: rgba(124, 58, 237, 0.06);
-      --code-bg: #efecf6;
-      --code-border: #ddd8ea;
+      --border: #e8e4dc;
+      --border-hi: #d6d0c4;
+      --fg: #1a1816;
+      --fg-dim: #5c564d;
+      --fg-mute: #9c958a;
+      --accent-glow: rgba(249, 115, 22, 0.1);
+      --accent-soft: rgba(249, 115, 22, 0.05);
+      --code-bg: #f4f2ee;
+      --code-border: #e8e4dc;
     }
   }
   * { box-sizing: border-box; }
@@ -54,12 +56,21 @@
   body {
     font-family: var(--sans);
     background: var(--bg);
-    background-image: radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 0);
-    background-size: 32px 32px;
     color: var(--fg);
     line-height: 1.65;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+  /* Subtle dot grid background */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background-image: radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 0);
+    background-size: 36px 36px;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.5;
   }
   a { color: var(--accent-hi); text-decoration: none; }
   a:hover { text-decoration: underline; }
@@ -81,38 +92,39 @@
     line-height: 1.55;
   }
   pre code { background: none; border: none; padding: 0; font-size: inherit; }
-  .container { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+  .container { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
 
   /* ── Nav ── */
   .nav {
     position: sticky; top: 0; z-index: 50;
-    backdrop-filter: saturate(180%) blur(14px);
-    -webkit-backdrop-filter: saturate(180%) blur(14px);
-    background: color-mix(in srgb, var(--bg) 70%, transparent);
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
     border-bottom: 1px solid var(--border);
   }
   .nav-inner {
     display: flex; align-items: center; justify-content: space-between;
-    height: 60px;
+    height: 64px;
   }
   .brand {
-    display: flex; align-items: center; gap: 10px;
+    display: flex; align-items: center; gap: 11px;
     font-weight: 700; color: var(--fg);
-    letter-spacing: -0.01em;
+    letter-spacing: -0.01em; font-size: 16px;
   }
   .brand-mark {
-    width: 28px; height: 28px; border-radius: 7px;
-    background: linear-gradient(135deg, #7C3AED, #a78bfa);
+    width: 30px; height: 30px; border-radius: 8px;
+    background: linear-gradient(135deg, #F97316, #FDBA74);
     display: grid; place-items: center;
-    color: white; font-family: var(--mono); font-weight: 700; font-size: 13px;
+    color: white; font-family: var(--mono); font-weight: 700; font-size: 14px;
+    box-shadow: 0 2px 12px var(--accent-glow);
   }
-  .nav-links { display: flex; gap: 24px; align-items: center; }
+  .nav-links { display: flex; gap: 28px; align-items: center; }
   .nav-links a {
-    color: var(--fg-dim); font-size: 14px; font-weight: 500;
+    color: var(--fg-dim); font-size: 13.5px; font-weight: 500;
     position: relative; transition: color 0.25s;
   }
   .nav-links a::after {
-    content: ''; position: absolute; left: 0; right: 0; bottom: -2px;
+    content: ''; position: absolute; left: 0; right: 0; bottom: -3px;
     height: 1.5px; background: var(--accent);
     transform: scaleX(0); transform-origin: left;
     transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
@@ -121,111 +133,121 @@
   .nav-links a:hover::after { transform: scaleX(1); }
   .nav-cta {
     background: var(--accent); color: white !important;
-    padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
-    transition: box-shadow 0.3s, background 0.25s;
+    padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    transition: box-shadow 0.3s, background 0.25s, transform 0.25s;
+    box-shadow: 0 0 16px var(--accent-glow);
   }
-  .nav-cta:hover { background: var(--accent-hi); box-shadow: 0 0 24px var(--accent-glow); }
+  .nav-cta:hover { background: var(--accent-hi); box-shadow: 0 0 28px var(--accent-glow); transform: translateY(-1px); }
   .nav-cta::after { display: none; }
   @media (max-width: 720px) { .nav-links .nav-hide { display: none; } }
 
   /* ── Hero ── */
   .hero {
-    padding: 120px 0 80px;
+    padding: 130px 0 90px;
     text-align: center;
     position: relative;
     overflow: hidden;
   }
-  /* Dots overlay on hero */
   .hero::before {
     content: "";
     position: absolute; inset: 0;
     background:
-      radial-gradient(800px 400px at 50% -10%, var(--accent-glow), transparent 70%);
+      radial-gradient(900px 420px at 50% -12%, var(--accent-glow), transparent 70%),
+      radial-gradient(500px 300px at 30% 20%, var(--accent-soft), transparent 60%),
+      radial-gradient(500px 300px at 70% 20%, var(--accent-soft), transparent 60%);
     pointer-events: none;
   }
-  /* Floating glow orb */
-  .hero::after {
-    content: "";
+  .hero-orb {
     position: absolute;
-    width: 600px; height: 600px;
-    left: 50%; top: 50%;
+    width: 680px; height: 680px;
+    left: 50%; top: 48%;
     transform: translate(-50%, -50%);
-    background: radial-gradient(circle, rgba(124,58,237,0.06) 0%, transparent 65%);
+    background: radial-gradient(circle, rgba(249,115,22,0.07) 0%, transparent 62%);
     pointer-events: none;
-    animation: orb-pulse 6s ease-in-out infinite;
+    animation: orb-pulse 7s ease-in-out infinite;
   }
   @keyframes orb-pulse {
     0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-    50% { transform: translate(-50%, -50%) scale(1.15); opacity: 0.6; }
+    50% { transform: translate(-50%, -50%) scale(1.18); opacity: 0.55; }
   }
   .hero-eyebrow {
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 6px 14px; border-radius: 999px;
-    background: var(--accent-glow);
-    border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+    padding: 7px 16px; border-radius: 999px;
+    background: var(--accent-soft);
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
     color: var(--accent-hi);
-    font-size: 12px; font-weight: 600;
-    letter-spacing: 0.06em; text-transform: uppercase;
-    margin-bottom: 24px;
-    position: relative;
-    z-index: 1;
+    font-size: 11.5px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    margin-bottom: 28px;
+    position: relative; z-index: 1;
+    backdrop-filter: blur(4px);
+  }
+  .hero-eyebrow .pulse-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent);
+    animation: dot-pulse 2s ease-in-out infinite;
+  }
+  @keyframes dot-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.85); }
   }
   .hero h1 {
-    font-size: clamp(40px, 6.5vw, 66px);
-    line-height: 1.05;
-    letter-spacing: -0.03em;
-    margin: 0 0 20px;
+    font-size: clamp(42px, 7vw, 72px);
+    line-height: 1.04;
+    letter-spacing: -0.035em;
+    margin: 0 0 22px;
     font-weight: 800;
     position: relative;
     z-index: 1;
   }
   .hero h1 .accent {
-    background: linear-gradient(135deg, #7C3AED 0%, #a78bfa 50%, #c4b5fd 100%);
+    background: linear-gradient(120deg, #F97316 0%, #FDBA74 45%, #FED7AA 100%);
     background-size: 200% 200%;
     -webkit-background-clip: text; background-clip: text; color: transparent;
-    animation: shimmer 4s ease-in-out infinite;
+    animation: shimmer 5s ease-in-out infinite;
   }
   @keyframes shimmer {
     0%, 100% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
   }
   .hero p.lead {
-    font-size: clamp(15.5px, 2vw, 18.5px);
+    font-size: clamp(15.5px, 2vw, 19px);
     color: var(--fg-dim);
-    max-width: 640px; margin: 0 auto 36px;
+    max-width: 660px; margin: 0 auto 40px;
     line-height: 1.7;
     position: relative;
     z-index: 1;
   }
   .install {
     display: inline-flex; align-items: stretch;
-    background: color-mix(in srgb, var(--code-bg) 80%, transparent);
+    background: color-mix(in srgb, var(--code-bg) 85%, transparent);
     border: 1px solid var(--code-border);
-    border-radius: 10px;
+    border-radius: 12px;
     overflow: hidden;
     max-width: 100%;
     transition: border-color 0.3s, box-shadow 0.3s;
     position: relative;
     z-index: 1;
     backdrop-filter: blur(4px);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.2);
   }
   .install:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
   .install-prompt {
-    padding: 13px 12px 13px 18px;
+    padding: 14px 12px 14px 20px;
     color: var(--accent-hi);
     font-family: var(--mono);
     font-size: 14px;
     user-select: none;
   }
   .install code {
-    background: none; border: none; padding: 13px 12px 13px 0;
+    background: none; border: none; padding: 14px 12px 14px 0;
     color: var(--fg); font-size: 14px;
   }
   .install button {
     background: transparent;
     border: none; border-left: 1px solid var(--code-border);
     color: var(--fg-dim);
-    padding: 0 18px;
+    padding: 0 20px;
     cursor: pointer;
     font-family: var(--sans); font-size: 12.5px; font-weight: 500;
     transition: color 0.2s, background 0.2s;
@@ -239,22 +261,23 @@
   }
   .install button.copied { animation: copy-pop 0.3s ease; }
   .hero-actions {
-    display: flex; gap: 12px; justify-content: center; margin-top: 32px; flex-wrap: wrap;
+    display: flex; gap: 14px; justify-content: center; margin-top: 36px; flex-wrap: wrap;
     position: relative; z-index: 1;
   }
   .btn {
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 10px 20px; border-radius: 9px;
+    padding: 12px 24px; border-radius: 10px;
     font-weight: 600; font-size: 14px;
     transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .btn-primary {
     background: var(--accent); color: white;
+    box-shadow: 0 4px 20px var(--accent-glow);
   }
   .btn-primary:hover {
-    background: var(--accent-hi); text-decoration: none;
+    background: var(--accent-hi); color: #1a1816; text-decoration: none;
     transform: translateY(-2px);
-    box-shadow: 0 12px 28px rgba(124, 58, 237, 0.25);
+    box-shadow: 0 14px 32px rgba(249, 115, 22, 0.3);
   }
   .btn-ghost {
     background: transparent; color: var(--fg);
@@ -265,26 +288,26 @@
     transform: translateY(-2px);
   }
   .hero-badges {
-    display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 36px;
+    display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 40px;
     position: relative; z-index: 1;
   }
   .badge {
     display: inline-flex; align-items: center; gap: 6px;
-    padding: 5px 12px; border-radius: 999px;
-    background: color-mix(in srgb, var(--bg-elev) 70%, transparent);
+    padding: 6px 14px; border-radius: 999px;
+    background: color-mix(in srgb, var(--bg-elev) 75%, transparent);
     border: 1px solid var(--border);
     font-size: 12px; color: var(--fg-dim);
     font-weight: 500;
     backdrop-filter: blur(4px);
   }
   .badge .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
+  .badge .accent { color: var(--accent-hi); font-weight: 600; }
 
   /* ── Sections ── */
   section {
-    padding: 96px 0;
+    padding: 100px 0;
     position: relative;
   }
-  /* Section separator with gradient line */
   section::before {
     content: '';
     position: absolute; top: 0; left: 10%; right: 10%;
@@ -294,16 +317,16 @@
   section:first-of-type { border: none; }
   section:first-of-type::before { display: none; }
   section h2 {
-    font-size: clamp(27px, 3.8vw, 35px);
-    letter-spacing: -0.025em;
-    margin: 0 0 8px; font-weight: 700;
-    line-height: 1.2;
+    font-size: clamp(28px, 4vw, 38px);
+    letter-spacing: -0.03em;
+    margin: 0 0 10px; font-weight: 700;
+    line-height: 1.15;
   }
   section .sub {
     color: var(--fg-dim);
     font-size: 16px;
-    max-width: 580px; margin: 0 0 52px;
-    line-height: 1.6;
+    max-width: 600px; margin: 0 0 56px;
+    line-height: 1.65;
   }
 
   /* ── Features ── */
@@ -315,64 +338,114 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    padding: 28px;
-    transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    padding: 30px;
+    transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
     opacity: 0;
     transform: translateY(16px);
+    position: relative;
+    overflow: hidden;
+  }
+  .feature::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity 0.4s;
   }
   .feature.visible {
     opacity: 1;
     transform: translateY(0);
   }
   .feature:hover {
-    transform: translateY(-4px);
+    transform: translateY(-5px);
     border-color: var(--border-hi);
-    box-shadow: 0 16px 48px rgba(0,0,0,0.3);
+    box-shadow: 0 20px 56px rgba(0,0,0,0.35), 0 0 0 1px var(--accent-soft);
   }
   .feature.visible:hover {
-    transform: translateY(-4px);
+    transform: translateY(-5px);
   }
+  .feature:hover::before { opacity: 1; }
   .feature .icon {
-    width: 40px; height: 40px;
-    border-radius: 10px;
+    width: 44px; height: 44px;
+    border-radius: 11px;
     background: var(--accent-glow);
     color: var(--accent-hi);
     display: grid; place-items: center;
-    margin-bottom: 16px;
+    margin-bottom: 18px;
     transition: transform 0.3s ease;
   }
-  .feature:hover .icon { transform: scale(1.1); }
-  .feature .icon svg { width: 20px; height: 20px; stroke: currentColor; stroke-width: 1.5; fill: none; }
-  .feature h3 { margin: 0 0 10px; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
-  .feature p { margin: 0; color: var(--fg-dim); font-size: 14px; line-height: 1.6; }
+  .feature:hover .icon { transform: scale(1.12); }
+  .feature .icon svg { width: 22px; height: 22px; stroke: currentColor; stroke-width: 1.5; fill: none; }
+  .feature h3 { margin: 0 0 10px; font-size: 16.5px; font-weight: 650; letter-spacing: -0.015em; }
+  .feature p { margin: 0; color: var(--fg-dim); font-size: 14px; line-height: 1.65; }
+
+  /* ── Skill install ── */
+  .skill-section {
+    background: linear-gradient(135deg, var(--accent-soft) 0%, transparent 60%);
+    border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+    border-radius: var(--radius-lg);
+    padding: 36px;
+    margin-bottom: 56px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 36px;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+  }
+  @media (max-width: 800px) { .skill-section { grid-template-columns: 1fr; } }
+  .skill-section h3 {
+    font-size: 20px; font-weight: 700; letter-spacing: -0.02em;
+    margin: 0 0 10px;
+  }
+  .skill-section p {
+    color: var(--fg-dim); font-size: 14.5px; line-height: 1.65;
+    margin: 0 0 20px;
+  }
+  .skill-install {
+    display: flex; align-items: stretch;
+    background: color-mix(in srgb, var(--code-bg) 85%, transparent);
+    border: 1px solid var(--code-border);
+    border-radius: 10px;
+    overflow: hidden;
+    font-family: var(--mono); font-size: 13px;
+  }
+  .skill-install .si-prompt {
+    padding: 12px 10px 12px 16px;
+    color: var(--accent-hi);
+    user-select: none;
+    display: flex; align-items: center;
+  }
+  .skill-install code {
+    background: none; border: none; padding: 12px 12px 12px 0;
+    color: var(--fg); font-size: 13px;
+  }
 
   /* ── Quick start ── */
   .quickstart-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 40px;
-    align-items: center;
+    gap: 44px;
+    align-items: start;
   }
-  @media (max-width: 800px) { .quickstart-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 840px) { .quickstart-grid { grid-template-columns: 1fr; } }
   .quickstart-desc h3 {
-    font-size: 21px; font-weight: 600; letter-spacing: -0.02em;
-    margin: 0 0 12px;
+    font-size: 22px; font-weight: 650; letter-spacing: -0.02em;
+    margin: 0 0 14px;
   }
   .quickstart-desc p {
-    color: var(--fg-dim); font-size: 15px; line-height: 1.6;
-    margin: 0 0 20px;
+    color: var(--fg-dim); font-size: 15px; line-height: 1.65;
+    margin: 0 0 24px;
   }
   .step-list { list-style: none; padding: 0; margin: 0; }
   .step-list li {
-    display: flex; gap: 14px; align-items: flex-start;
-    padding: 10px 0;
+    display: flex; gap: 16px; align-items: flex-start;
+    padding: 12px 0;
     border-bottom: 1px solid var(--border);
     font-size: 14px; color: var(--fg-dim);
   }
   .step-list li:last-child { border-bottom: none; }
   .step-num {
-    flex: 0 0 28px; height: 28px;
-    border-radius: 7px;
+    flex: 0 0 30px; height: 30px;
+    border-radius: 8px;
     background: var(--accent-glow);
     color: var(--accent-hi);
     display: grid; place-items: center;
@@ -380,15 +453,15 @@
   }
 
   /* ── Architecture ── */
-  .arch-wrap { display: grid; grid-template-columns: 1.2fr 1fr; gap: 40px; align-items: start; }
+  .arch-wrap { display: grid; grid-template-columns: 1.2fr 1fr; gap: 44px; align-items: start; }
   @media (max-width: 880px) { .arch-wrap { grid-template-columns: 1fr; } }
   .arch-diagram {
     background: color-mix(in srgb, var(--code-bg) 90%, transparent);
     border: 1px solid var(--code-border);
     border-radius: var(--radius-lg);
-    padding: 24px;
+    padding: 26px;
     overflow-x: auto;
-    font-family: var(--mono); font-size: 12px; line-height: 1.45;
+    font-family: var(--mono); font-size: 11.5px; line-height: 1.5;
     color: var(--fg-dim);
     white-space: pre;
     backdrop-filter: blur(4px);
@@ -398,21 +471,22 @@
     list-style: none; padding: 0; margin: 0;
   }
   .arch-notes li {
-    padding: 12px 0 12px 20px;
+    padding: 14px 0 14px 22px;
     border-left: 2px solid var(--border);
-    margin-bottom: 4px;
+    margin-bottom: 6px;
     color: var(--fg-dim);
     font-size: 14px;
-    line-height: 1.55;
+    line-height: 1.6;
     position: relative;
     transition: border-color 0.3s;
   }
   .arch-notes li:hover { border-left-color: var(--accent); }
   .arch-notes li::before {
     content: '';
-    position: absolute; left: -4px; top: 18px;
-    width: 6px; height: 6px; border-radius: 50%;
+    position: absolute; left: -5px; top: 20px;
+    width: 8px; height: 8px; border-radius: 50%;
     background: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
     transition: transform 0.3s;
   }
   .arch-notes li:hover::before { transform: scale(1.4); }
@@ -421,14 +495,14 @@
   /* ── Agents ── */
   .agents {
     display: grid; gap: 12px;
-    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   }
   .agent {
     display: flex; align-items: center; gap: 14px;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 14px 18px;
+    padding: 15px 18px;
     transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     opacity: 0;
     transform: translateY(12px);
@@ -438,20 +512,20 @@
     transform: translateY(0);
   }
   .agent:hover {
-    border-color: var(--accent);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+    transform: translateY(-3px);
+    box-shadow: 0 10px 28px rgba(0,0,0,0.25);
   }
   .agent.visible:hover {
-    transform: translateY(-2px);
+    transform: translateY(-3px);
   }
   .agent .logo {
-    width: 36px; height: 36px;
-    border-radius: 8px;
+    width: 38px; height: 38px;
+    border-radius: 9px;
     display: grid; place-items: center;
     font-family: var(--mono); font-weight: 700;
     color: white; flex: 0 0 auto;
-    font-size: 13px;
+    font-size: 14px;
   }
   .agent .name { font-weight: 600; font-size: 14.5px; }
   .agent .meta { font-size: 12px; color: var(--fg-mute); }
@@ -465,7 +539,7 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    padding: 22px 24px;
+    padding: 24px;
     transition: border-color 0.25s, transform 0.25s;
   }
   .cli-card:hover {
@@ -477,12 +551,12 @@
     color: var(--accent-hi);
     font-family: var(--mono);
     font-weight: 600;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
   }
   .cli-card .row {
     display: flex; gap: 10px; align-items: baseline;
-    padding: 7px 0;
+    padding: 8px 0;
     border-bottom: 1px solid var(--code-border);
     font-size: 13px;
   }
@@ -490,12 +564,41 @@
   .cli-card .cmd { font-family: var(--mono); color: var(--fg); white-space: nowrap; font-size: 13px; }
   .cli-card .desc { color: var(--fg-dim); font-size: 12.5px; }
 
+  /* ── CTA Band ── */
+  .cta-band {
+    background: linear-gradient(135deg, var(--accent-soft), var(--accent-glow));
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+    border-radius: 20px;
+    padding: 64px 48px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .cta-band::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(600px 200px at 50% 0%, var(--accent-glow), transparent 70%);
+    pointer-events: none;
+  }
+  .cta-band h2 { position: relative; z-index: 1; }
+  .cta-band p {
+    color: var(--fg-dim);
+    max-width: 500px;
+    margin: 0 auto 32px;
+    position: relative; z-index: 1;
+    font-size: 15.5px;
+    line-height: 1.65;
+  }
+  .cta-band .hero-actions { margin-top: 0; position: relative; z-index: 1; }
+
   /* ── Footer ── */
   footer {
     border-top: 1px solid var(--border);
-    padding: 44px 0;
+    padding: 48px 0;
     color: var(--fg-mute);
     font-size: 13px;
+    position: relative;
+    z-index: 1;
   }
   .footer-inner {
     display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;
@@ -509,23 +612,125 @@
   /* ── Scroll-triggered animations ── */
   .fade-up {
     opacity: 0;
-    transform: translateY(20px);
-    transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
-                transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    transform: translateY(24px);
+    transition: opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+                transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .fade-up.visible {
     opacity: 1;
     transform: translateY(0);
   }
-  .delay-1 { transition-delay: 0.05s; }
-  .delay-2 { transition-delay: 0.1s; }
-  .delay-3 { transition-delay: 0.15s; }
-  .delay-4 { transition-delay: 0.2s; }
-  .delay-5 { transition-delay: 0.25s; }
-  .delay-6 { transition-delay: 0.3s; }
+  .delay-1 { transition-delay: 0.06s; }
+  .delay-2 { transition-delay: 0.12s; }
+  .delay-3 { transition-delay: 0.18s; }
+  .delay-4 { transition-delay: 0.24s; }
+  .delay-5 { transition-delay: 0.30s; }
+  .delay-6 { transition-delay: 0.36s; }
+
+  /* ── Scroll progress indicator (Act structure marker) ── */
+  .scroll-progress {
+    position: fixed; top: 0; left: 0; right: 0; height: 3px;
+    z-index: 60;
+    background: transparent;
+  }
+  .scroll-progress .bar {
+    height: 100%; width: 100%;
+    background: linear-gradient(90deg, #F97316, #FDBA74);
+    transform: scaleX(0); transform-origin: left;
+    will-change: transform;
+    transition: transform 0.08s linear;
+  }
+
+  /* ── Nav scroll-spy active state ── */
+  .nav-links a.active { color: var(--accent-hi); }
+  .nav-links a.active::after { transform: scaleX(1); }
+
+  /* ── Cinematic section act labels ── */
+  .act-label {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent-hi);
+    margin-bottom: 14px;
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .act-label.visible { opacity: 1; transform: translateY(0); }
+  .act-label::before {
+    content: '';
+    display: inline-block;
+    width: 24px; height: 1px;
+    background: var(--accent);
+    vertical-align: middle;
+    margin-right: 10px;
+  }
+
+  /* ── Stat counter row (Impact moment) ── */
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 56px;
+  }
+  .stat {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    text-align: center;
+    opacity: 0;
+    transform: translateY(16px);
+    transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .stat.visible { opacity: 1; transform: translateY(0); }
+  .stat .num {
+    font-size: 32px; font-weight: 800;
+    letter-spacing: -0.03em;
+    color: var(--fg);
+    font-family: var(--mono);
+  }
+  .stat .num .suffix { color: var(--accent-hi); }
+  .stat .label {
+    font-size: 13px; color: var(--fg-dim);
+    margin-top: 6px; font-weight: 500;
+  }
+
+  /* ── Breathe spacer (no-dead-scroll recovery) ── */
+  .breathe {
+    height: 12vh;
+    min-height: 80px;
+    position: relative;
+  }
+  .breathe::after {
+    content: '';
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 1px; height: 48px;
+    background: linear-gradient(180deg, transparent, var(--border), transparent);
+  }
+
+  /* ── Reduced motion (movematics accessibility rule) ── */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+    .feature, .agent, .stat, .fade-up, .act-label {
+      opacity: 1 !important;
+      transform: none !important;
+    }
+    .hero-orb, .hero::before, .hero::after { display: none; }
+  }
 </style>
 </head>
 <body>
+
+<div class="scroll-progress" aria-hidden="true"><div class="bar" id="progress-bar"></div></div>
 
 <nav class="nav">
   <div class="container nav-inner">
@@ -533,7 +738,7 @@
       <span class="brand-mark">M</span>
       <span>Memorius</span>
     </a>
-    <div class="nav-links">
+    <div class="nav-links" id="nav-links">
       <a href="#features" class="nav-hide">Features</a>
       <a href="#quickstart" class="nav-hide">Quick Start</a>
       <a href="#architecture" class="nav-hide">Architecture</a>
@@ -545,15 +750,17 @@
 </nav>
 
 <header class="hero" id="top">
+  <div class="hero-orb"></div>
   <div class="container">
     <span class="hero-eyebrow">
+      <span class="pulse-dot"></span>
       <span>Universal memory for any AI agent</span>
     </span>
     <h1>Give your AI agent<br /><span class="accent">a memory that persists</span></h1>
     <p class="lead">
       Memorius is a self-contained, agent-agnostic memory system with hierarchical
       knowledge organization, pluggable embeddings, and built-in MCP + REST servers.
-      Works with 7 AI coding agents out of the box.
+      Neuroscience-inspired consolidation. Works with 7 AI coding agents out of the box.
     </p>
 
     <div class="install" role="group" aria-label="Install command">
@@ -573,7 +780,7 @@
     </div>
 
     <div class="hero-badges">
-      <span class="badge"><span class="dot"></span> MIT licensed</span>
+      <span class="badge"><span class="dot"></span> <span class="accent">v0.8.4</span> MIT licensed</span>
       <span class="badge">Python 3.11+</span>
       <span class="badge">7 agent integrations</span>
       <span class="badge">MCP + REST + Hooks</span>
@@ -583,11 +790,30 @@
 
 <section id="features">
   <div class="container">
+    <span class="act-label" data-act>Act I &mdash; Capabilities</span>
     <h2>Built for the way agents actually work</h2>
     <p class="sub">
       Drop-in memory that any AI agent can use. No lock-in, no per-agent
       rewrites — one vault, many frontends.
     </p>
+
+    <div class="stat-row">
+      <div class="stat delay-1"><div class="num"><span class="count" data-target="126">0</span></div><div class="label">Tests passing</div></div>
+      <div class="stat delay-2"><div class="num"><span class="count" data-target="7">0</span></div><div class="label">Agent integrations</div></div>
+      <div class="stat delay-3"><div class="num"><span class="count" data-target="4">0</span></div><div class="label">Entry points</div></div>
+      <div class="stat delay-4"><div class="num"><span class="count" data-target="0">0</span><span class="suffix">.8.4</span></div><div class="label">Version</div></div>
+    </div>
+
+    <div class="skill-section">
+      <div>
+        <h3>One-line skill install</h3>
+        <p>Memorius ships a pre-built agent skill. Install it into your agent's skill directory with a single npx command — no cloning, no build step.</p>
+      </div>
+      <div class="skill-install" role="group" aria-label="Skill install command">
+        <span class="si-prompt">$</span>
+        <code id="skill-cmd">npx skills add github.com/Dream-Pixels-Forge/memorius/tree/main/skills/memorius</code>
+      </div>
+    </div>
 
     <div class="features" id="feature-grid">
       <div class="feature delay-1">
@@ -622,15 +848,15 @@
         <div class="icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 10h20"/><path d="M6 14h4"/><path d="M14 14h4"/><path d="M6 18h4"/><path d="M14 18h4"/></svg>
         </div>
-        <h3>REST API included</h3>
-        <p>FastAPI HTTP server for any non-MCP client. <code>GET /health</code>, <code>POST /store</code>, <code>POST /search</code>, and more.</p>
+        <h3>Neuroscience consolidation</h3>
+        <p>Interference-based forgetting, engram maturation, and neuromodulator gating model how biological memory systems decay and consolidate. Typed graph edges with spreading activation.</p>
       </div>
       <div class="feature delay-6">
         <div class="icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h8"/><path d="M8 17h6"/><path d="M12 9v4"/></svg>
         </div>
-        <h3>Obsidian integration</h3>
-        <p>Bidirectional sync with Obsidian vaults. YAML frontmatter is parsed, folder hierarchy preserved. <code>memorius obsidian import/export</code>.</p>
+        <h3>REST API + Obsidian sync</h3>
+        <p>FastAPI HTTP server for any non-MCP client. Bidirectional Obsidian vault sync with YAML frontmatter and folder hierarchy preservation.</p>
       </div>
     </div>
   </div>
@@ -643,26 +869,26 @@
 
     <div class="quickstart-grid">
       <div>
-        <pre><code><span style="color:#a78bfa"># Install</span>
+        <pre><code><span style="color:#FDBA74"># Install</span>
 pip install memorius
 
-<span style="color:#a78bfa"># Initialize a vault</span>
+<span style="color:#FDBA74"># Initialize a vault</span>
 memorius init
 
-<span style="color:#a78bfa"># Store a memory</span>
+<span style="color:#FDBA74"># Store a memory</span>
 memorius store "The sky is blue because Rayleigh scattering scatters shorter wavelengths more" \
   --vault main --shelf science --folder physics
 
-<span style="color:#a78bfa"># Semantic search</span>
+<span style="color:#FDBA74"># Semantic search</span>
 memorius search "why is the sky blue"
 
-<span style="color:#a78bfa"># Mine memories from a transcript</span>
+<span style="color:#FDBA74"># Mine memories from a transcript</span>
 memorius mine transcript.txt --vault conversations
 
-<span style="color:#a78bfa"># Write a diary entry</span>
+<span style="color:#FDBA74"># Write a diary entry</span>
 memorius diary --session "session-001" --title "Research findings"
 
-<span style="color:#a78bfa"># Check vault status</span>
+<span style="color:#FDBA74"># Check vault status</span>
 memorius status</code></pre>
       </div>
       <div class="quickstart-desc">
@@ -681,8 +907,9 @@ memorius status</code></pre>
 
 <section id="architecture">
   <div class="container">
+    <span class="act-label" data-act>Act II &mdash; How It Works</span>
     <h2>Architecture</h2>
-    <p class="sub">A single Python package, four entry points, two storage backends.</p>
+    <p class="sub">A single Python package, four entry points, two storage backends, and a neuroscience-inspired consolidation engine.</p>
 
     <div class="arch-wrap">
 <pre class="arch-diagram"><span class="hl">┌────────────────────────────────────────────────────────────┐
@@ -697,23 +924,26 @@ memorius status</code></pre>
 │  Vault Engine                                              │
 │  ├── ChromaStore    Vector search (ChromaDB)               │
 │  ├── SQLiteStore    Metadata & hierarchy (SQLite)          │
-│  └── Embeddings     Pluggable providers (ONNX / SF / OA)   │
+│  ├── Embeddings     Pluggable providers (ONNX / SF / OA)   │
+│  └── KnowledgeGraph Typed edges + spreading activation     │
+├────────────────────────────────────────────────────────────┤
+│  Consolidation Engine                                      │
+│  ├── Interference Forgetting  decay by relatedness        │
+│  ├── Engram Maturation        trace → memory → schema    │
+│  └── Neuromodulator Gating    dopamine/sedation modulation │
 ├────────────────────────────────────────────────────────────┤
 │  Vault  >  Shelf  >  Folder  >  Note  hierarchy           │
 │  Diaries          Session diary entries                    │
 │  Mine             Extract memories from transcripts        │
-├────────────────────────────────────────────────────────────┤
-│  Plugin Gen    →  Generate per-agent plugins               │
-│  Normalizers   →  Import Discord/Telegram/WhatsApp/etc     │
-│  Obsidian      →  Bidirectional vault sync                 │
 └────────────────────────────────────────────────────────────┘</span></pre>
 
       <ul class="arch-notes">
         <li><strong>Vault engine</strong> is the single source of truth &mdash; CLI, MCP, REST, and hooks all route through it.</li>
         <li><strong>ChromaDB</strong> handles vector search; <strong>SQLite</strong> handles metadata and the hierarchy.</li>
         <li><strong>Embeddings</strong> are swappable: bundled ONNX (default, no extra deps), <code>sentence-transformers</code>, or OpenAI.</li>
+        <li><strong>Knowledge graph</strong> with typed edges (<code>supports</code>, <code>contradicts</code>, <code>related</code>) and spreading activation for multi-hop recall.</li>
+        <li><strong>Consolidation</strong> models biological memory: interference forgetting, engram maturation, and neuromodulator gating.</li>
         <li><strong>Hooks</strong> auto-detect which agent sent the event from the JSON payload &mdash; no <code>--agent</code> flag required.</li>
-        <li><strong>Plugin generator</strong> writes per-agent plugin files from one universal manifest.</li>
       </ul>
     </div>
   </div>
@@ -721,6 +951,7 @@ memorius status</code></pre>
 
 <section id="agents">
   <div class="container">
+    <span class="act-label" data-act>Act III &mdash; Compatibility</span>
     <h2>Works with the agents you already use</h2>
     <p class="sub">
       Hooks are auto-detected from the event payload &mdash; pipe JSON in, get
@@ -731,7 +962,7 @@ memorius status</code></pre>
       <div class="agent delay-1"><div class="logo" style="background:#cc785c">C</div><div><div class="name">Claude Code</div><div class="meta">Anthropic &mdash; stop, precompact</div></div></div>
       <div class="agent delay-2"><div class="logo" style="background:#10a37f">X</div><div><div class="name">Codex CLI</div><div class="meta">OpenAI &mdash; session_start, stop</div></div></div>
       <div class="agent delay-3"><div class="logo" style="background:#4285f4">G</div><div><div class="name">Gemini CLI</div><div class="meta">Google &mdash; stop, session_start</div></div></div>
-      <div class="agent delay-4"><div class="logo" style="background:#7C3AED">O</div><div><div class="name">OpenCode</div><div class="meta">anomalyco/sst &mdash; stop, precompact</div></div></div>
+      <div class="agent delay-4"><div class="logo" style="background:#F97316">O</div><div><div class="name">OpenCode</div><div class="meta">anomalyco/sst &mdash; stop, precompact</div></div></div>
       <div class="agent delay-5"><div class="logo" style="background:#f59e0b">P</div><div><div class="name">Pi</div><div class="meta">kachow-compatible &mdash; tool_call, turn_end</div></div></div>
       <div class="agent delay-6"><div class="logo" style="background:#ec4899">O</div><div><div class="name">OpenClaude</div><div class="meta">stop, precompact</div></div></div>
       <div class="agent delay-7"><div class="logo" style="background:#64748b">O</div><div><div class="name">OpenClaw</div><div class="meta">openclaw marker &mdash; session_start</div></div></div>
@@ -777,6 +1008,36 @@ memorius status</code></pre>
         <div class="row"><span class="cmd">memorius obsidian import</span><span class="desc">Import notes as memories</span></div>
         <div class="row"><span class="cmd">memorius obsidian export</span><span class="desc">Export memories as notes</span></div>
       </div>
+
+      <div class="cli-card">
+        <h4>Knowledge Graph</h4>
+        <div class="row"><span class="cmd">memorius graph stats</span><span class="desc">Graph topology stats</span></div>
+        <div class="row"><span class="cmd">memorius graph export</span><span class="desc">Export / visualize graph</span></div>
+        <div class="row"><span class="cmd">memorius graph link</span><span class="desc">Create typed edge</span></div>
+      </div>
+
+      <div class="cli-card">
+        <h4>Consolidation</h4>
+        <div class="row"><span class="cmd">memorius consolidate</span><span class="desc">Run consolidation cycle</span></div>
+        <div class="row"><span class="cmd">memorius prune</span><span class="desc">Find & archive stale memories</span></div>
+        <div class="row"><span class="cmd">memorius decay</span><span class="desc">Apply decay scoring</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="cta">
+  <div class="container">
+    <div class="cta-band">
+      <h2>Ready to give your agent<br />a memory that persists?</h2>
+      <p>Install in one command, wire up MCP or hooks, and start storing memories immediately. No cloud, no API keys, no lock-in.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="https://github.com/Dream-Pixels-Forge/memorius">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.7 5.5.7 11.9c0 5 3.3 9.3 7.8 10.8.6.1.8-.2.8-.6v-2.1c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2 1-.3 2-.4 3-.4s2 .1 3 .4c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.8.1 3.1.7.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.2c0 .3.2.7.8.6 4.5-1.5 7.8-5.8 7.8-10.8C23.3 5.5 18.3.5 12 .5z"/></svg>
+          Star on GitHub
+        </a>
+        <a class="btn btn-ghost" href="#quickstart">Quick Start</a>
+      </div>
     </div>
   </div>
 </section>
@@ -787,7 +1048,6 @@ memorius status</code></pre>
     <div class="footer-links">
       <a href="https://github.com/Dream-Pixels-Forge/memorius">GitHub</a>
       <a href="https://pypi.org/project/memorius/">PyPI</a>
-      <a href="https://dream-pixels-forge.github.io/memorius/">Landing Page</a>
       <a href="https://github.com/Dream-Pixels-Forge/memorius/issues">Issues</a>
     </div>
   </div>
@@ -827,6 +1087,66 @@ memorius status</code></pre>
     });
   }
 
+  /* ── Scroll progress bar ── */
+  var bar = document.getElementById('progress-bar');
+  var ticking = false;
+  function updateProgress() {
+    var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+    var max = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+    var pct = max > 0 ? (scrollTop / max) : 0;
+    if (bar) bar.style.transform = 'scaleX(' + Math.min(1, pct) + ')';
+    ticking = false;
+  }
+  window.addEventListener('scroll', function() {
+    if (!ticking) { requestAnimationFrame(updateProgress); ticking = true; }
+  }, { passive: true });
+  updateProgress();
+
+  /* ── Nav scroll-spy (highlight active section) ── */
+  var navLinks = document.querySelectorAll('#nav-links a[href^="#"]');
+  var sections = [];
+  navLinks.forEach(function(a) {
+    var id = a.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if (el) sections.push({ link: a, el: el });
+  });
+  var spyObserver = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        var match = sections.find(function(s) { return s.el === entry.target; });
+        navLinks.forEach(function(a) { a.classList.remove('active'); });
+        if (match) match.link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-40% 0px -55% 0px', threshold: 0 });
+  sections.forEach(function(s) { spyObserver.observe(s.el); });
+
+  /* ── Animated stat counters (count up on reveal) ── */
+  function animateCount(el) {
+    var target = parseInt(el.getAttribute('data-target'), 10);
+    if (target <= 0) { el.textContent = '0'; return; }
+    var duration = 1200;
+    var start = null;
+    function step(ts) {
+      if (!start) start = ts;
+      var progress = Math.min(1, (ts - start) / duration);
+      var eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = Math.floor(eased * target).toString();
+      if (progress < 1) requestAnimationFrame(step);
+      else el.textContent = target.toString();
+    }
+    requestAnimationFrame(step);
+  }
+  var countObserver = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        animateCount(entry.target);
+        countObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.5 });
+  document.querySelectorAll('.count').forEach(function(el) { countObserver.observe(el); });
+
   /* ── Scroll-triggered entrance animations ── */
   var animateElements = function(selector, threshold) {
     var elements = document.querySelectorAll(selector);
@@ -842,13 +1162,12 @@ memorius status</code></pre>
     elements.forEach(function(el) { observer.observe(el); });
   };
 
-  // Animate feature cards as they scroll into view
   animateElements('.feature', 0.08);
-  // Animate agent cards
   animateElements('.agent', 0.1);
+  animateElements('.stat', 0.3);
 
-  /* ── Fade-up for section headings (optional polish) ── */
-  var fadeEls = document.querySelectorAll('section h2, section .sub');
+  /* ── Act labels + fade-up section headings ── */
+  var fadeEls = document.querySelectorAll('section h2, section .sub, .act-label');
   fadeEls.forEach(function(el) {
     el.classList.add('fade-up');
     var obs = new IntersectionObserver(function(entries) {
