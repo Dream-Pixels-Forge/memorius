@@ -20,7 +20,68 @@
 >
 > If you find this project useful, leaving a star ⭐ on the repository is the best way to support my work!
 
+## Installation
 
+```bash
+pip install memorius
+```
+
+All features — vector search, cross-encoder reranker, REST API server, SQLite-vec
+backend, OpenAI embeddings, knowledge graph, and the agent skill — are included
+out of the box. No extra install flags needed.
+
+Verify the install:
+
+```bash
+memorius --version
+memorius init          # creates ~/.memorius/config.yaml + storage dir
+```
+
+> **REST API server is included by default** — `fastapi`, `uvicorn`, `pydantic`,
+> and `sse-starlette` are now core dependencies. No extra `[rest]` install flag needed.
+
+### For Development
+
+```bash
+pip install memorius[dev]   # adds pytest + pytest-asyncio
+```
+
+## Agent Skills
+
+Memorius ships with a ready-to-use **agent skill** at `skills/memorius/` that
+teaches any Hermes-compatible agent to use memorius proactively — auto-capture
+rules, smart context injection, session diaries, and workflow templates.
+
+### Install the skill
+
+```bash
+# Copy the skill into your agent's skills directory
+cp -r skills/memorius ~/.hermes/skills/
+
+# Verify it's discovered
+memorius search "skill installation procedure"   # confirm the skill's keywords are searchable
+hermes skills list | grep memorius
+```
+
+For agents without a Hermes skill format, use MCP (below) or the CLI directly.
+
+| Agent | Install command |
+|-------|----------------|
+| Claude Code | `claude mcp add memorius -- memorius serve` |
+| Codex CLI | `codex mcp add memorius -- memorius serve` |
+| Gemini CLI | `gemini mcp add memorius $(which memorius) serve` |
+| Cursor | Add to `.cursor/mcp.json`: `{"mcpServers": {"memorius": {"command": "memorius", "args": ["serve"]}}}` |
+| Aider | `aider --mcp-servers memorius=memorius serve` |
+
+### Skill structure
+
+```
+skills/
+  memorius/
+    SKILL.md              # Full skill definition (auto-capture, context injection, diary rules)
+    README.md             # Quick command reference
+    .memorius_version     # Version tracker
+```
 
 ## Why Memorius?
 
@@ -41,13 +102,6 @@ Most AI memory tools lock you into one agent ecosystem. Memorius is **agent-agno
 | Dual storage backends | ChromaDB + SQLite-vec | - |
 | Self-hosted | No cloud dependency | Often SaaS |
 | Open source | MIT license | Varies |
-
-```bash
-pip install memorius
-```
-
-> **REST API server is included by default** — `fastapi`, `uvicorn`, `pydantic`,
-> and `sse-starlette` are now core dependencies. No extra `[rest]` install flag needed.
 
 ## Quick Start
 
@@ -76,36 +130,17 @@ memorius diary "session-001" --title "Research findings"
 
 <img width="979" height="632" alt="Screenshot from 2026-06-18 15-14-39" src="https://github.com/user-attachments/assets/6cbca59b-1a3c-4b1d-85e8-dd5b256b9061" />
 
-## What's New in v0.7.2
+## What's New in v0.8.4
 
-### Security Hardening (Comprehensive Audit)
-- **Path traversal guards** — `export_graph_html` and CLI obsidian export validate paths stay within storage/export directories.
-- **HTML injection prevention** — Graph visualizer title escaped via `html.escape()`.
-- **Command injection prevention** — Windows daemon startup passes host/port/tls via environment variables.
-- **LLM extraction trust model** — System/user message split isolates extraction rules from user-provided content.
-- **Template injection prevention** — Recursion depth limited to 10 in `_substitute_templates`.
-- **UUID validation on MCP handlers** — `memorius_contradictions`, `memorius_get`, `memorius_update`, `memorius_delete` validate memory_id format.
-- **Dependency version pinning** — Minimum versions set for `chromadb>=0.4.22`, `sentence-transformers>=2.6.0`, `httpx>=0.25.0`, `openai>=1.1.0`.
-- **Rate limiter memory growth fix** — Sweep every 200 requests + IP count cap (10,000).
-- **Security documentation** — MCP tool descriptions include security notes about treating memory content as untrusted data.
-
-### Added
-- **Knowledge Graph Visualizer** — standalone interactive HTML visualization with force-directed canvas layout, shelf/relation filtering, search, node inspector, and zoom/pan. Access via `memorius graph view`, MCP `memorius_graph_export`, or REST `GET /graph/view`.
-- **Dependency consolidation** — `sentence-transformers`, `openai`, `sqlite-vec` now included by default. `pip install memorius` includes all features.
-
-### Code Quality
-- **Extracted lazy-init pattern** — `_get_store_module()` and `_get_search_module()` helpers eliminate repeated init blocks.
-- **Deduplicated JSON parsing** — `safe_parse_json()` in `utils.py` used across `store_module.py` and `search_module.py`.
-- **Missing exception annotations** — 6 unannotated blocks in `doctor.py` and `context_inject.py` now documented.
-- **Sealed message-chain breach** — MCP server calls `engine.list_diaries()` instead of `_engine._meta.list_diaries()`.
-- **Clarified HookEngine naming** — `_get_engine()` → `_get_vault()` to avoid confusion with the HookEngine class.
-- **SQL PRAGMA whitelist** — `_get_columns()` validates table names against `frozenset` allowlist.
-- **UUID validation on batch queries** — `get_memory_meta_batch()` validates IDs before `WHERE IN` interpolation.
-- **Typed module dependencies** — `SearchModule`/`StoreModule` `meta` param typed as `SQLiteStore` (was `Any`).
-- **Scoped connection cleanup** — `VaultEngine.close()` closes only its own DB, not all thread connections.
+- **Neuroscience-inspired architecture** — interference-based forgetting, engram maturation, and neuromodulator-gated retrieval in consolidation.
+- **Typed knowledge graph edges** — `temporal_before`, `causal_leads_to`, `episodic_part_of`, `semantic_instance_of` relation types plus spreading-activation retrieval.
+- **Episodic/semantic store segregation** — raw interaction traces route to an episodic store; distilled facts go to the semantic store.
+- **Hybrid retrieval** — vector + BM25/FTS5 keyword fusion; no more keyword blind-spots.
+- **Token-efficient index** — HNSW optimization knobs in `config.vector_optimization`.
+- **6 new test files (88 tests)** covering all new features; full Phase 5 gate: 126/126 passing.
+- **Bug fixes** — exponential spreading-activation decay, `VaultEngine.status()` dict-comprehension, consolidation `math`/`_parse_dt` imports.
 
 See [CHANGELOG.md](CHANGELOG.md) for full release history.
-
 
 ## Architecture
 
@@ -566,52 +601,6 @@ Starts a FastAPI server on `http://127.0.0.1:8912` by default.
 | PATCH | `/memory/{memory_id}` | Update memory content/metadata |
 | DELETE | `/memory/{memory_id}` | Delete a memory |
 
-## Agent Skill Installation
-
-Memorius ships with a ready-to-use agent skill (`skills/memorius/SKILL.md`) for agents that support the Hermes Agent skill format. The skill provides auto-capture rules, smart context injection, session diary templates, and workflow patterns — so agents can use memorius proactively without being told.
-
-### Skill Structure
-
-```
-skills/
-  memorius/
-    SKILL.md              # Full skill definition (auto-capture, context injection, diary rules)
-    README.md             # Quick command reference
-    .memorius_version     # Version tracker
-```
-
-### Installing for Hermes Agent
-
-The skill is designed for [Hermes Agent](https://hermes-agent.nousresearch.com) — copy it into your Hermes skills directory:
-
-```bash
-# Copy the skill
-cp -r skills/memorius ~/.hermes/skills/
-
-# Verify it's loaded
-hermes skills list | grep memorius
-```
-
-Once installed, Hermes will automatically detect it and follow the skill's workflows.
-
-### Installing for Other Agents
-
-Agents that don't use the Hermes skill format can still use memorius via MCP or CLI:
-
-| Agent | Install Command |
-|-------|----------------|
-| Claude Code | `claude mcp add memorius -- memorius serve` |
-| Codex CLI | `codex mcp add memorius -- memorius serve` |
-| Gemini CLI | `gemini mcp add memorius $(which memorius) serve` |
-| Cursor | Add to `.cursor/mcp.json`: `{"mcpServers": {"memorius": {"command": "memorius", "args": ["serve"]}}}` |
-| Aider | `aider --mcp-servers memorius=memorius serve` |
-| Continue | Add memorius to `.continue/config.json` MCP servers |
-| OpenClaw | `openclaw mcp set memorius '{"command":"memorius","args":["serve"]}'` |
-
-See `manifest.yaml` for the full list of supported agents and their install commands.
-
-Copying the SKILL.md file directly may also work for agents with their own skills directory (e.g. `~/.claude/skills/`, `~/.codex/skills/`) — check your agent's documentation.
-
 ## Agent Hooks
 
 Memorius includes **universal agent lifecycle hooks** — auto-detecting,
@@ -775,22 +764,9 @@ All inputs are validated for security and correctness:
 - CORS: restrictive by default (Obsidian app + localhost only)
 - Path traversal detection on Obsidian export
 
-## Installation
- 
-```bash
-pip install memorius
-```
+## CLI Entry Points
 
-All features — including the cross-encoder reranker, sentence-transformers, SQLite-vec single-file backend, OpenAI embeddings support, REST API server, and graph visualizer — are included out of the box.
-
-For development:
-```bash
-pip install memorius[dev]  # pytest + pytest-asyncio
-```
-
-## Installed CLI Entry Points
-
-| Command | Entry Point |
+| Command | Description |
 |---|---|
 | `memorius` | Core CLI (init, store, search, mine, etc.) |
 | `memorius-hook` | Agent hook engine (run, init-config, status) |
