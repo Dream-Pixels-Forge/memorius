@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.8.4 (2026-10-15)
+
+### Phase 5 — Test Coverage Closure
+- **6 new test files (88 tests)** covering all Phase 3 new features:
+  - `test_spreading_activation.py` — exponential decay math, min_weight filtering, invalidated-edge exclusion, converging-path accumulation, search-module integration
+  - `test_hybrid_retrieval.py` — BM25/FTS5 keyword search, hybrid vector+keyword score fusion, vault isolation
+  - `test_token_efficient_index.py` — HNSW config propagation through Chroma store, defaults, backward compatibility
+  - `test_episodic_semantic_segregation.py` — dual-store routing, CRUD across stores, search merge, per-store TTL policies
+  - `test_neuroscience_consolidation.py` — interference forgetting, engram maturation, neuromodulator gating + end-to-end integration
+  - `test_knowledge_graph_typing.py` — typed-edge round-trip (temporal_before, causal_leads_to, episodic_part_of, semantic_instance_of), legacy relations, graph stats
+- Full Phase 5 gate: **126/126 passing**
+
+### Bug Fixes
+- Spreading activation now uses exponential decay (`decay_rate ** hop`) instead of linear
+- `VaultEngine.status()` no longer raises `TypeError: unhashable type: 'dict'`
+- `consolidation.py` imports `math` and `_parse_dt` (was `NameError` at runtime)
+
 ## v0.8.3 (2026-10-15)
 
 ### Security
