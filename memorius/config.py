@@ -78,6 +78,7 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
 
     _apply_env_overrides(config)
     _ensure_defaults(config)
+    _validate_secrets(config)
     return config
 
 
@@ -132,6 +133,13 @@ def _ensure_defaults(config: dict[str, Any]):
     consolidation.setdefault("max_consolidations_per_run", 100)
     consolidation.setdefault("auto_prune", True)
 
+    # Vector store optimization options
+    vector_optimization = config.setdefault("vector_optimization", {})
+    vector_optimization.setdefault("enable_hnsw_optimization", False)
+    vector_optimization.setdefault("hnsw_ef_construction", 100)
+    vector_optimization.setdefault("hnsw_ef_search", 100)
+    vector_optimization.setdefault("hnsw_max_m", 16)
+
 
 def _apply_env_overrides(config: dict[str, Any]):
     """Override config values from environment variables."""
@@ -168,3 +176,44 @@ def _coerce(val: str) -> int | bool | str:
         return int(val)
     except ValueError:
         return val
+
+def _validate_secrets(config):
+    """Validate that required secrets are present and strong."""
+    # Weak secrets list - common default/weak values
+    WEAK_SECRETS = {
+        "",
+        "changeme",
+        "password",
+        "123456",
+        "admin",
+        "secret",
+        "token",
+        "key",
+    }
+    
+    # Check OpenAI API key if using openai embeddings provider
+    embeddings_provider = config.get('embeddings', {}).get('provider')
+    if embeddings_provider == 'openai':
+        openai_key = config.get('embeddings', {}).get('openai', {}).get('api_key')
+        if openai_key is not None:
+            openai_key = str(openai_key)
+        if not openai_key:
+            raise ValueError("Missing OpenAI API key. Set MEMORIUS_OPENAI_API_KEY or OPENAI_API_KEY environment variable.")
+        if openai_key in WEAK_SECRETS:
+            raise ValueError("Weak OpenAI API key detected. Please use a strong, non-default key.")
+        # Optional: check minimum length
+        if len(openai_key) < 16:
+            raise ValueError("OpenAI API key too short. Minimum length is 16 characters.")
+    
+    # Check Tavily API key if using tavily web provider
+    web_provider = config.get('retrieval', {}).get('web_provider')
+    if web_provider == 'tavily':
+        tavily_key = config.get('retrieval', {}).get('tavily_api_key')
+        if tavily_key is not None:
+            tavily_key = str(tavily_key)
+        if not tavily_key:
+            raise ValueError("Missing Tavily API key. Set TAVILY_API_KEY or MEMORIUS_TAVILY_API_KEY environment variable.")
+        if tavily_key in WEAK_SECRETS:
+            raise ValueError("Weak Tavily API key detected. Please use a strong, non-default key.")
+        if len(tavily_key) < 16:
+            raise ValueError("Tavily API key too short. Minimum length is 16 characters.")

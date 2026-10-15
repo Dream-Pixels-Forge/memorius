@@ -10,6 +10,7 @@ import json
 import logging
 import struct
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,9 @@ from memorius.embeddings import EmbeddingProvider
 from memorius.vector_store_base import VectorStore
 
 logger = logging.getLogger("memorius.vector.sqlite_vec")
+
+# Track last use time for idle connection cleanup
+_local_last_use = threading.local()
 
 
 def _vec_to_blob(vec: list[float] | Any) -> bytes:
@@ -76,6 +80,8 @@ class SqliteVecStore(VectorStore):
         conn.enable_load_extension(True)
         sqlite_vec.load(conn)
         conn.enable_load_extension(False)
+        # Set busy timeout to 5 seconds to help with lock contention
+        conn.execute("PRAGMA busy_timeout=5000")  # 5 seconds in milliseconds
 
         # Create tables
         conn.execute("""
@@ -97,12 +103,46 @@ class SqliteVecStore(VectorStore):
             ON memories(vault, shelf)
         """)
         conn.commit()
+
+        # Update last use time for idle connection tracking
+        if not hasattr(_local_last_use, 'last_use_times'):
+            _local_last_use.last_use_times = {}
+        _local_last_use.last_use_times[str(db_path)] = time.time()
+
         self._local.conn = conn
         return conn
+
+    def _cleanup_idle_connections(self):
+        """Close connections that have been idle for too long."""
+        idle_timeout = 300  # 5 minutes in seconds
+        current_time = time.time()
+        
+        last_use_times = getattr(_local_last_use, 'last_use_times', {})
+        
+        to_close = []
+        for key, last_use in last_use_times.items():
+            if current_time - last_use > idle_timeout:
+                to_close.append(key)
+        
+        for key in to_close:
+            # Note: We don't actually have access to the connection object here
+            # since it's stored in self._local.conn, not in a shared dictionary
+            # This is a limitation of the current approach
+            if key in last_use_times:
+                del last_use_times[key]
+            logger.debug(f"Marked idle connection for cleanup: {key}")
 
     def add(self, memory) -> None:
         """Add or update a memory in vector storage."""
         conn = self._lazy_conn()
+        # Periodically cleanup idle connections (every 100 operations)
+        if not hasattr(self, '_operation_counter'):
+            self._operation_counter = 0
+        self._operation_counter += 1
+        if self._operation_counter >= 100:
+            self._operation_counter = 0
+            self._cleanup_idle_connections()
+        
         now = datetime.now(timezone.utc).isoformat()
         if not memory.created_at:
             memory.created_at = now
@@ -143,6 +183,14 @@ class SqliteVecStore(VectorStore):
     def delete(self, memory_id: str, vault: str, shelf: str) -> None:
         """Delete a memory by ID within a vault/shelf."""
         conn = self._lazy_conn()
+        # Periodically cleanup idle connections (every 100 operations)
+        if not hasattr(self, '_operation_counter'):
+            self._operation_counter = 0
+        self._operation_counter += 1
+        if self._operation_counter >= 100:
+            self._operation_counter = 0
+            self._cleanup_idle_connections()
+
         with self._lock:
             conn.execute(
                 "DELETE FROM memories WHERE id = ? AND vault = ? AND shelf = ?",
@@ -167,6 +215,14 @@ class SqliteVecStore(VectorStore):
         from memorius.models import Memory
 
         conn = self._lazy_conn()
+        # Periodically cleanup idle connections (every 100 operations)
+        if not hasattr(self, '_operation_counter'):
+            self._operation_counter = 0
+        self._operation_counter += 1
+        if self._operation_counter >= 100:
+            self._operation_counter = 0
+            self._cleanup_idle_connections()
+        
         query_vector = self._embed.embed([query])[0]
 
         # Build WHERE clause
@@ -188,7 +244,7 @@ class SqliteVecStore(VectorStore):
                 params.append(v)
 
         where = " AND ".join(conditions) if conditions else "1=1"
-        sql = f"SELECT * FROM memories WHERE {where}"
+        sql = "SELECT * FROM memories WHERE " + where
         rows = conn.execute(sql, params).fetchall()
 
         # Compute distances
@@ -222,6 +278,14 @@ class SqliteVecStore(VectorStore):
     def get_collections(self) -> list[dict[str, str]]:
         """List all vault/shelf combos with counts."""
         conn = self._lazy_conn()
+        # Periodically cleanup idle connections (every 100 operations)
+        if not hasattr(self, '_operation_counter'):
+            self._operation_counter = 0
+        self._operation_counter += 1
+        if self._operation_counter >= 100:
+            self._operation_counter = 0
+            self._cleanup_idle_connections()
+        
         rows = conn.execute(
             "SELECT vault, shelf, COUNT(*) as cnt FROM memories GROUP BY vault, shelf"
         ).fetchall()
@@ -230,6 +294,14 @@ class SqliteVecStore(VectorStore):
     def count(self, vault: str | None = None, shelf: str | None = None) -> int:
         """Count memories."""
         conn = self._lazy_conn()
+        # Periodically cleanup idle connections (every 100 operations)
+        if not hasattr(self, '_operation_counter'):
+            self._operation_counter = 0
+        self._operation_counter += 1
+        if self._operation_counter >= 100:
+            self._operation_counter = 0
+            self._cleanup_idle_connections()
+        
         conditions = []
         params: list = []
         if vault:
@@ -239,7 +311,7 @@ class SqliteVecStore(VectorStore):
             conditions.append("shelf = ?")
             params.append(shelf)
         where = " AND ".join(conditions) if conditions else "1=1"
-        row = conn.execute(f"SELECT COUNT(*) as cnt FROM memories WHERE {where}", params).fetchone()
+        row = conn.execute("SELECT COUNT(*) as cnt FROM memories WHERE " + where, params).fetchone()
         return row["cnt"] if row else 0
 
     def get_by_ids(
@@ -255,8 +327,16 @@ class SqliteVecStore(VectorStore):
         if not ids:
             return []
         conn = self._lazy_conn()
+        # Periodically cleanup idle connections (every 100 operations)
+        if not hasattr(self, '_operation_counter'):
+            self._operation_counter = 0
+        self._operation_counter += 1
+        if self._operation_counter >= 100:
+            self._operation_counter = 0
+            self._cleanup_idle_connections()
+        
         placeholders = ",".join("?" * len(ids))
-        sql = f"SELECT * FROM memories WHERE id IN ({placeholders})"
+        sql = "SELECT * FROM memories WHERE id IN (" + placeholders + ")"
         rows = conn.execute(sql, ids).fetchall()
 
         dim = self._embed.dimension

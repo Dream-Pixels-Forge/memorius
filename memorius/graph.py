@@ -20,6 +20,22 @@ from typing import Any
 from .utils import cosine_similarity
 
 
+# Relation type constants for temporal and causal reasoning
+RELATED = "related"
+CO_OCCURS = "co_occurs"
+REFERENCES = "references"
+CONTRADICTS = "contradicts"
+SUPERSEDES = "supersedes"
+# Temporal relations
+TEMPORAL_BEFORE = "temporal_before"
+# Causal relations
+CAUSAL_LEADS_TO = "causal_leads_to"
+# Episodic relations
+EPISODIC_PART_OF = "episodic_part_of"
+# Semantic relations
+SEMANTIC_INSTANCE_OF = "semantic_instance_of"
+
+
 @dataclass
 class MemoryNode:
     """A node in the knowledge graph."""
@@ -39,7 +55,8 @@ class GraphEdge:
     source_id: str
     target_id: str
     weight: float = 1.0
-    relation: str = "related"  # related, co_occurs, references, contradicts
+    relation: str = RELATED  # related, co_occurs, references, contradicts, supersedes,
+                           # temporal_before, causal_leads_to, episodic_part_of, semantic_instance_of
     created_at: str = ""
 
 
@@ -88,7 +105,7 @@ def link_memories(
     source_id: str,
     target_id: str,
     weight: float = 1.0,
-    relation: str = "related",
+    relation: str = RELATED,
 ):
     """Create a bidirectional link between two memories."""
     now = datetime.now(timezone.utc).isoformat()
@@ -433,4 +450,109 @@ def get_graph_data(
             "vault": vault or "all",
             "shelf": shelf or "all",
         },
+    }
+
+
+def spreading_activation(
+    conn: sqlite3.Connection,
+    seed_ids: list[str],
+    hops: int = 1,
+    min_weight: float = 0.3,
+    decay_rate: float = 0.5,
+    max_nodes: int = 50,
+    include_invalidated: bool = False,
+) -> dict[str, Any]:
+    """Spread activation from seed IDs through the graph with decay.
+    
+    Implements a spreading activation model where activation starts at
+    seed nodes and spreads through connections, decaying over distance.
+    
+    Args:
+        conn: SQLite connection
+        seed_ids: List of memory IDs to start activation from
+        hops: Number of hops to spread activation
+        min_weight: Minimum edge weight to consider for traversal
+        decay_rate: Per-hop retention factor (0.0 to 1.0).
+                   Higher values retain more activation per hop (slower
+                   effective decay); lower values fade faster.
+        max_nodes: Maximum number of nodes to return
+        include_invalidated: Whether to include invalidated edges
+        
+    Returns:
+        Dictionary with node IDs and their activation levels
+    """
+    if not seed_ids:
+        return {"activations": {}, "seed_ids": []}
+    
+    # Initialize activation levels
+    activations = {seed_id: 1.0 for seed_id in seed_ids}  # Full activation at seeds
+    seed_ids_set = set(seed_ids)  # Fast lookup: seeds skip self-re-accumulation
+
+    # Track which nodes we've processed at each hop to prevent infinite loops
+    processed_per_hop = [set(seed_ids)]  # Hop 0: just the seeds
+    
+    # Spread activation through the specified number of hops
+    for hop in range(1, hops + 1):
+        current_hop_activations = {}
+        previous_hop_processed = processed_per_hop[hop - 1]
+        
+        # For each node processed in the previous hop, spread its activation
+        for source_id in previous_hop_processed:
+            # Get current activation level for this node
+            source_activation = activations.get(source_id, 0.0)
+            if source_activation <= 0.0:
+                continue  # No activation to spread
+            
+            # Find all outgoing edges from this node
+            edges = get_linked(
+                conn, source_id, min_weight=min_weight, 
+                include_invalidated=include_invalidated
+            )
+            
+            # Spread activation to connected nodes
+            for edge in edges:
+                target_id = edge["target_id"]
+                edge_weight = edge["weight"]
+
+                # Calculate activation to spread: source activation * edge weight * hop decay.
+                # Exponential decay: decay_rate ** hop  (e.g. 0.5**1=0.5, 0.5**2=0.25).
+                hop_decay = decay_rate ** hop
+                spread_activation = source_activation * edge_weight * hop_decay
+
+                # Add to target's activation (accumulating from multiple paths)
+                # Seeds are already at activation 1.0; skip re-accumulating
+                # their own value back into themselves.
+                if target_id in seed_ids_set:
+                    continue
+                if target_id not in current_hop_activations:
+                    current_hop_activations[target_id] = 0.0
+                current_hop_activations[target_id] += spread_activation
+
+        # Apply decay for this hop and store processed nodes
+        processed_this_hop = set()
+        for node_id, activation in current_hop_activations.items():
+            # Apply hop-based decay (exponential, consistent with spread step)
+            decayed_activation = activation * (decay_rate ** hop)
+            if decayed_activation > 0.0:
+                # Accumulate with any existing activation
+                if node_id not in activations:
+                    activations[node_id] = 0.0
+                activations[node_id] += decayed_activation
+                processed_this_hop.add(node_id)
+        
+        processed_per_hop.append(processed_this_hop)
+        
+        # Early exit if no new activations
+        if not processed_this_hop:
+            break
+    
+    # Sort by activation level (descending) and take top nodes
+    sorted_activations = sorted(activations.items(), key=lambda x: x[1], reverse=True)
+    top_activations = dict(sorted_activations[:max_nodes])
+    
+    return {
+        "activations": top_activations,
+        "seed_ids": seed_ids,
+        "hops_performed": len([h for h in processed_per_hop if h]) - 1,  # Subtract initial seed hop
+        "decay_rate": decay_rate,
     }

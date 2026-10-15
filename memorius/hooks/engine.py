@@ -244,6 +244,53 @@ class HookStateManager:
         return (exchange_count - last_count) >= interval
 
 
+class WebhookStateManager:
+    """Tracks webhook event IDs for idempotency protection."""
+
+    def __init__(self, state_dir: str | Path):
+        self.state_dir = Path(state_dir).expanduser() / "webhook_state"
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+
+    def _state_path(self, webhook_name: str) -> Path:
+        safe_name = re.sub(r'[^a-zA-Z0-9_-]', '_', webhook_name)[:128]
+        return self.state_dir / f"{safe_name}_ids.json"
+
+    def has_seen_id(self, webhook_name: str, event_id: str) -> bool:
+        """Check if we've already processed this event ID for the given webhook."""
+        if not event_id:
+            return False
+        state_path = self._state_path(webhook_name)
+        if not state_path.exists():
+            return False
+        try:
+            data = json.loads(state_path.read_text())
+            return event_id in data.get("seen_ids", [])
+        except (json.JSONDecodeError, OSError):
+            return False
+
+    def mark_id_seen(self, webhook_name: str, event_id: str):
+        """Mark an event ID as seen for the given webhook."""
+        if not event_id:
+            return
+        state_path = self._state_path(webhook_name)
+        try:
+            if state_path.exists():
+                data = json.loads(state_path.read_text())
+            else:
+                data = {"seen_ids": []}
+            
+            seen_ids = data.get("seen_ids", [])
+            if event_id not in seen_ids:
+                seen_ids.append(event_id)
+                # Keep only the most recent 1000 IDs to prevent unbounded growth
+                if len(seen_ids) > 1000:
+                    seen_ids = seen_ids[-1000:]
+                data["seen_ids"] = seen_ids
+                state_path.write_text(json.dumps(data, indent=2))
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Failed to mark webhook event ID as seen: {e}")
+
+
 class HookEngine:
     """The core lifecycle engine — transforms events into actions.
     
@@ -254,6 +301,7 @@ class HookEngine:
     def __init__(self, config: Optional[HookConfig] = None):
         self.config = config or HookConfig.default()
         self.state_manager = HookStateManager(self.config.state_dir)
+        self.webhook_state_manager = WebhookStateManager(self.config.state_dir)
         self._last_event_time: dict[str, float] = {}
         self._vault: VaultEngine | None = None
 
@@ -494,10 +542,35 @@ class HookEngine:
 
     def _action_webhook(self, action: HookAction, event: HookEvent, context: dict) -> dict:
         import ipaddress
+        import hashlib
+        import hmac
         from urllib.parse import urlparse
 
         url_template = action.config.get("url", "")
         url = self._format_template(url_template, context)
+
+        # Check idempotency if configured
+        idempotency_key = action.config.get("idempotency_key")
+        if idempotency_key:
+            # Try to get the idempotency value from the event payload or context
+            idempotency_value = None
+            if isinstance(idempotency_key, str) and idempotency_key.startswith("{") and idempotency_key.endswith("}"):
+                # It's a template placeholder
+                key_name = idempotency_key[1:-1]
+                idempotency_value = context.get(key_name) or event.raw_payload.get(key_name)
+            else:
+                # It's a literal value
+                idempotency_value = str(idempotency_key)
+            
+            if idempotency_value:
+                # Check if we've already processed this idempotency key
+                webhook_name = action.name or "webhook"
+                if self.webhook_state_manager.has_seen_id(webhook_name, str(idempotency_value)):
+                    return {
+                        "action": action.name,
+                        "status": "skipped",
+                        "reason": f"Idempotent webhook call skipped (ID: {idempotency_value})",
+                    }
 
         # Validate URL to prevent SSRF
         try:
@@ -539,9 +612,34 @@ class HookEngine:
 
         payload = event.raw_payload
 
+        # Prepare headers
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "Memorius-Webhook/1.0",
+        }
+
+        # Add HMAC signature if secret is configured
+        secret = action.config.get("secret")
+        if secret:
+            # Create HMAC signature
+            payload_bytes = json.dumps(payload).encode('utf-8')
+            signature = hmac.new(
+                secret.encode('utf-8'),
+                payload_bytes,
+                hashlib.sha256
+            ).hexdigest()
+            headers["X-Memorius-Signature"] = f"sha256={signature}"
+            headers["X-Memorius-Timestamp"] = str(int(time.time()))
+
         try:
             import httpx
-            resp = httpx.post(url, json=payload, timeout=10)
+            resp = httpx.post(url, json=payload, headers=headers, timeout=10)
+            
+            # Mark idempotency key as seen if verification was successful
+            if idempotency_value and resp.is_success:
+                webhook_name = action.name or "webhook"
+                self.webhook_state_manager.mark_id_seen(webhook_name, str(idempotency_value))
+            
             return {
                 "action": action.name,
                 "status": "done" if resp.is_success else "failed",

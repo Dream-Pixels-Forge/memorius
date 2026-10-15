@@ -178,6 +178,7 @@ class SearchModule:
                 results, vault=vault, hops=graph_hops,
                 min_weight=graph_min_weight,
                 max_extra=max(0, math.ceil(limit * 1.5) - len(results)),
+                use_spreading_activation=True,
             )
             if expanded:
                 results = results + expanded
@@ -195,6 +196,7 @@ class SearchModule:
         hops: int,
         min_weight: float,
         max_extra: int,
+        use_spreading_activation: bool = False,
     ) -> list[Memory]:
         """Walk the knowledge graph from ``seeds`` and return linked memories
         not already present in ``seeds``."""
@@ -202,11 +204,38 @@ class SearchModule:
             return []
         try:
             self._meta.init_graph()
-            res = self._meta.expand_graph(
-                [m.id for m in seeds], hops=max(1, hops),
-                min_weight=min_weight, max_nodes=max_extra,
-            )
-            expanded_ids = list(res.expanded_ids)
+            if use_spreading_activation:
+                # Use spreading activation algorithm
+                from memorius.graph import spreading_activation
+                activation_result = spreading_activation(
+                    self._meta._conn(),
+                    [m.id for m in seeds],
+                    hops=max(1, hops),
+                    min_weight=min_weight,
+                    decay_rate=0.5,  # Default decay rate
+                    # The seeds themselves sit at the top of the activation
+                    # ranking and are truncated away together with the rest
+                    # at max_nodes — request extra slots so max_extra non-seed
+                    # nodes survive; the seed filter below removes them.
+                    max_nodes=max_extra + len(seeds),
+                )
+                activations = activation_result.get("activations", {})
+                # Sort by activation level (descending), drop the seeds
+                # themselves (they carry full activation and would otherwise
+                # crowd out the linked nodes), then take the top max_extra.
+                seed_id_set = {m.id for m in seeds}
+                sorted_activations = sorted(activations.items(), key=lambda x: x[1], reverse=True)
+                expanded_ids = [
+                    mid for mid, _ in sorted_activations
+                    if mid not in seed_id_set
+                ][:max_extra]
+            else:
+                # Use original graph expansion
+                res = self._meta.expand_graph(
+                    [m.id for m in seeds], hops=max(1, hops),
+                    min_weight=min_weight, max_nodes=max_extra,
+                )
+                expanded_ids = list(res.expanded_ids)
         except Exception:  # best-effort: graph expansion failure — return empty, not an error
             logger.debug("Graph expansion failed (best-effort)")
             return []

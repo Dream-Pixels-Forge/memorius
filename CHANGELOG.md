@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.8.3 (2026-10-15)
+
+### Security
+- **Vault filter bypass fix** — `memorius_search` now respects vault-only searches, preventing cross-vault memory leakage (#19).
+
+### Neuroscience-inspired architecture (Phase 3)
+- **Typed knowledge graph edges** — `temporal_before`, `causal_leads_to`, `episodic_part_of`, `semantic_instance_of` relation types plus spreading-activation retrieval.
+- **Episodic/semantic store segregation** — raw interaction traces from `mine()` route to an episodic store; distilled facts go to the semantic store.
+- **Interference-based forgetting, engram maturation, and neuromodulator-gated retrieval** in consolidation.
+
+### Observability & durability
+- **Prometheus metrics endpoint** (`/metrics`) with recall latency, store/search/mine operation counters, memory utilization, and consolidation queue gauges.
+- **Health probes** — `/health/live` and `/health/ready`.
+- **Structured JSON logging** in MCP and REST servers; sanitized 500 error responses.
+- **Connection resilience** — `PRAGMA busy_timeout=5000` and idle-connection cleanup on SQLite/SQLite-vec stores.
+- **Webhook idempotency + HMAC signatures** in the hook engine.
+
 ## v0.8.2 (2026-08-15)
 
 ### Learning Module

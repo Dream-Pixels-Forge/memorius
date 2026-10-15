@@ -11,6 +11,7 @@ Hierarchy: Vault > Shelf > Folder > Note
 from __future__ import annotations
 
 import logging
+import math
 from pathlib import Path
 from typing import Any
 
@@ -47,14 +48,39 @@ class VaultEngine:
         self._embed = EmbeddingFactory.create(embed_cfg)
         storage_path = Path(storage_cfg.get("path", "~/.memorius/data")).expanduser()
         storage_type = storage_cfg.get("type", "chroma")
+        
+        # Create separate stores for episodic and semantic memories.
+        # The semantic (primary) store keeps its LEGACY location so existing
+        # vaults — and any tool that opens <storage>/memorius.db or the
+        # "vectors" directory directly — keep working; only the episodic
+        # store gets new subdirectories.
         if storage_type == "sqlite-vec":
             from memorius.sqlite_vec_store import SqliteVecStore
-            self._vector = SqliteVecStore(storage_path / "vectors", self._embed)
+            self._vector_episodic = SqliteVecStore(storage_path / "vectors_episodic", self._embed)
+            self._vector_semantic = SqliteVecStore(storage_path / "vectors", self._embed)
         else:
-            self._vector = ChromaStore(storage_path / "vectors", self._embed)
-        self._meta = SQLiteStore(storage_path)
-        self._search_mod = None  # lazy init
+            self._vector_episodic = ChromaStore(storage_path / "vectors_episodic", self._embed, self._config)
+            self._vector_semantic = ChromaStore(storage_path / "vectors", self._embed, self._config)
+
+        # Separate metadata stores (legacy path for semantic →
+        # <storage>/memorius.db, same as the pre-split single store)
+        self._meta_episodic = SQLiteStore(storage_path / "meta_episodic")
+        self._meta_semantic = SQLiteStore(storage_path)
+        
+        self._search_mod = None  # lazy init (semantic SearchModule)
+        self._search_mod_episodic = None  # lazy init (episodic SearchModule)
         self._store_mod = None  # lazy init
+        self._store_mod_episodic = None  # lazy init for episodic store
+        self._store_mod_semantic = None  # lazy init for semantic store
+
+        # Backward-compatible aliases — the semantic store is the primary
+        # store. Internal features (knowledge graph, learning, backup,
+        # doctor, consolidation, prune, diaries), the public `vector`/`meta`
+        # properties, and StoreModule/SearchModule wiring all operate on the
+        # semantic store; the episodic store only holds raw interaction
+        # traces routed from `mine()`.
+        self._meta = self._meta_semantic
+        self._vector = self._vector_semantic
 
         cons_cfg = self._config.get("consolidation", {})
         if cons_cfg.get("enabled", False):
@@ -85,7 +111,13 @@ class VaultEngine:
             self._meta.close_connection(self._meta._db_path)
         except Exception:  # best-effort: prevent cleanup errors from propagating
             pass
+        try:
+            self._meta_episodic.close_connection(self._meta_episodic._db_path)
+        except Exception:  # best-effort: prevent cleanup errors from propagating
+            pass
         self._vector = None
+        self._vector_episodic = None
+        self._vector_semantic = None
 
     def __del__(self):
         self.close()
@@ -104,19 +136,67 @@ class VaultEngine:
 
     # ── Private helpers ──
 
-    def _get_store_module(self):
-        """Lazy-init and return the StoreModule singleton."""
-        if self._store_mod is None:
-            from memorius.store_module import StoreModule
-            self._store_mod = StoreModule(self._vector, self._meta)
-        return self._store_mod
-
+    def _get_store_module_for_memory(self, shelf: str, folder: str, note: str):
+        """Get the appropriate store module based on memory origin.
+        
+        Raw interaction traces (from mine) go to episodic store:
+          - shelf="conversations", folder="mined", note="transcript"
+          
+        Distilled facts (from extract or manual storage) go to semantic store:
+          - Everything else
+        """
+        # Check if this is a raw interaction trace from the mine method
+        if (shelf == "conversations" and folder == "mined" and note == "transcript"):
+            if self._store_mod_episodic is None:
+                from memorius.store_module import StoreModule
+                self._store_mod_episodic = StoreModule(self._vector_episodic, self._meta_episodic)
+            return self._store_mod_episodic
+        else:
+            # Everything else goes to semantic store
+            if self._store_mod_semantic is None:
+                from memorius.store_module import StoreModule
+                self._store_mod_semantic = StoreModule(self._vector_semantic, self._meta_semantic)
+            return self._store_mod_semantic
+    
     def _get_search_module(self):
-        """Lazy-init and return the SearchModule singleton."""
+        """Lazy-init and return the SearchModule singleton.
+        
+        For search, we need to query both stores and merge results.
+        """
         if self._search_mod is None:
             from memorius.search_module import SearchModule
-            self._search_mod = SearchModule(self._vector, self._meta)
+            self._search_mod = SearchModule(self._vector_semantic, self._meta_semantic)
         return self._search_mod
+
+    def _get_search_module_episodic(self):
+        """Lazy-init and return the episodic SearchModule."""
+        if self._search_mod_episodic is None:
+            from memorius.search_module import SearchModule
+            self._search_mod_episodic = SearchModule(self._vector_episodic, self._meta_episodic)
+        return self._search_mod_episodic
+
+    def _get_store_module_episodic(self):
+        """Lazy-init and return the episodic StoreModule (raw traces)."""
+        if self._store_mod_episodic is None:
+            from memorius.store_module import StoreModule
+            self._store_mod_episodic = StoreModule(self._vector_episodic, self._meta_episodic)
+        return self._store_mod_episodic
+
+    def _get_store_module_semantic(self):
+        """Lazy-init and return the semantic StoreModule (distilled facts)."""
+        if self._store_mod_semantic is None:
+            from memorius.store_module import StoreModule
+            self._store_mod_semantic = StoreModule(self._vector_semantic, self._meta_semantic)
+        return self._store_mod_semantic
+
+    def _get_store_module(self):
+        """Lazy-init and return the primary (semantic) StoreModule.
+
+        Backward-compatible accessor: callers that predate the episodic/
+        semantic split expect a single store module wired to the default
+        store.
+        """
+        return self._get_store_module_semantic()
 
     # ── Memory operations ──
 
@@ -134,7 +214,9 @@ class VaultEngine:
                 metadata.
             _vector: pre-computed embedding vector (internal use for batch ops).
         """
-        return self._get_store_module().store(
+        # Route to appropriate store based on memory origin
+        store_module = self._get_store_module_for_memory(shelf, folder, note)
+        return store_module.store(
             content, vault=vault, shelf=shelf, folder=folder, note=note,
             metadata=metadata, ttl_days=ttl_days, _vector=_vector,
         )
@@ -166,12 +248,44 @@ class VaultEngine:
             Python after the vector query (over all ``n_results`` hits, so
             the limit is still honored when the universe shrinks).
         """
-        return self._get_search_module().search(
+        # Search both stores: semantic is primary and keeps its internal
+        # ranking (temporal decay + optional graph expansion appended at the
+        # end by SearchModule); episodic hits are merged in afterwards.
+        semantic_results = self._get_search_module().search(
             query, vault=vault, shelf=shelf, limit=limit,
             expand_graph=expand_graph, graph_hops=graph_hops,
             graph_min_weight=graph_min_weight, folder=folder, note=note,
             tags=tags, rerank=rerank,
         )
+        try:
+            episodic_results = self._get_search_module_episodic().search(
+                query, vault=vault, shelf=shelf, limit=limit,
+                expand_graph=expand_graph, graph_hops=graph_hops,
+                graph_min_weight=graph_min_weight, folder=folder, note=note,
+                tags=tags, rerank=rerank,
+            )
+        except Exception:  # best-effort: episodic search failure must not break search
+            logger.debug("Episodic search failed (best-effort)")
+            episodic_results = []
+
+        def _dist(m: Memory) -> float:
+            d = (m.metadata or {}).get("__distance__")
+            try:
+                return float(d) if d is not None else 1.0
+            except (TypeError, ValueError):
+                return 1.0
+
+        # Merge: semantic results keep their ranked order; unseen episodic
+        # hits are appended by ascending cosine distance.
+        seen_ids = {m.id for m in semantic_results}
+        merged = list(semantic_results)
+        merged.extend(
+            m for m in sorted(episodic_results, key=_dist)
+            if m.id not in seen_ids
+        )
+
+        cap = math.ceil(limit * 1.5) if expand_graph else limit
+        return merged[:cap]
 
     def touch(self, memory_id: str) -> None:
         """Explicitly mark a memory as accessed (reinforce it).
@@ -179,14 +293,42 @@ class VaultEngine:
         Use when an agent actually reads/uses a memory and you want the
         reinforcement model to credit it. Idempotent: safe to call on
         a missing id (no-op)."""
-        self._get_store_module().touch(memory_id)
+        # Try episodic store first
+        episodic_module = self._get_store_module_episodic()
+        episodic_module.touch(memory_id)
+        # Also try semantic store (idempotent, so safe to call even if not there)
+        semantic_module = self._get_store_module_semantic()
+        semantic_module.touch(memory_id)
 
     def get_memories_by_ids(self, ids: list[str],
                             with_vectors: bool = True) -> list[Memory]:
         """Fetch memories by exact ID. Vectors are pulled from ChromaDB only
         when ``with_vectors=True``. Memories whose meta row is missing or
         whose vector is unfetchable are skipped."""
-        return self._get_store_module().get_by_ids(ids, with_vectors=with_vectors)
+        # Check both episodic and semantic stores
+        episodic_module = self._get_store_module_episodic()
+        semantic_module = self._get_store_module_semantic()
+        
+        episodic_results = episodic_module.get_by_ids(ids, with_vectors=with_vectors)
+        semantic_results = semantic_module.get_by_ids(ids, with_vectors=with_vectors)
+        
+        # Combine results, preferring semantic if duplicate IDs exist (semantic is more authoritative)
+        seen_ids = set()
+        combined_results = []
+        
+        # Add semantic results first
+        for mem in semantic_results:
+            if mem.id not in seen_ids:
+                seen_ids.add(mem.id)
+                combined_results.append(mem)
+        
+        # Add episodic results that aren't already in semantic
+        for mem in episodic_results:
+            if mem.id not in seen_ids:
+                seen_ids.add(mem.id)
+                combined_results.append(mem)
+                
+        return combined_results
 
     def get_contradictions(self, memory_id: str) -> list[Memory]:
         """Return memories that contradict ``memory_id`` in the knowledge
@@ -211,7 +353,14 @@ class VaultEngine:
     def get_memory(self, memory_id: str) -> Memory | None:
         """Fetch a single memory by ID. Returns None when the id is invalid
         or the memory does not exist."""
-        return self._get_store_module().get(memory_id)
+        # Check episodic store first, then semantic
+        episodic_module = self._get_store_module_episodic()
+        mem = episodic_module.get(memory_id)
+        if mem is not None:
+            return mem
+            
+        semantic_module = self._get_store_module_semantic()
+        return semantic_module.get(memory_id)
 
     def update_memory(self, memory_id: str, content: str | None = None,
                       metadata: dict[str, Any] | None = None) -> Memory | None:
@@ -221,7 +370,15 @@ class VaultEngine:
         metadata dict (new keys overwrite, existing keys without a new
         value are preserved).  Returns the updated Memory or None when the
         id is invalid / not found."""
-        return self._get_store_module().update(memory_id, content=content, metadata=metadata)
+        # Try episodic store first
+        episodic_module = self._get_store_module_episodic()
+        result = episodic_module.update(memory_id, content=content, metadata=metadata)
+        if result is not None:
+            return result
+            
+        # If not found in episodic, try semantic store
+        semantic_module = self._get_store_module_semantic()
+        return semantic_module.update(memory_id, content=content, metadata=metadata)
 
     def list_memories(self, vault: str | None = None, shelf: str | None = None,
                       limit: int | None = None, with_vectors: bool = True,
@@ -236,10 +393,37 @@ class VaultEngine:
             - next_cursor: ISO timestamp of the last memory (use as cursor
               for the next page), or None if no more results
         """
-        return self._get_store_module().list_memories(
+        # Get results from both stores
+        episodic_module = self._get_store_module_episodic()
+        semantic_module = self._get_store_module_semantic()
+        
+        episodic_result = episodic_module.list_memories(
             vault=vault, shelf=shelf, limit=limit,
             with_vectors=with_vectors, cursor=cursor,
         )
+        semantic_result = semantic_module.list_memories(
+            vault=vault, shelf=shelf, limit=limit,
+            with_vectors=with_vectors, cursor=cursor,
+        )
+        
+        # Combine and sort by created_at DESC
+        episodic_memories = episodic_result.get("memories", [])
+        semantic_memories = semantic_result.get("memories", [])
+        all_memories = episodic_memories + semantic_memories
+        
+        # Sort by created_at DESC (most recent first)
+        all_memories.sort(key=lambda m: m.created_at or "", reverse=True)
+        
+        # Apply limit if specified
+        if limit is not None:
+            all_memories = all_memories[:limit]
+            
+        # For simplicity, we'll use the semantic store's next_cursor
+        # In a more sophisticated implementation, we'd need to merge cursors properly
+        return {
+            "memories": all_memories,
+            "next_cursor": semantic_result.get("next_cursor"),
+        }
 
     def list_diaries(self, vault: str | None = None, limit: int = 10) -> list[dict[str, Any]]:
         """List recent diary entries."""
@@ -266,7 +450,15 @@ class VaultEngine:
             ValueError: if memory_id is invalid/missing, or if a provided
                 vault/shelf does not match the memory's actual location.
         """
-        return self._get_store_module().delete(memory_id, vault=vault, shelf=shelf, dry_run=dry_run)
+        # Try episodic store first
+        episodic_module = self._get_store_module_episodic()
+        result = episodic_module.delete(memory_id, vault=vault, shelf=shelf, dry_run=dry_run)
+        if result.get("found", False):
+            return result
+            
+        # If not found in episodic, try semantic store
+        semantic_module = self._get_store_module_semantic()
+        return semantic_module.delete(memory_id, vault=vault, shelf=shelf, dry_run=dry_run)
 
     def mine(self, text: str, vault: str = "main", shelf: str = "conversations",
              folder: str = "mined", note: str = "transcript") -> list[Memory]:
@@ -294,7 +486,7 @@ class VaultEngine:
                     content: str = "", vault: str = "main",
                     exchange_count: int = 0) -> dict[str, Any]:
         """Write a diary entry for a session."""
-        return self._meta.write_diary(
+        return self._meta_semantic.write_diary(
             session_id=session_id,
             vault=vault,
             title=title,
@@ -305,17 +497,29 @@ class VaultEngine:
 
     def status(self) -> dict[str, Any]:
         """Return vault status."""
-        vaults = self._meta.list_vaults()
-        total_memories = self._vector.count()
+        # Get vaults from both stores and take union (list_vaults returns
+        # a list of dicts — extract the names for the set union).
+        episodic_vaults = {v["name"] for v in self._meta_episodic.list_vaults()}
+        semantic_vaults = {v["name"] for v in self._meta_semantic.list_vaults()}
+        all_vaults = episodic_vaults.union(semantic_vaults)
+        # Get total memories from both stores
+        episodic_count = self._vector_episodic.count()
+        semantic_count = self._vector_semantic.count()
+        total_memories = episodic_count + semantic_count
         return {
             "memories": total_memories,
-            "vaults": len(vaults),
+            "vaults": len(all_vaults),
             "embedding_provider": type(self._embed).__name__,
             "embedding_dimension": getattr(self._embed, "dimension", 384),
         }
 
     def get_hierarchy(self, vault: str) -> dict[str, Any]:
-        return self._meta.get_hierarchy(vault)
+        """Get hierarchy for a vault, checking semantic store first then episodic."""
+        try:
+            return self._meta_semantic.get_hierarchy(vault)
+        except Exception:
+            # Fall back to episodic store
+            return self._meta_episodic.get_hierarchy(vault)
 
     # ── Feature methods (v0.2.0) ──
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hmac
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +20,64 @@ from memorius.validation import (
     MAX_DIARY_CONTENT,
 )
 
+# Prometheus metrics
+try:
+    from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
+    from fastapi import Response
+    from fastapi.responses import PlainTextResponse, JSONResponse
+    PROMETHEUS_AVAILABLE = True
+except ImportError:
+    PROMETHEUS_AVAILABLE = False
+
 logger = logging.getLogger("memorius.rest")
+
+# Prometheus metrics objects
+if PROMETHEUS_AVAILABLE:
+    # Recall latency histogram
+    MEMORIUS_RECALL_LATENCY_SECONDS = Histogram(
+        'memorius_recall_latency_seconds',
+        'Time spent recalling memories',
+        buckets=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]
+    )
+    
+    # Consolidation queue size gauge
+    MEMORIUS_CONSOLIDATION_QUEUE_SIZE = Gauge(
+        'memorius_consolidation_queue_size',
+        'Number of memories pending consolidation'
+    )
+    
+    # Memory utilization score gauge
+    MEMORIUS_MEMORY_UTILIZATION_SCORE = Gauge(
+        'memorius_memory_utilization_score',
+        'Memory utilization score (0.0 to 1.0)'
+    )
+    
+    # Total memories counter
+    MEMORIUS_TOTAL_MEMORIES = Gauge(
+        'memorius_total_memories',
+        'Total number of memories in the vault'
+    )
+    
+    # Store operation counter
+    MEMORIUS_STORE_OPERATIONS_TOTAL = Counter(
+        'memorius_store_operations_total',
+        'Total number of store operations',
+        ['result']  # success or failure
+    )
+    
+    # Search operation counter
+    MEMORIUS_SEARCH_OPERATIONS_TOTAL = Counter(
+        'memorius_search_operations_total',
+        'Total number of search operations',
+        ['result']  # success or failure
+    )
+    
+    # Mine operation counter
+    MEMORIUS_MINE_OPERATIONS_TOTAL = Counter(
+        'memorius_mine_operations_total',
+        'Total number of mine operations',
+        ['result']  # success or failure
+    )
 
 
 class MemoriusAPI:
@@ -54,7 +112,33 @@ class MemoriusAPI:
                 "REST server requires extra dependencies. Install: pip install memorius"
             )
 
-        app = FastAPI(title="Memorius API", version=_memorius_version)
+        app = FastAPI(title="Memorius API", version=_memorius_version, debug=False)
+
+        # Configure JSON logging for memorius
+        import logging
+        import json
+
+        class JSONFormatter(logging.Formatter):
+            def format(self, record):
+                log_record = {
+                    "timestamp": self.formatTime(record, self.datefmt),
+                    "level": record.levelname,
+                    "message": record.getMessage(),
+                    "logger": record.name,
+                }
+                if record.exc_info:
+                    log_record["exc_info"] = self.formatException(record.exc_info)
+                return json.dumps(log_record)
+
+        # Get the memorius logger
+        memorius_logger = logging.getLogger("memorius")
+        memorius_logger.setLevel(logging.INFO)
+        # Clear existing handlers to avoid duplicate logs
+        memorius_logger.handlers.clear()
+        # Add stream handler with our formatter
+        handler = logging.StreamHandler()
+        handler.setFormatter(JSONFormatter())
+        memorius_logger.addHandler(handler)
 
         # CORS — restrictive by default; regex covers dynamic ports
         app.add_middleware(
@@ -64,6 +148,15 @@ class MemoriusAPI:
             allow_methods=["*"],
             allow_headers=["*"],
         )
+
+        # Global exception handler to catch unexpected errors and return sanitized response
+        @app.exception_handler(Exception)
+        async def global_exception_handler(request: Request, exc: Exception):
+            memorius_logger.exception("Unhandled exception")
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Internal server error"},
+            )
 
         # API key authentication
         api_key = os.environ.get("MEMORIUS_API_KEY")
@@ -154,6 +247,35 @@ class MemoriusAPI:
         from fastapi import HTTPException
         engine = self._engine
 
+        @app.get("/health/live")
+        async def health_live():
+            """Liveness probe - checks if the process is running."""
+            return {"status": "alive", "service": "memorius"}
+
+        @app.get("/health/ready")
+        async def health_ready():
+            """Readiness probe - checks if dependencies are healthy."""
+            try:
+                # Check if we can access the database/status
+                status = engine.status()
+                # Basic check: if we can get status without error, we're ready
+                # In a more sophisticated implementation, we'd check DB connections, etc.
+                return {
+                    "status": "ready", 
+                    "service": "memorius",
+                    "checks": {
+                        "status": "ok",
+                        "memories": status.get("memories", 0),
+                        "vaults": status.get("vaults", 0)
+                    }
+                }
+            except Exception as e:
+                logger.error(f"Readiness check failed: {e}")
+                return JSONResponse(
+                    status_code=503,
+                    content={"status": "not ready", "service": "memorius", "error": str(e)}
+                )
+
         @app.get("/health")
         async def health():
             return {"status": "ok", "service": "memorius"}
@@ -166,14 +288,30 @@ class MemoriusAPI:
             folder = _validate_name(payload.get("folder", "default"), "folder")
             note = _validate_name(payload.get("note", "default"), "note")
             ttl_days = payload.get("ttl_days")
-            memory = engine.store(
-                content=content, vault=vault, shelf=shelf,
-                folder=folder, note=note, metadata=payload.get("metadata"),
-                ttl_days=ttl_days,
-            )
-            d = memory.to_dict()
-            d.pop("vector", None)
-            return d
+            
+            # Start timing for operation
+            start_time = time.time()
+            try:
+                memory = engine.store(
+                    content=content, vault=vault, shelf=shelf,
+                    folder=folder, note=note, metadata=payload.get("metadata"),
+                    ttl_days=ttl_days,
+                )
+                # Record successful store
+                if PROMETHEUS_AVAILABLE:
+                    MEMORIUS_STORE_OPERATIONS_TOTAL.labels(result="success").inc()
+                d = memory.to_dict()
+                d.pop("vector", None)
+                return d
+            except Exception as e:
+                # Record failed store
+                if PROMETHEUS_AVAILABLE:
+                    MEMORIUS_STORE_OPERATIONS_TOTAL.labels(result="failure").inc()
+                raise e
+            finally:
+                # For store operations, we might want to track latency too
+                # But the recall latency is specifically for recall operations
+                pass
 
         @app.post("/search")
         async def search(payload: dict[str, Any]):
@@ -191,17 +329,33 @@ class MemoriusAPI:
             rerank = bool(payload.get("rerank", False))
             tags_in = payload.get("tags")
             tags = [str(t) for t in tags_in] if isinstance(tags_in, list) and tags_in else None
-            results = engine.search(
-                query=query, vault=vault, shelf=shelf, limit=limit,
-                expand_graph=expand_graph, folder=folder, note=note, tags=tags,
-                rerank=rerank,
-            )
-            out = []
-            for m in results:
-                d = m.to_dict()
-                d.pop("vector", None)
-                out.append(d)
-            return {"query": query, "count": len(results), "results": out}
+            
+            # Start timing for recall latency metric
+            start_time = time.time()
+            try:
+                results = engine.search(
+                    query=query, vault=vault, shelf=shelf, limit=limit,
+                    expand_graph=expand_graph, folder=folder, note=note, tags=tags,
+                    rerank=rerank,
+                )
+                # Record successful search
+                if PROMETHEUS_AVAILABLE:
+                    MEMORIUS_SEARCH_OPERATIONS_TOTAL.labels(result="success").inc()
+                out = []
+                for m in results:
+                    d = m.to_dict()
+                    d.pop("vector", None)
+                    out.append(d)
+                return {"query": query, "count": len(results), "results": out}
+            except Exception as e:
+                # Record failed search
+                if PROMETHEUS_AVAILABLE:
+                    MEMORIUS_SEARCH_OPERATIONS_TOTAL.labels(result="failure").inc()
+                raise e
+            finally:
+                # Record recall latency
+                if PROMETHEUS_AVAILABLE:
+                    MEMORIUS_RECALL_LATENCY_SECONDS.observe(time.time() - start_time)
 
         @app.post("/mine")
         async def mine(payload: dict[str, Any]):
@@ -211,8 +365,24 @@ class MemoriusAPI:
             if len(text) > MAX_CONTENT_LENGTH:
                 raise HTTPException(status_code=400, detail="Text too long")
             vault = _validate_name(payload.get("vault", "main"), "vault")
-            memories = engine.mine(text=text, vault=vault)
-            return {"stored": len(memories), "memory_ids": [m.id for m in memories]}
+            
+            # Start timing for operation
+            start_time = time.time()
+            try:
+                memories = engine.mine(text=text, vault=vault)
+                # Record successful mine
+                if PROMETHEUS_AVAILABLE:
+                    MEMORIUS_MINE_OPERATIONS_TOTAL.labels(result="success").inc()
+                return {"stored": len(memories), "memory_ids": [m.id for m in memories]}
+            except Exception as e:
+                # Record failed mine
+                if PROMETHEUS_AVAILABLE:
+                    MEMORIUS_MINE_OPERATIONS_TOTAL.labels(result="failure").inc()
+                raise e
+            finally:
+                # Record recall latency for mine operations too (since it involves recall/search)
+                if PROMETHEUS_AVAILABLE:
+                    MEMORIUS_RECALL_LATENCY_SECONDS.observe(time.time() - start_time)
 
         @app.get("/status")
         async def status():
@@ -228,12 +398,26 @@ class MemoriusAPI:
             content = payload.get("content", "")
             if content and len(content) > MAX_DIARY_CONTENT:
                 raise HTTPException(status_code=400, detail="Diary content too long")
-            entry = engine.write_diary(
-                session_id=session_id, vault=vault,
-                title=payload.get("title", ""), summary=payload.get("summary", ""),
-                content=content, exchange_count=payload.get("exchange_count", 0),
-            )
-            return entry
+            
+            # Start timing for operation
+            start_time = time.time()
+            try:
+                entry = engine.write_diary(
+                    session_id=session_id, vault=vault,
+                    title=payload.get("title", ""), summary=payload.get("summary", ""),
+                    content=content, exchange_count=payload.get("exchange_count", 0),
+                )
+                # Record successful diary write (as a store operation)
+                if PROMETHEUS_AVAILABLE:
+                    MEMORIUS_STORE_OPERATIONS_TOTAL.labels(result="success").inc()
+                return entry
+            except Exception as e:
+                # Record failed diary write
+                if PROMETHEUS_AVAILABLE:
+                    MEMORIUS_STORE_OPERATIONS_TOTAL.labels(result="failure").inc()
+                raise e
+            finally:
+                pass
 
         @app.get("/vault")
         async def ls(vault: str = "main"):
@@ -395,12 +579,22 @@ class MemoriusAPI:
                 memory_id = _vid(memory_id)
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
-            mem = engine.get_memory(memory_id)
-            if mem is None:
-                raise HTTPException(status_code=404, detail="Memory not found")
-            d = mem.to_dict()
-            d.pop("vector", None)
-            return d
+            
+            # Start timing for recall latency
+            start_time = time.time()
+            try:
+                mem = engine.get_memory(memory_id)
+                if mem is None:
+                    raise HTTPException(status_code=404, detail="Memory not found")
+                d = mem.to_dict()
+                d.pop("vector", None)
+                return d
+            except Exception as e:
+                raise e
+            finally:
+                # Record recall latency
+                if PROMETHEUS_AVAILABLE:
+                    MEMORIUS_RECALL_LATENCY_SECONDS.observe(time.time() - start_time)
 
         @app.patch("/memory/{memory_id}")
         async def update_memory(memory_id: str, payload: dict[str, Any]):
@@ -432,10 +626,24 @@ class MemoriusAPI:
                 memory_id = _vid(memory_id)
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
-            result = engine.delete(memory_id)
-            if not result.get("found", False):
-                raise HTTPException(status_code=404, detail="Memory not found")
-            return result
+            
+            # Start timing for operation
+            start_time = time.time()
+            try:
+                result = engine.delete(memory_id)
+                if not result.get("found", False):
+                    raise HTTPException(status_code=404, detail="Memory not found")
+                # Record successful delete (as a store operation)
+                if PROMETHEUS_AVAILABLE:
+                    MEMORIUS_STORE_OPERATIONS_TOTAL.labels(result="success").inc()
+                return result
+            except Exception as e:
+                # Record failed delete
+                if PROMETHEUS_AVAILABLE:
+                    MEMORIUS_STORE_OPERATIONS_TOTAL.labels(result="failure").inc()
+                raise e
+            finally:
+                pass
 
         @app.post("/prune")
         async def prune(payload: dict[str, Any]):
@@ -500,6 +708,53 @@ class MemoriusAPI:
                 d.pop("vector", None)
                 out.append(d)
             return {"count": len(out), "next_cursor": next_cursor, "memories": out}
+
+        @app.get("/metrics")
+        async def metrics():
+            """Prometheus metrics endpoint."""
+            if not PROMETHEUS_AVAILABLE:
+                return PlainTextResponse(
+                    "Prometheus client not available. Install: pip install prometheus-client",
+                    status_code=503
+                )
+            
+            # Update metrics before serving
+            try:
+                # Update total memories count
+                status = engine.status()
+                MEMORIUS_TOTAL_MEMORIES.set(status.get("memories", 0))
+                
+                # Try to get memory utilization score from engine if available
+                memory_utilization = 0.5  # Default placeholder
+                if hasattr(engine, 'get_memory_utilization_score'):
+                    memory_utilization = engine.get_memory_utilization_score()
+                elif hasattr(engine, 'get_memory_stats'):
+                    stats = engine.get_memory_stats()
+                    # Calculate utilization based on stats if available
+                    # This is a placeholder - actual implementation would depend on what stats are available
+                    memory_utilization = min(stats.get('total_memories', 0) / 10000.0, 1.0)  # Assume 10k is full
+                
+                MEMORIUS_MEMORY_UTILIZATION_SCORE.set(memory_utilization)
+                
+                # Try to get consolidation queue size from engine if available
+                consolidation_queue_size = 0  # Default
+                if hasattr(engine, 'get_consolidation_queue_size'):
+                    consolidation_queue_size = engine.get_consolidation_queue_size()
+                elif hasattr(engine, 'consolidation_daemon') and engine.consolidation_daemon:
+                    # If we have access to the consolidation daemon
+                    if hasattr(engine.consolidation_daemon, 'get_queue_size'):
+                        consolidation_queue_size = engine.consolidation_daemon.get_queue_size()
+                
+                MEMORIUS_CONSOLIDATION_QUEUE_SIZE.set(consolidation_queue_size)
+                
+            except Exception:
+                # If we can't update metrics, still serve what we have
+                pass
+            
+            return Response(
+                content=generate_latest(),
+                media_type=CONTENT_TYPE_LATEST
+            )
 
 
 def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912,

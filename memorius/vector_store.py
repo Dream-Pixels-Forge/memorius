@@ -55,9 +55,10 @@ def _retry(fn, max_retries: int = 3, base_delay: float = 0.1, exceptions: tuple 
 class ChromaStore(VectorStore):
     """Vector store backed by ChromaDB."""
 
-    def __init__(self, path: Path, embedding_provider: EmbeddingProvider):
+    def __init__(self, path: Path, embedding_provider: EmbeddingProvider, config: dict = None):
         self._path = path
         self._embed = embedding_provider
+        self._config = config or {}
         self._client = None  # lazy
         self._collections: dict[str, Any] = {}
 
@@ -94,14 +95,28 @@ class ChromaStore(VectorStore):
         except Exception:  # best-effort: collection doesn't exist — will create below
             if not create:
                 return None
+            # Base metadata — identical to the pre-optimization format so
+            # collections stay compatible across ChromaDB versions.
+            metadata = {
+                "hnsw:space": "cosine",
+                "memorius_vault": vault,
+                "memorius_shelf": shelf,
+            }
+            # Optional HNSW tuning — emitted only when explicitly enabled,
+            # using ChromaDB's documented legacy parameter keys
+            # (hnsw:construction_ef / hnsw:M / hnsw:search_ef).
+            opt = (self._config or {}).get("vector_optimization", {})
+            if opt.get("enable_hnsw_optimization", False):
+                if opt.get("hnsw_ef_construction") is not None:
+                    metadata["hnsw:construction_ef"] = int(opt["hnsw_ef_construction"])
+                if opt.get("hnsw_max_m") is not None:
+                    metadata["hnsw:M"] = int(opt["hnsw_max_m"])
+                if opt.get("hnsw_ef_search") is not None:
+                    metadata["hnsw:search_ef"] = int(opt["hnsw_ef_search"])
             col = client.create_collection(
                 name,
                 get_or_create=True,
-                metadata={
-                    "hnsw:space": "cosine",
-                    "memorius_vault": vault,
-                    "memorius_shelf": shelf,
-                },
+                metadata=metadata,
             )
         self._collections[name] = col
         return col

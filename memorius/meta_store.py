@@ -11,6 +11,7 @@ import json
 import logging
 import sqlite3
 import threading
+import time
 import uuid
 from collections.abc import Generator
 from datetime import datetime, timezone
@@ -20,6 +21,8 @@ from typing import Any
 logger = logging.getLogger("memorius.meta")
 
 local = threading.local()
+# Track last use time for idle connection cleanup
+_local_last_use = threading.local()
 
 
 def _close_thread_conn():
@@ -60,7 +63,13 @@ class SQLiteStore:
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")
+            # Set busy timeout to 5 seconds to help with lock contention
+            conn.execute("PRAGMA busy_timeout=5000")  # 5 seconds in milliseconds
             conns[key] = conn
+        # Update last use time for idle connection tracking
+        if not hasattr(_local_last_use, 'last_use_times'):
+            _local_last_use.last_use_times = {}
+        _local_last_use.last_use_times[key] = time.time()
         return conn
 
     # ── Public query API ──
@@ -72,6 +81,14 @@ class SQLiteStore:
         caller can inspect ``lastrowid`` or ``rowcount`` if needed.
         """
         conn = self._conn()
+        # Periodically cleanup idle connections (every 100 executions)
+        if not hasattr(self, '_execution_counter'):
+            self._execution_counter = 0
+        self._execution_counter += 1
+        if self._execution_counter >= 100:
+            self._execution_counter = 0
+            self._cleanup_idle_connections()
+        
         with self._lock:
             cur = conn.execute(sql, params)
             conn.commit()
@@ -80,6 +97,14 @@ class SQLiteStore:
     def execute_many(self, sql: str, params_seq: list[tuple]) -> sqlite3.Cursor:
         """Execute a SQL statement against every parameter set and commit."""
         conn = self._conn()
+        # Periodically cleanup idle connections (every 100 executions)
+        if not hasattr(self, '_execution_counter'):
+            self._execution_counter = 0
+        self._execution_counter += 1
+        if self._execution_counter >= 100:
+            self._execution_counter = 0
+            self._cleanup_idle_connections()
+        
         with self._lock:
             cur = conn.executemany(sql, params_seq)
             conn.commit()
@@ -88,6 +113,14 @@ class SQLiteStore:
     def executescript(self, script: str) -> None:
         """Execute a multi-statement SQL script and commit."""
         conn = self._conn()
+        # Periodically cleanup idle connections (every 100 executions)
+        if not hasattr(self, '_execution_counter'):
+            self._execution_counter = 0
+        self._execution_counter += 1
+        if self._execution_counter >= 100:
+            self._execution_counter = 0
+            self._cleanup_idle_connections()
+        
         with self._lock:
             conn.executescript(script)
             conn.commit()
@@ -95,13 +128,31 @@ class SQLiteStore:
     def fetchone(self, sql: str, params: tuple = ()) -> dict[str, Any] | None:
         """Execute a SELECT and return a single row as a dict (or None)."""
         conn = self._conn()
-        row = conn.execute(sql, params).fetchone()
-        return dict(row) if row else None
+        # Periodically cleanup idle connections (every 100 executions)
+        if not hasattr(self, '_execution_counter'):
+            self._execution_counter = 0
+        self._execution_counter += 1
+        if self._execution_counter >= 100:
+            self._execution_counter = 0
+            self._cleanup_idle_connections()
+        
+        with self._lock:
+            row = conn.execute(sql, params).fetchone()
+            return dict(row) if row else None
 
     def fetchall(self, sql: str, params: tuple = ()) -> list[dict[str, Any]]:
         """Execute a SELECT and return all rows as a list of dicts."""
         conn = self._conn()
-        return [dict(r) for r in conn.execute(sql, params).fetchall()]
+        # Periodically cleanup idle connections (every 100 executions)
+        if not hasattr(self, '_execution_counter'):
+            self._execution_counter = 0
+        self._execution_counter += 1
+        if self._execution_counter >= 100:
+            self._execution_counter = 0
+            self._cleanup_idle_connections()
+        
+        with self._lock:
+            return [dict(r) for r in conn.execute(sql, params).fetchall()]
 
     @contextlib.contextmanager
     def transaction(self) -> Generator[sqlite3.Connection, None, None]:
@@ -119,6 +170,14 @@ class SQLiteStore:
                 # auto-committed unless an exception propagates
         """
         conn = self._conn()
+        # Periodically cleanup idle connections (every 100 executions)
+        if not hasattr(self, '_execution_counter'):
+            self._execution_counter = 0
+        self._execution_counter += 1
+        if self._execution_counter >= 100:
+            self._execution_counter = 0
+            self._cleanup_idle_connections()
+        
         with self._lock:
             try:
                 conn.execute("BEGIN")
@@ -127,6 +186,14 @@ class SQLiteStore:
             except Exception:  # transaction rollback-and-raise pattern
                 conn.rollback()
                 raise
+            finally:
+                # Periodically cleanup idle connections (every 100 executions)
+                if not hasattr(self, '_execution_counter'):
+                    self._execution_counter = 0
+                self._execution_counter += 1
+                if self._execution_counter >= 100:
+                    self._execution_counter = 0
+                    self._cleanup_idle_connections()
 
     # ── Migration helpers ──
 
@@ -952,10 +1019,11 @@ class SQLiteStore:
         for e in edges:
             try:
                 self.execute(
-                    "INSERT OR IGNORE INTO memory_graph (source_id, target_id, weight, relation, created_at) "
-                    "VALUES (?, ?, ?, ?, ?)",
+                    "INSERT OR IGNORE INTO memory_graph (source_id, target_id, weight, relation, created_at, tvalid) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
                     (e["source_id"], e["target_id"], e.get("weight", 1.0),
-                     e.get("relation", "related"), e.get("created_at", now)),
+                     e.get("relation", "related"), e.get("created_at", now),
+                     e.get("tvalid") or e.get("created_at", now)),
                 )
                 count += 1
             except Exception:  # best-effort: skip corrupted edge, continue with rest

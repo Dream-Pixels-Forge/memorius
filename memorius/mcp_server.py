@@ -382,6 +382,32 @@ class McpServer:
 
     def run(self):
         """Run the MCP server over stdio (JSON-RPC)."""
+        # Configure JSON logging for memorius
+        import logging
+        import json
+
+        class JSONFormatter(logging.Formatter):
+            def format(self, record):
+                log_record = {
+                    "timestamp": self.formatTime(record, self.datefmt),
+                    "level": record.levelname,
+                    "message": record.getMessage(),
+                    "logger": record.name,
+                }
+                if record.exc_info:
+                    log_record["exc_info"] = self.formatException(record.exc_info)
+                return json.dumps(log_record)
+
+        # Get the memorius logger
+        memorius_logger = logging.getLogger("memorius")
+        memorius_logger.setLevel(logging.INFO)
+        # Clear existing handlers to avoid duplicate logs
+        memorius_logger.handlers.clear()
+        # Add stream handler with our formatter
+        handler = logging.StreamHandler()
+        handler.setFormatter(JSONFormatter())
+        memorius_logger.addHandler(handler)
+
         logger.info("MCP server starting (stdio)")
         try:
             sys.stdout.reconfigure(encoding="utf-8")
@@ -416,6 +442,12 @@ class McpServer:
                 self._send_error(-32700, f"Parse error: {e}")
                 if consecutive_errors >= max_consecutive_errors:
                     logger.error("Too many consecutive parse errors, shutting down")
+                    break
+            except Exception as e:
+                consecutive_errors += 1
+                memorius_logger.exception(f"MCP unexpected error (%d/%d)", consecutive_errors, max_consecutive_errors)
+                if consecutive_errors >= max_consecutive_errors:
+                    memorius_logger.error("Too many consecutive errors, shutting down")
                     break
             except Exception as e:
                 consecutive_errors += 1
