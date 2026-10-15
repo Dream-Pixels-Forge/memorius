@@ -55,12 +55,7 @@ rules, smart context injection, session diaries, and workflow templates.
 ### Install the skill
 
 ```bash
-# Copy the skill into your agent's skills directory
-cp -r skills/memorius ~/.hermes/skills/
-
-# Verify it's discovered
-memorius search "skill installation procedure"   # confirm the skill's keywords are searchable
-hermes skills list | grep memorius
+npx skills add github.com/Dream-Pixels-Forge/memorius/tree/main/skills/memorius
 ```
 
 For agents without a Hermes skill format, use MCP (below) or the CLI directly.
