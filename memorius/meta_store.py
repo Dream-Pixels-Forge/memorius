@@ -1034,6 +1034,30 @@ class SQLiteStore:
         """Count rows in memory_meta."""
         return self.fetchone("SELECT COUNT(*) as c FROM memory_meta")["c"]
 
+    def list_memory_meta(self, vault: str | None = None,
+                         include_archived: bool = True) -> list[dict[str, Any]]:
+        """Enumerate memory_meta rows.
+
+        Args:
+            vault: optional vault filter.
+            include_archived: when False, exclude rows where ``archived=1``.
+
+        Returns:
+            List of dicts with keys id, vault, shelf, folder, note, content,
+            created_at, updated_at, archived.
+        """
+        sql = ("SELECT id, vault, shelf, folder, note, content, created_at, "
+               "updated_at, archived FROM memory_meta")
+        clauses, params = [], []
+        if vault:
+            clauses.append("vault = ?")
+            params.append(vault)
+        if not include_archived:
+            clauses.append("archived = 0")
+        if clauses:
+            sql += " WHERE " + " AND ".join(clauses)
+        return self.fetchall(sql, tuple(params))
+
     def count_graph_edges(self) -> int:
         """Count rows in memory_graph."""
         try:

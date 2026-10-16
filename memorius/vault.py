@@ -10,6 +10,7 @@ Hierarchy: Vault > Shelf > Folder > Note
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 from pathlib import Path
@@ -655,6 +656,139 @@ class VaultEngine:
                 self.delete(mid)
             result["archived_count"] = len(ids)
         return result
+
+    def repair(self, vault: str | None = None, reindex: bool = False,
+               dry_run: bool = False) -> dict[str, Any]:
+        """Reconcile the vector store with the authoritative metadata store.
+
+        Drift between the two stores has two shapes:
+
+        * **Orphaned vectors** — a Chroma record with no matching
+          ``memory_meta`` row. These inflate vector counts and can surface in
+          search even though the memory is gone.
+        * **Missing vectors** — a ``memory_meta`` row whose embedding is
+          absent from Chroma, so the memory is invisible to search.
+
+        This method:
+        - always detects orphaned vectors and removes them (unless
+          ``dry_run=True``);
+        - when ``reindex=True``, re-embeds the content of every metadata row
+          whose vector is missing;
+        - returns a structured report.
+
+        The metadata store is treated as the source of truth: orphaned
+        vectors are dropped and missing vectors are restored from metadata.
+        This is the inverse of a store rebuild — it only fixes *drift*, not
+        wholesale reindexing of healthy data.
+
+        Args:
+            vault: restrict the reconciliation to a single vault.
+            reindex: re-embed content for metadata rows missing a vector.
+            dry_run: report what would change without mutating the vector store.
+
+        Returns:
+            dict with keys: orphans_found, orphans_removed, missing_found,
+            missing_reindexed, in_sync, dry_run, meta_count, vector_count,
+            orphans (list of {id, vault, shelf}).
+        """
+        from memorius.models import Memory
+
+        meta_rows = self._meta.list_memory_meta(vault=vault)
+        meta_by_id = {row["id"]: row for row in meta_rows}
+
+        # Enumerate all vector IDs across Chroma collections.
+        client = self._vector._lazy_client()
+        all_vector_ids: list[str] = []
+        for col in client.list_collections():
+            try:
+                ids = col.get(include=[])["ids"] or []
+            except Exception:  # best-effort: unreadable collection — skip
+                logger.debug("repair: could not read collection %s", col.name)
+                ids = []
+            all_vector_ids.extend(ids)
+
+        orphan_ids = sorted({vid for vid in all_vector_ids if vid not in meta_by_id})
+        missing_ids = sorted({mid for mid in meta_by_id
+                              if mid not in set(all_vector_ids)})
+
+        orphans_removed = 0
+        orphan_set = set(orphan_ids)
+        if orphan_ids and not dry_run:
+            # Delete orphans per-collection so each delete targets the right
+            # ChromaDB collection (delete is scoped to the collection's rows).
+            for col in self._vector._lazy_client().list_collections():
+                try:
+                    col_ids = col.get(include=[])["ids"] or []
+                except Exception:  # best-effort: unreadable collection — skip
+                    continue
+                col_orphans = [vid for vid in col_ids if vid in orphan_set]
+                if col_orphans:
+                    col.delete(ids=col_orphans)
+                    orphans_removed += len(col_orphans)
+
+        missing_reindexed = 0
+        if reindex and missing_ids and not dry_run:
+            # Re-embed content and upsert into the vector store.
+            for mid in missing_ids:
+                row = meta_by_id[mid]
+                content = row.get("content") or ""
+                if not content:
+                    continue
+                memory = Memory(
+                    id=mid,
+                    vault=row.get("vault", "main"),
+                    shelf=row.get("shelf", "default"),
+                    folder=row.get("folder", "default"),
+                    note=row.get("note", "default"),
+                    content=content,
+                    metadata=json.loads(row["metadata"] or "{}") if row.get("metadata") else {},
+                    created_at=row.get("created_at", ""),
+                    updated_at=row.get("updated_at", ""),
+                    vector=None,
+                )
+                try:
+                    self._vector.add(memory)
+                    missing_reindexed += 1
+                except Exception:  # best-effort: reindex failure is logged, not fatal
+                    logger.warning("repair: reindex failed for %s", mid)
+
+        # Re-count after mutations to report the resulting state.
+        meta_count = len(meta_by_id)
+        if not dry_run:
+            client = self._vector._lazy_client()
+            vector_count = 0
+            for col in client.list_collections():
+                try:
+                    vector_count += col.count()
+                except Exception:
+                    pass
+        else:
+            vector_count = len(all_vector_ids)
+
+        # After a non-dry-run repair, the store is in sync iff no orphans
+        # remain AND no missing vectors were left behind (reindex was on).
+        if dry_run:
+            in_sync = False
+        else:
+            unresolved_orphans = len(orphan_ids) - orphans_removed
+            unresolved_missing = (len(missing_ids) - missing_reindexed) if reindex else len(missing_ids)
+            in_sync = unresolved_orphans == 0 and unresolved_missing == 0
+
+        return {
+            "orphans_found": len(orphan_ids),
+            "orphans_removed": orphans_removed,
+            "missing_found": len(missing_ids),
+            "missing_reindexed": missing_reindexed,
+            "in_sync": in_sync,
+            "dry_run": dry_run,
+            "meta_count": meta_count,
+            "vector_count": vector_count,
+            "orphans": [
+                {"id": oid, "vault": meta_by_id.get(oid, {}).get("vault", "?"),
+                 "shelf": meta_by_id.get(oid, {}).get("shelf", "?")}
+                for oid in orphan_ids
+            ],
+        }
 
     # ── Learning methods (v0.8.2) ──
 

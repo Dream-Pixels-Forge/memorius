@@ -275,6 +275,18 @@ class McpServer:
             "inputSchema": {"type": "object", "properties": {}},
         },
         {
+            "name": "memorius_repair",
+            "description": "Reconcile the vector store with the metadata store — removes orphaned vectors (those with no matching memory_meta row) and optionally re-embeds missing vectors. Use dry_run to preview first. This is the remedy for doctor's vector_count_match drift warning.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "vault": {"type": "string", "description": "Restrict the repair to a single vault (default: all vaults)"},
+                    "reindex": {"type": "boolean", "description": "Re-embed content for metadata rows whose vector is missing (default: false)", "default": False},
+                    "dry_run": {"type": "boolean", "description": "Preview changes without mutating the vector store (default: false)", "default": False},
+                },
+            },
+        },
+        {
             "name": "memorius_list",
             "description": "List memories with cursor pagination. Returns a page of memories ordered by creation time (newest first). Use cursor from the previous response to get the next page.",
             "inputSchema": {
@@ -785,6 +797,15 @@ class McpServer:
     def tool_memorius_doctor(self, args: dict) -> dict:
         from memorius.doctor import run_checks
         return run_checks(engine=self._engine)
+
+    def tool_memorius_repair(self, args: dict) -> dict:
+        vault = _validate_name(args.get("vault"), "vault") if args.get("vault") else None
+        result = self._engine.repair(
+            vault=vault,
+            reindex=bool(args.get("reindex", False)),
+            dry_run=bool(args.get("dry_run", False)),
+        )
+        return result
 
     def tool_memorius_list(self, args: dict) -> dict:
         vault = _validate_name(args.get("vault"), "vault") if args.get("vault") else None

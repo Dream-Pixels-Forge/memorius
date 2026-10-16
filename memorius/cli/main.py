@@ -81,7 +81,8 @@ def main():
     setup_p.add_argument("--force", action="store_true", help="Re-download model even if exists")
     setup_p.add_argument("--skip-model", action="store_true", help="Skip model download, only init vault")
     
-    subparsers.add_parser("status", help="Show vault status")
+    status_p = subparsers.add_parser("status", help="Show vault status")
+    status_p.add_argument("--json", dest="output_json", action="store_true", help="Output as JSON")
 
     store_p = subparsers.add_parser("store", help="Store a memory")
     store_p.add_argument("content", nargs="?", default=None, help="Memory content")
@@ -170,7 +171,8 @@ def main():
     profile_p.add_argument("session_id", nargs="?", default=None, help="Session ID")
     profile_p.add_argument("--vault", default="main", help="Vault name")
 
-    subparsers.add_parser("stats", help="Show memory statistics")
+    stats_p = subparsers.add_parser("stats", help="Show memory statistics")
+    stats_p.add_argument("--json", dest="output_json", action="store_true", help="Output as JSON")
 
     delete_p = subparsers.add_parser("delete", help="Delete a memory by ID")
     delete_p.add_argument("memory_id", help="Memory UUID to delete")
@@ -204,6 +206,18 @@ def main():
     import_p.add_argument("--replace", action="store_true", help="Overwrite existing memories instead of skipping")
 
     subparsers.add_parser("doctor", help="Run health checks on the vault")
+
+    repair_p = subparsers.add_parser(
+        "repair",
+        help="Reconcile vector store with metadata store — remove orphaned vectors, optionally re-embed missing ones",
+    )
+    repair_p.add_argument("--vault", default=None, help="Restrict the repair to a single vault")
+    repair_p.add_argument("--reindex", action="store_true",
+                          help="Re-embed content for metadata rows whose vector is missing")
+    repair_p.add_argument("--dry-run", action="store_true",
+                          help="Preview changes without touching the vector store")
+    repair_p.add_argument("--json", dest="output_json", action="store_true",
+                         help="Output as JSON")
 
     list_p = subparsers.add_parser("list", help="List memories with cursor pagination")
     list_p.add_argument("--vault", help="Filter by vault")
@@ -344,6 +358,7 @@ def main():
         "export": cmd_export,
         "import": cmd_import,
         "doctor": cmd_doctor,
+        "repair": cmd_repair,
         "list": cmd_list,
         "graph": cmd_graph,
         "learn": cmd_learn,
@@ -425,8 +440,31 @@ def cmd_setup(engine, args, config):
     print("  memorius status                   # Check vault status")
 
 
+def _status_json(engine) -> dict:
+    """Gather what `memorius status` shows as a JSON-serializable dict."""
+    status = engine.status()
+    diaries = engine._meta.list_diaries(limit=5)
+    return {
+        "vaults": status["vaults"],
+        "memories": status["memories"],
+        "embedding": _embedding_json(status),
+        "diaries": [
+            {
+                "created_at": d["created_at"],
+                "session_id": d["session_id"],
+                "title": d.get("title") or "",
+            }
+            for d in diaries
+        ],
+    }
+
+
 def cmd_status(engine, args, config):
     """Show vault status."""
+    if getattr(args, "output_json", False):
+        print(json.dumps(_status_json(engine), sort_keys=True))
+        return
+
     status = engine.status()
     print(f"  Vaults:       {status['vaults']}")
     print(f"  Memories:     {status['memories']}")
@@ -926,8 +964,51 @@ def cmd_profile(engine, args, config):
     print(format_profile_for_context(profile))
 
 
+def _embedding_json(status: dict) -> dict:
+    """Embedding provider name + dimension, as shown by text status/stats."""
+    return {
+        "provider": status["embedding_provider"],
+        "dimension": status["embedding_dimension"],
+    }
+
+
+def _stats_json(engine) -> dict:
+    """Gather the stat set shown by `memorius stats` as a JSON-serializable
+    dict for `stats --json` (data only — formatting lives in cmd_stats)."""
+    from memorius.doctor import run_checks
+
+    status = engine.status()
+    memory_stats = engine.get_memory_stats()
+    graph_stats = engine.get_graph_stats()
+    diaries = engine._meta.list_diaries(limit=1)
+    report = run_checks(engine=engine)
+    return {
+        "vaults": status["vaults"],
+        "memories": status["memories"],
+        "embedding": _embedding_json(status),
+        "memory_stats": memory_stats,
+        "graph": {
+            "nodes": graph_stats.get("unique_nodes", 0),
+            "edges": graph_stats.get("total_edges", 0),
+            "relations": graph_stats.get("relations", {}),
+        },
+        "diary": {
+            "last_created_at": diaries[0]["created_at"] if diaries else None,
+        },
+        "doctor": {
+            "checks": {c["name"]: c["status"] for c in report["checks"]},
+            "healthy": report["healthy"],
+            "warnings": sum(1 for c in report["checks"] if c["status"] == "warn"),
+        },
+    }
+
+
 def cmd_stats(engine, args, config):
     """Show memory statistics."""
+    if getattr(args, "output_json", False):
+        print(json.dumps(_stats_json(engine), sort_keys=True))
+        return
+
     status = engine.status()
     meta_stats = engine.get_memory_stats()
     graph_stats = engine.get_graph_stats()
@@ -1127,6 +1208,36 @@ def cmd_doctor(engine, args, config):
         print("\nAll checks passed.")
     else:
         print("\nSome checks reported issues — review above.")
+
+
+def cmd_repair(engine, args, config):
+    """Reconcile the vector store with the metadata store."""
+    result = engine.repair(
+        vault=args.vault,
+        reindex=args.reindex,
+        dry_run=args.dry_run,
+    )
+
+    if getattr(args, "output_json", False):
+        import json as _json
+        print(_json.dumps(result, indent=2))
+        return
+
+    print(f"  meta_count:        {result['meta_count']}")
+    print(f"  vector_count:      {result['vector_count']}")
+    print(f"  orphans found:     {result['orphans_found']}")
+    print(f"  orphans removed:   {result['orphans_removed']}")
+    print(f"  missing found:     {result['missing_found']}")
+    print(f"  missing reindexed: {result['missing_reindexed']}")
+
+    if result["dry_run"]:
+        print("\nDry run — no changes were made. Re-run without --dry-run to apply.")
+        if result["orphans_found"] or result["missing_found"]:
+            print("Tip: run `memorius repair` (without --dry-run) to apply the fix.")
+    elif result["in_sync"]:
+        print("\nIn sync — no drift detected.")
+    else:
+        print(f"\nIn sync: {result['in_sync']}. Run `memorius doctor` to re-check.")
 
 
 def cmd_list(engine, args, config):

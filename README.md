@@ -391,6 +391,7 @@ memorius setup               Download ONNX model + initialize vault
   --force                      Force re-download of model
   --skip-model                 Skip model download
 memorius status              Show vault status
+  --json                       Output as JSON
 memorius store <text>        Store a memory
   --vault, -v                  Vault name (default: main)
   --shelf, -s                  Shelf name (default: default)
@@ -461,6 +462,7 @@ memorius import <src>        Import vault from JSON export
   --replace                    Overwrite mode (default: merge)
 memorius doctor              Run health checks on the vault
 memorius stats               Show vault + memory + graph statistics
+  --json                       Output as JSON
 memorius web <query>         Live web search
   --provider                   duckduckgo (default) | tavily
   --max                        Max results (default: 5)

@@ -88,7 +88,8 @@ def run_checks(engine=None) -> dict[str, Any]:
                 _add("vector_count_match", "ok", f"meta={meta_count}, vectors={vector_count}")
             else:
                 _add("vector_count_match", "warn",
-                     f"Drift detected: memory_meta={meta_count}, vectors={vector_count}")
+                     f"Drift detected: memory_meta={meta_count}, vectors={vector_count} — "
+                     f"run `memorius repair` (or `memorius repair --dry-run`) to reconcile.")
         except Exception as exc:  # best-effort: drift check may fail if ChromaDB is unhealthy — report, don't halt
             _add("vector_count_match", "fail", str(exc))
 
