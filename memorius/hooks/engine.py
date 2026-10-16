@@ -463,7 +463,7 @@ class HookEngine:
             if not text.strip():
                 return {"action": action.name, "status": "skipped", "reason": "no content found"}
 
-            memories = engine.mine(text=text, vault=vault)
+            memories = engine.mine(text=text, vault=vault_cfg)
             return {
                 "action": action.name,
                 "status": "done",
