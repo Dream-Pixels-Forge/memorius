@@ -461,6 +461,11 @@ memorius export <dest>       Export vault to JSON or Markdown
 memorius import <src>        Import vault from JSON export
   --replace                    Overwrite mode (default: merge)
 memorius doctor              Run health checks on the vault
+memorius repair              Reconcile vector store with metadata store
+  --vault                    Restrict to a single vault
+  --reindex                  Re-embed missing vectors
+  --dry-run                  Preview without mutating
+  --json                     Output as JSON
 memorius stats               Show vault + memory + graph statistics
   --json                       Output as JSON
 memorius web <query>         Live web search

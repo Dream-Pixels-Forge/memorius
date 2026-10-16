@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.8.6 (2026-10-16)
+
+### New Features
+- **`memorius repair`** (#21) — new CLI subcommand + MCP tool `memorius_repair`
+  that reconciles the Chroma vector store with the authoritative `memory_meta`
+  table: removes orphaned vectors and optionally re-embeds metadata rows whose
+  vector is missing. `--dry-run` previews, `--vault` scopes to one vault,
+  `--json` for machine-readable output. Doctor's `vector_count_match` drift
+  warning now points users to this command.
+- **`--json` flag on `stats` and `status`** — machine-readable output for
+  status-line consumers. Deterministic `sort_keys` at every nesting level;
+  warnings stay exit-0, only real errors exit non-zero.
+
+### Bug Fixes
+- `test_cli_version_flags_print_running_version` no longer fails: the stale
+  0.8.3 system-site-packages distribution that shadowed the pipx venv has
+  been removed.
+
 ## v0.8.5 (2026-10-16)
 
 ### Bug Fixes
