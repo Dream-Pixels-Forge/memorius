@@ -408,3 +408,57 @@ footer {
   }
   .card, .fade-up { opacity: 1 !important; transform: none !important; }
 }
+
+/* ── CTA band (shared by sub-pages + landing) ── */
+.cta-band {
+  background: linear-gradient(135deg, var(--accent-soft), var(--accent-glow));
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+  border-radius: 20px;
+  padding: 56px 44px;
+  text-align: center;
+  position: relative; overflow: hidden;
+}
+.cta-band::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(600px 200px at 50% 0%, var(--accent-glow), transparent 70%);
+  pointer-events: none;
+}
+.cta-band h2 {
+  position: relative; z-index: 1;
+  font-size: clamp(26px,3.4vw,34px); letter-spacing: -0.03em; font-weight: 700; line-height: 1.15;
+  margin: 0 0 12px;
+}
+.cta-band p {
+  color: var(--fg-dim); max-width: 520px; margin: 0 auto 30px;
+  position: relative; z-index: 1; font-size: 15px; line-height: 1.65;
+}
+.cta-band .hero-actions { margin-top: 0; position: relative; z-index: 1; }
+.hero-actions {
+  display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;
+}
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 24px; border-radius: 10px;
+  font-weight: 600; font-size: 14px;
+  transition: all 0.25s cubic-bezier(0.22,1,0.36,1);
+}
+.btn-primary {
+  background: var(--accent); color: white;
+  box-shadow: 0 4px 20px var(--accent-glow);
+}
+.btn-primary:hover {
+  background: var(--accent-hi); color: #1a1816;
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px rgba(249,115,22,0.3);
+  text-decoration: none;
+}
+.btn-ghost {
+  background: transparent; color: var(--fg);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover {
+  border-color: var(--accent); color: var(--accent-hi);
+  transform: translateY(-2px);
+  text-decoration: none;
+}
