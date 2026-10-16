@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.8.5 (2026-10-16)
+
+### Bug Fixes
+- `hooks/engine.py:_action_mine_dir` raised `NameError: name 'vault' is not defined`
+  on every `mine_dir` hook execution — it assigned the configured vault to
+  `vault_cfg` but passed the undefined `vault` to `engine.mine()`. Fixed to
+  use `vault_cfg`.
+- Added regression suite `tests/test_hooks_engine_mine_dir.py` (5 cases,
+  stubbed `VaultEngine`) covering default vault, custom vault from action
+  config, missing-path skip, nonexistent-path skip, and directory-mode
+  mining.
+
 ## v0.8.4 (2026-10-15)
 
 ### Phase 5 — Test Coverage Closure
