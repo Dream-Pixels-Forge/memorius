@@ -717,6 +717,7 @@ def _start_daemon(engine, host: str, port: int, pid_file: Path,
     import os
     import sys
     import subprocess
+    import time
 
     if os.name == "nt":
         # Windows: launch detached subprocess
@@ -738,7 +739,7 @@ def _start_daemon(engine, host: str, port: int, pid_file: Path,
         env["MEMORIUS_PORT"] = str(port)
         env["MEMORIUS_PID_FILE"] = str(pid_file)
         if tls_cert and tls_key:
-            env["MEMORIUS_TLS_CERT"] = tls_cert
+            env["MEMORIUS_TLS_CERT"] = tls_cent
             env["MEMORIUS_TLS_KEY"] = tls_key
             daemon_script = daemon_script.replace(
                 "run_rest_server(e, host=os.environ['MEMORIUS_HOST'], "
@@ -763,6 +764,11 @@ def _start_daemon(engine, host: str, port: int, pid_file: Path,
         # Unix: double-fork
         pid = os.fork()
         if pid > 0:
+            # Parent: wait for the PID file to be written by the grandchild
+            for _ in range(10):  # wait up to 1 second
+                if pid_file.exists():
+                    break
+                time.sleep(0.1)
             print(f"Daemon started (PID {pid})")
             return
 
@@ -770,7 +776,7 @@ def _start_daemon(engine, host: str, port: int, pid_file: Path,
 
         pid = os.fork()
         if pid > 0:
-            sys.exit(0)
+            os._exit(0)
 
         # Redirect stdio
         sys.stdin = open(os.devnull, "r")
@@ -791,90 +797,10 @@ def _start_daemon(engine, host: str, port: int, pid_file: Path,
 
         from memorius.rest_server import run_rest_server
         run_rest_server(engine, host=host, port=port)
+        signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
-
-def cmd_config(engine, args, config):
-    """Show current configuration."""
-    if args.path:
-        path = DEFAULT_CONFIG_PATH
-        print(path)
-        print(f"  Exists: {path.exists()}")
-        return
-    print(json.dumps(config, indent=2, default=str))
-
-
-def cmd_obsidian(engine, args, config):
-    """Dispatch obsidian subcommands."""
-    from memorius.cli.obsidian import dispatch
-    dispatch(engine, args, config)
-
-
-# ── New v0.2.0 commands ──
-
-
-def cmd_consolidate(engine, args, config):
-    """Consolidate similar memories."""
-    print("Consolidating memories...")
-    result = engine.consolidate(
-        vault=args.vault,
-        similarity_threshold=args.threshold,
-        dry_run=args.dry_run,
-    )
-    print(f"  Clusters found:    {result.clusters_found}")
-    print(f"  Memories merged:   {result.memories_merged}")
-    print(f"  Memories archived: {result.memories_archived}")
-    if result.details:
-        print("\n  Details:")
-        for d in result.details[:5]:
-            print(f"    - Cluster of {d['cluster_size']}: {d['insight_preview']}")
-
-
-def cmd_extract(engine, args, config):
-    """Extract memories from a conversation."""
-    text = args.text
-    if not text and args.file:
-        text = Path(args.file).read_text()
-    if not text:
-        text = sys.stdin.read().strip()
-    if not text:
-        print("Error: conversation required (--text, <file>, or stdin)")
-        return
-
-    print(f"Extracting memories (backend: {args.backend})...")
-    memories = engine.extract_memories(
-        conversation=text,
-        backend=args.backend,
-        vault=args.vault,
-        shelf=args.shelf,
-    )
-    print(f"Extracted {len(memories)} memories:")
-    for m in memories:
-        cat = m.metadata.get("category", "unknown")
-        conf = m.metadata.get("confidence", 0)
-        print(f"  [{cat}] ({conf:.0%}) {m.content[:80]}")
-
-
-def cmd_factcheck(engine, args, config):
-    """Fact-check a statement."""
-    statement = args.statement
-    if not statement:
-        statement = sys.stdin.read().strip()
-    if not statement:
-        print("Error: statement required (pass as argument or pipe to stdin)")
-        return
-
-    result = engine.check_fact(statement, vault=args.vault)
-    icons = {"verified": "✅", "contradicted": "❌", "uncertain": "⚠️", "no_match": "❓"}
-    icon = icons.get(result.verdict, "❓")
-    print(f"{icon} {result.verdict.upper()}")
-    print(f"  Statement: {result.statement}")
-    print(f"  Confidence: {result.confidence:.0%}")
-    print(f"  {result.explanation}")
-    if result.contradicting_memories:
-        print("  Contradicting memories:")
-        for m in result.contradicting_memories:
-            print(f"    - [{m['vault']}/{m['shelf']}] {m['content'][:100]}")
-
+        from memorius.rest_server import run_rest_server
+        run_rest_server(engine, host=host, port=port)
     # Web cross-check when the vault can't settle the claim.
     if result.verdict in ("uncertain", "no_match") and web_fallback_enabled(args, config):
         from memorius.web_search import get_web_provider
