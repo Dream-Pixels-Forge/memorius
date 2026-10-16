@@ -933,8 +933,8 @@ class McpServer:
                 "applied": learning_stats["total_applied"],
             },
             "graph": {
-                "nodes": graph_stats.get("node_count", 0),
-                "edges": graph_stats.get("edge_count", 0),
+                "nodes": graph_stats.get("unique_nodes", 0),
+                "edges": graph_stats.get("total_edges", 0),
             },
         }
 
