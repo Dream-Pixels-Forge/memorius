@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Architecture — Memorius</title>
+<meta name="description" content="How Memorius fits together: the vault engine, 5-stage search pipeline, pluggable embeddings, swappable vector backends, knowledge graph, and configuration reference." />
+<meta name="theme-color" content="#F97316" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23F97316'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='ui-monospace,SFMono-Regular,monospace' font-size='34' font-weight='700' fill='white'%3EM%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="assets/site.css" />
+<style>
+  .arch-diagram {
+    background: color-mix(in srgb, var(--code-bg) 90%, transparent);
+    border: 1px solid var(--code-border);
+    border-radius: var(--radius-lg);
+    padding: 26px;
+    overflow-x: auto;
+    font-family: var(--mono); font-size: 11.5px; line-height: 1.5;
+    color: var(--fg-dim);
+    white-space: pre;
+    backdrop-filter: blur(4px);
+    margin: 24px 0;
+  }
+  .arch-diagram .hl { color: var(--accent-hi); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<nav class="docs-nav">
+  <div class="container docs-nav-inner">
+    <a href="index.html" class="brand"><span class="brand-mark">M</span><span>Memorius</span></a>
+    <div class="docs-links">
+      <a href="getting-started.html">Getting Started</a>
+      <a href="cli-reference.html">CLI</a>
+      <a href="mcp-server.html">MCP</a>
+      <a href="hooks.html">Hooks</a>
+      <a href="rest-api.html">REST</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="agents.html">Agents</a>
+      <a href="consolidation.html">Memory Engine</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius" class="btn" style="background:var(--accent);color:#fff;padding:8px 18px;font-size:13px;font-weight:600;border-radius:8px;">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="docs-hero">
+  <div class="container">
+    <span class="crumb">Documentation / Architecture</span>
+    <h1>How it works</h1>
+    <p class="lead">A single Python package, four entry points, two storage backends, and a neuroscience-inspired consolidation engine. Every frontend — CLI, MCP, REST, hooks — routes through one vault engine.</p>
+  </div>
+</header>
+
+<main class="docs-main">
+  <div class="container doc-layout">
+    <aside class="doc-toc">
+      <div class="toc-title">On this page</div>
+      <a href="#overview">Overview</a>
+      <a href="#search-pipeline">Search pipeline</a>
+      <a href="#embeddings">Embeddings</a>
+      <a href="#vector-backends">Vector backends</a>
+      <a href="#graph">Knowledge graph</a>
+      <a href="#configuration">Configuration</a>
+      <a href="#env-vars">Env var overrides</a>
+      <a href="#validation">Validation &amp; thread safety</a>
+    </aside>
+
+    <div class="doc-content">
+      <section class="docs-section" id="overview">
+        <h2>Overview</h2>
+        <p class="sub">The vault engine is the single source of truth. CLI, MCP, REST, and hooks are thin frontends over the same storage and search stack.</p>
+<pre class="arch-diagram"><span class="hl">┌────────────────────────────────────────────────────────────┐
+│                       Memorius                             │
+├────────────────────────────────────────────────────────────┤
+│  CLI        memorius init | store | search | mine | ...    │
+│  MCP        JSON-RPC protocol server (stdin/stdout)        │
+│  REST       FastAPI HTTP server (optional)                 │
+│  Hooks      Auto-detect: Claude Code, Codex, Gemini, ...   │
+│  Obsidian   Import / export notes from Obsidian vaults     │
+├────────────────────────────────────────────────────────────┤
+│  Vault Engine                                              │
+│  ├── ChromaStore    Vector search (ChromaDB)               │
+│  ├── SQLiteStore    Metadata & hierarchy (SQLite)          │
+│  ├── Embeddings     Pluggable providers (ONNX / SF / OA)   │
+│  └── KnowledgeGraph Typed edges + spreading activation     │
+├────────────────────────────────────────────────────────────┤
+│  Consolidation Engine                                      │
+│  ├── Interference Forgetting  decay by relatedness        │
+│  ├── Engram Maturation        trace → memory → schema    │
+│  └── Neuromodulator Gating    dopamine/sedation modulation │
+├────────────────────────────────────────────────────────────┤
+│  Vault  >  Shelf  >  Folder  >  Note  hierarchy           │
+│  Diaries          Session diary entries                    │
+│  Mine             Extract memories from transcripts        │
+└────────────────────────────────────────────────────────────┘</span></pre>
+        <ul>
+          <li><strong>Vault engine</strong> — the single source of truth; CLI, MCP, REST, and hooks all route through it.</li>
+          <li><strong>ChromaDB</strong> handles vector search; <strong>SQLite</strong> handles metadata and the hierarchy.</li>
+          <li><strong>Embeddings</strong> are swappable: bundled ONNX (default, no extra deps), <code>sentence-transformers</code>, or OpenAI.</li>
+          <li><strong>Knowledge graph</strong> with typed edges and spreading activation for multi-hop recall.</li>
+          <li><strong>Consolidation</strong> models biological memory: interference forgetting, engram maturation, and neuromodulator gating.</li>
+          <li><strong>Hooks</strong> auto-detect which agent sent the event from the JSON payload — no <code>--agent</code> flag required.</li>
+        </ul>
+      </section>
+
+      <section class="docs-section" id="search-pipeline">
+        <h2>5-stage search pipeline</h2>
+        <p class="sub">Every query passes through five stages; the final score blends semantic similarity, temporal decay, and access frequency.</p>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Stage</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Filter</strong></td><td>folder / note / tags metadata filters.</td></tr>
+              <tr><td><strong>Vector</strong></td><td>ChromaDB / sqlite-vec cosine search.</td></tr>
+              <tr><td><strong>Temporal</strong></td><td>Ebbinghaus decay scoring.</td></tr>
+              <tr><td><strong>Rerank</strong></td><td>Cross-encoder precision ranking (<code>--rerank</code>).</td></tr>
+              <tr><td><strong>Graph</strong></td><td>1-hop BFS expansion (<code>--expand-graph</code>).</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Search ranking = semantic similarity (60%) + temporal decay (25%) + access frequency (15%). Hybrid retrieval fuses vector + BM25/FTS5 keyword search, so keyword blind-spots don't drop results. See <a href="consolidation.html">Memory Engine</a> for the decay model.</p>
+      </section>
+
+      <section class="docs-section" id="embeddings">
+        <h2>Embedding providers</h2>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Provider</th><th>Requirement</th><th>Quality / dim</th></tr></thead>
+            <tbody>
+              <tr><td><code>chroma-default</code></td><td>ChromaDB (bundled ONNX)</td><td>Good — 384d</td></tr>
+              <tr><td><code>sentence-transformers</code></td><td>included</td><td>Better — 768d+</td></tr>
+              <tr><td><code>openai</code></td><td><code>OPENAI_API_KEY</code> env var</td><td>Best — 1536d / 3072d</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Swap providers with one config change (<code>embeddings.provider</code>). Custom runtime providers can be registered via <code>EmbeddingFactory.register()</code>.</p>
+      </section>
+
+      <section class="docs-section" id="vector-backends">
+        <h2>Vector store backends</h2>
+        <p class="sub">A <strong>VectorStore ABC</strong> makes the backend swappable. Both implement the same interface: <code>add</code>, <code>delete</code>, <code>search</code>, <code>get_collections</code>, <code>count</code>, <code>get_by_ids</code>.</p>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Backend</th><th>Dependency</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><strong>ChromaDB</strong> (default)</td><td>ChromaDB (included)</td><td>Persistent HNSW cosine search, auto-migration from legacy collections.</td></tr>
+              <tr><td><strong>SQLite-vec</strong></td><td>SQLite-vec (included)</td><td>Single-file alternative, no ChromaDB dependency.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Set <code>storage.type: sqlite-vec</code> in config or <code>MEMORIUS_STORAGE_TYPE=sqlite-vec</code> to use the lightweight backend. HNSW tuning knobs live under <code>vector_optimization</code>.</p>
+      </section>
+
+      <section class="docs-section" id="graph">
+        <h2>Knowledge graph</h2>
+        <ul>
+          <li><strong>Auto-linking</strong> on every <code>store()</code> by content proximity (Jaccard word overlap or vector cosine).</li>
+          <li><strong>BFS expansion</strong> from search results (<code>--expand-graph</code>).</li>
+          <li><strong>Contradiction edges</strong> persisted by <code>factcheck</code> (bidirectional <code>relation='contradicts'</code>).</li>
+          <li><strong>Typed edges</strong> — <code>related</code>, <code>references</code>, <code>contradicts</code>, <code>co_occurs</code>, plus <code>temporal_before</code>, <code>causal_leads_to</code>, <code>episodic_part_of</code>, <code>semantic_instance_of</code>.</li>
+          <li><strong>Spreading activation</strong> for multi-hop recall; <code>graph view</code> / <code>graph export-html</code> for visualization.</li>
+        </ul>
+      </section>
+
+      <section class="docs-section" id="configuration">
+        <h2>Configuration</h2>
+        <p class="sub">Config lives at <code>~/.memorius/config.yaml</code> (auto-created on <code>memorius init</code>). A <code>./memorius.yaml</code> in the current directory takes precedence.</p>
+<pre><code>storage:
+  type: chroma            # chroma (default) | sqlite-vec
+  path: ~/.memorius/data
+
+embeddings:
+  provider: chroma-default  # chroma-default | sentence-transformers | openai
+  model: all-MiniLM-L6-v2
+
+server:
+  mcp_port: 8911
+  rest_port: 8912
+  host: "127.0.0.1"
+
+vault:
+  default: "main"
+  max_note_size: 1000
+
+hooks:
+  enabled: true
+  config: ~/.memorius/hooks.yaml
+
+retrieval:
+  web_fallback: false       # opt-in: augment thin local recall with web
+  web_provider: duckduckgo  # duckduckgo (keyless) | tavily (keyed) | mock
+  tavily_api_key: null      # or set TAVILY_API_KEY
+  web_min_results: 1
+  web_max_results: 5
+
+consolidation:
+  enabled: false
+  dedup_threshold: 0.92
+  contradiction_check: true
+
+vector_optimization:
+  enable_hnsw_optimization: false
+  hnsw_ef_construction: 100
+  hnsw_ef_search: 100
+  hnsw_max_m: 16</code></pre>
+      </section>
+
+      <section class="docs-section" id="env-vars">
+        <h2>Environment variable overrides</h2>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Variable</th><th>Overrides</th></tr></thead>
+            <tbody>
+              <tr><td><code>MEMORIUS_STORAGE_PATH</code></td><td><code>storage.path</code></td></tr>
+              <tr><td><code>MEMORIUS_STORAGE_TYPE</code></td><td><code>storage.type</code></td></tr>
+              <tr><td><code>MEMORIUS_EMBEDDINGS_PROVIDER</code></td><td><code>embeddings.provider</code></td></tr>
+              <tr><td><code>MEMORIUS_DEFAULT_VAULT</code></td><td><code>vault.default</code></td></tr>
+              <tr><td><code>MEMORIUS_MCP_PORT</code></td><td><code>server.mcp_port</code></td></tr>
+              <tr><td><code>MEMORIUS_REST_PORT</code></td><td><code>server.rest_port</code></td></tr>
+              <tr><td><code>MEMORIUS_HOST</code></td><td><code>server.host</code></td></tr>
+              <tr><td><code>MEMORIUS_OPENAI_API_KEY</code> / <code>OPENAI_API_KEY</code></td><td><code>embeddings.openai.api_key</code></td></tr>
+              <tr><td><code>MEMORIUS_WEB_PROVIDER</code></td><td><code>retrieval.web_provider</code></td></tr>
+              <tr><td><code>MEMORIUS_WEB_FALLBACK</code></td><td><code>retrieval.web_fallback</code></td></tr>
+              <tr><td><code>MEMORIUS_TAVILY_API_KEY</code> / <code>TAVILY_API_KEY</code></td><td><code>retrieval.tavily_api_key</code></td></tr>
+              <tr><td><code>MEMORIUS_MODEL_CACHE_DIR</code></td><td>ONNX model cache directory</td></tr>
+              <tr><td><code>MEMORIUS_API_KEY</code></td><td>REST server bearer-token auth</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="docs-section" id="validation">
+        <h2>Validation &amp; thread safety</h2>
+        <p><strong>Input validation</strong> — names match <code>^[a-zA-Z0-9_\-]+$</code> (max 1000 chars), memory IDs must be valid UUIDs (blocks path traversal), content capped at 100KB, search limit capped at 100 results, diary content at 50KB, and a body-size middleware on the REST server.</p>
+        <p><strong>Thread safety</strong> — thread-local SQLite connections, a <code>threading.Lock()</code> on all metadata writes and on the sqlite-vec store, and an <code>atexit</code> handler that closes connections.</p>
+      </section>
+
+      <div class="pager">
+        <a href="rest-api.html"><div class="p-label">← Previous</div><div class="p-title">REST API</div></a>
+        <a href="agents.html" class="next"><div class="p-label">Next →</div><div class="p-title">Agent Compatibility</div></a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="container footer-inner">
+    <div>&copy; Memorius &middot; MIT licensed &middot; Built for agents that need to remember.</div>
+    <div class="footer-links">
+      <a href="https://github.com/Dream-Pixels-Forge/memorius">GitHub</a>
+      <a href="https://pypi.org/project/memorius/">PyPI</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius/issues">Issues</a>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

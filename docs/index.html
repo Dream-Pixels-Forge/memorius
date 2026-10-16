@@ -12,138 +12,11 @@
 <meta property="og:url" content="https://dream-pixels-forge.github.io/memorius/" />
 <meta name="twitter:card" content="summary_large_image" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23F97316'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='ui-monospace,SFMono-Regular,monospace' font-size='34' font-weight='700' fill='white'%3EM%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="assets/site.css" />
 <style>
-  :root {
-    --bg: #09090f;
-    --bg-elev: #10101a;
-    --bg-card: #13131f;
-    --border: #1e1e2e;
-    --border-hi: #2a2a3e;
-    --fg: #edebe8;
-    --fg-dim: #9b97a5;
-    --fg-mute: #5e5a6a;
-    --accent: #F97316;
-    --accent-hi: #FDBA74;
-    --accent-glow: rgba(249, 115, 22, 0.14);
-    --accent-soft: rgba(249, 115, 22, 0.08);
-    --green: #34d399;
-    --code-bg: #0d0d18;
-    --code-border: #1c1c30;
-    --radius: 12px;
-    --radius-lg: 18px;
-    --maxw: 1140px;
-    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
-  }
-  @media (prefers-color-scheme: light) {
-    :root {
-      --bg: #faf9f7;
-      --bg-elev: #ffffff;
-      --bg-card: #ffffff;
-      --border: #e8e4dc;
-      --border-hi: #d6d0c4;
-      --fg: #1a1816;
-      --fg-dim: #5c564d;
-      --fg-mute: #9c958a;
-      --accent-glow: rgba(249, 115, 22, 0.1);
-      --accent-soft: rgba(249, 115, 22, 0.05);
-      --code-bg: #f4f2ee;
-      --code-border: #e8e4dc;
-    }
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
-  body {
-    font-family: var(--sans);
-    background: var(--bg);
-    color: var(--fg);
-    line-height: 1.65;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    overflow-x: hidden;
-  }
-  /* Subtle dot grid background */
-  body::before {
-    content: "";
-    position: fixed; inset: 0;
-    background-image: radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 0);
-    background-size: 36px 36px;
-    pointer-events: none;
-    z-index: 0;
-    opacity: 0.5;
-  }
-  a { color: var(--accent-hi); text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  code, pre { font-family: var(--mono); }
-  code {
-    background: var(--code-bg);
-    border: 1px solid var(--code-border);
-    padding: 0.14em 0.45em;
-    border-radius: 6px;
-    font-size: 0.88em;
-  }
-  pre {
-    background: color-mix(in srgb, var(--code-bg) 90%, transparent);
-    border: 1px solid var(--code-border);
-    border-radius: var(--radius-lg);
-    padding: 20px 24px;
-    overflow-x: auto;
-    font-size: 13px;
-    line-height: 1.55;
-  }
-  pre code { background: none; border: none; padding: 0; font-size: inherit; }
-  .container { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
-
-  /* ── Nav ── */
-  .nav {
-    position: sticky; top: 0; z-index: 50;
-    backdrop-filter: saturate(180%) blur(16px);
-    -webkit-backdrop-filter: saturate(180%) blur(16px);
-    background: color-mix(in srgb, var(--bg) 72%, transparent);
-    border-bottom: 1px solid var(--border);
-  }
-  .nav-inner {
-    display: flex; align-items: center; justify-content: space-between;
-    height: 64px;
-  }
-  .brand {
-    display: flex; align-items: center; gap: 11px;
-    font-weight: 700; color: var(--fg);
-    letter-spacing: -0.01em; font-size: 16px;
-  }
-  .brand-mark {
-    width: 30px; height: 30px; border-radius: 8px;
-    background: linear-gradient(135deg, #F97316, #FDBA74);
-    display: grid; place-items: center;
-    color: white; font-family: var(--mono); font-weight: 700; font-size: 14px;
-    box-shadow: 0 2px 12px var(--accent-glow);
-  }
-  .nav-links { display: flex; gap: 28px; align-items: center; }
-  .nav-links a {
-    color: var(--fg-dim); font-size: 13.5px; font-weight: 500;
-    position: relative; transition: color 0.25s;
-  }
-  .nav-links a::after {
-    content: ''; position: absolute; left: 0; right: 0; bottom: -3px;
-    height: 1.5px; background: var(--accent);
-    transform: scaleX(0); transform-origin: left;
-    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  .nav-links a:hover { color: var(--fg); text-decoration: none; }
-  .nav-links a:hover::after { transform: scaleX(1); }
-  .nav-cta {
-    background: var(--accent); color: white !important;
-    padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: 600;
-    transition: box-shadow 0.3s, background 0.25s, transform 0.25s;
-    box-shadow: 0 0 16px var(--accent-glow);
-  }
-  .nav-cta:hover { background: var(--accent-hi); box-shadow: 0 0 28px var(--accent-glow); transform: translateY(-1px); }
-  .nav-cta::after { display: none; }
-  @media (max-width: 720px) { .nav-links .nav-hide { display: none; } }
-
-  /* ── Hero ── */
+  /* Landing-only styles not in site.css */
   .hero {
-    padding: 130px 0 90px;
+    padding: 120px 0 80px;
     text-align: center;
     position: relative;
     overflow: hidden;
@@ -215,8 +88,7 @@
     color: var(--fg-dim);
     max-width: 660px; margin: 0 auto 40px;
     line-height: 1.7;
-    position: relative;
-    z-index: 1;
+    position: relative; z-index: 1;
   }
   .install {
     display: inline-flex; align-items: stretch;
@@ -226,8 +98,7 @@
     overflow: hidden;
     max-width: 100%;
     transition: border-color 0.3s, box-shadow 0.3s;
-    position: relative;
-    z-index: 1;
+    position: relative; z-index: 1;
     backdrop-filter: blur(4px);
     box-shadow: 0 4px 24px rgba(0,0,0,0.2);
   }
@@ -239,10 +110,7 @@
     font-size: 14px;
     user-select: none;
   }
-  .install code {
-    background: none; border: none; padding: 14px 12px 14px 0;
-    color: var(--fg); font-size: 14px;
-  }
+  .install code { background: none; border: none; padding: 14px 12px 14px 0; color: var(--fg); font-size: 14px; }
   .install button {
     background: transparent;
     border: none; border-left: 1px solid var(--code-border);
@@ -254,11 +122,7 @@
   }
   .install button:hover { color: var(--accent-hi); background: var(--accent-glow); }
   .install button.copied { color: var(--green); }
-  @keyframes copy-pop {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.08); }
-    100% { transform: scale(1); }
-  }
+  @keyframes copy-pop { 0% { transform: scale(1); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
   .install button.copied { animation: copy-pop 0.3s ease; }
   .hero-actions {
     display: flex; gap: 14px; justify-content: center; margin-top: 36px; flex-wrap: wrap;
@@ -275,17 +139,19 @@
     box-shadow: 0 4px 20px var(--accent-glow);
   }
   .btn-primary:hover {
-    background: var(--accent-hi); color: #1a1816; text-decoration: none;
+    background: var(--accent-hi); color: #1a1816;
     transform: translateY(-2px);
     box-shadow: 0 14px 32px rgba(249, 115, 22, 0.3);
+    text-decoration: none;
   }
   .btn-ghost {
     background: transparent; color: var(--fg);
     border: 1px solid var(--border);
   }
   .btn-ghost:hover {
-    border-color: var(--accent); color: var(--accent-hi); text-decoration: none;
+    border-color: var(--accent); color: var(--accent-hi);
     transform: translateY(-2px);
+    text-decoration: none;
   }
   .hero-badges {
     display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 40px;
@@ -302,454 +168,32 @@
   }
   .badge .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
   .badge .accent { color: var(--accent-hi); font-weight: 600; }
-
-  /* ── Sections ── */
-  section {
-    padding: 100px 0;
-    position: relative;
-  }
-  section::before {
-    content: '';
-    position: absolute; top: 0; left: 10%; right: 10%;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--border), transparent);
-  }
-  section:first-of-type { border: none; }
-  section:first-of-type::before { display: none; }
-  section h2 {
-    font-size: clamp(28px, 4vw, 38px);
-    letter-spacing: -0.03em;
-    margin: 0 0 10px; font-weight: 700;
-    line-height: 1.15;
-  }
-  section .sub {
-    color: var(--fg-dim);
-    font-size: 16px;
-    max-width: 600px; margin: 0 0 56px;
-    line-height: 1.65;
-  }
-
-  /* ── Features ── */
-  .features {
-    display: grid; gap: 20px;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  }
-  .feature {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 30px;
-    transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
-    opacity: 0;
-    transform: translateY(16px);
-    position: relative;
-    overflow: hidden;
-  }
-  .feature::before {
-    content: '';
-    position: absolute; top: 0; left: 0; right: 0; height: 2px;
-    background: linear-gradient(90deg, transparent, var(--accent), transparent);
-    opacity: 0;
-    transition: opacity 0.4s;
-  }
-  .feature.visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  .feature:hover {
-    transform: translateY(-5px);
-    border-color: var(--border-hi);
-    box-shadow: 0 20px 56px rgba(0,0,0,0.35), 0 0 0 1px var(--accent-soft);
-  }
-  .feature.visible:hover {
-    transform: translateY(-5px);
-  }
-  .feature:hover::before { opacity: 1; }
-  .feature .icon {
-    width: 44px; height: 44px;
-    border-radius: 11px;
-    background: var(--accent-glow);
-    color: var(--accent-hi);
-    display: grid; place-items: center;
-    margin-bottom: 18px;
-    transition: transform 0.3s ease;
-  }
-  .feature:hover .icon { transform: scale(1.12); }
-  .feature .icon svg { width: 22px; height: 22px; stroke: currentColor; stroke-width: 1.5; fill: none; }
-  .feature h3 { margin: 0 0 10px; font-size: 16.5px; font-weight: 650; letter-spacing: -0.015em; }
-  .feature p { margin: 0; color: var(--fg-dim); font-size: 14px; line-height: 1.65; }
-
-  /* ── Skill install ── */
-  .skill-section {
-    background: linear-gradient(135deg, var(--accent-soft) 0%, transparent 60%);
-    border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
-    border-radius: var(--radius-lg);
-    padding: 36px;
-    margin-bottom: 56px;
-    display: grid; grid-template-columns: 1fr 1fr; gap: 36px;
-    align-items: center;
-    position: relative;
-    overflow: hidden;
-  }
-  @media (max-width: 800px) { .skill-section { grid-template-columns: 1fr; } }
-  .skill-section h3 {
-    font-size: 20px; font-weight: 700; letter-spacing: -0.02em;
-    margin: 0 0 10px;
-  }
-  .skill-section p {
-    color: var(--fg-dim); font-size: 14.5px; line-height: 1.65;
-    margin: 0 0 20px;
-  }
-  .skill-install {
-    display: flex; align-items: stretch;
-    background: color-mix(in srgb, var(--code-bg) 85%, transparent);
-    border: 1px solid var(--code-border);
-    border-radius: 10px;
-    overflow: hidden;
-    font-family: var(--mono); font-size: 13px;
-  }
-  .skill-install .si-prompt {
-    padding: 12px 10px 12px 16px;
-    color: var(--accent-hi);
-    user-select: none;
-    display: flex; align-items: center;
-  }
-  .skill-install code {
-    background: none; border: none; padding: 12px 12px 12px 0;
-    color: var(--fg); font-size: 13px;
-  }
-
-  /* ── Quick start ── */
-  .quickstart-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 44px;
-    align-items: start;
-  }
-  @media (max-width: 840px) { .quickstart-grid { grid-template-columns: 1fr; } }
-  .quickstart-desc h3 {
-    font-size: 22px; font-weight: 650; letter-spacing: -0.02em;
-    margin: 0 0 14px;
-  }
-  .quickstart-desc p {
-    color: var(--fg-dim); font-size: 15px; line-height: 1.65;
-    margin: 0 0 24px;
-  }
-  .step-list { list-style: none; padding: 0; margin: 0; }
-  .step-list li {
-    display: flex; gap: 16px; align-items: flex-start;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--border);
-    font-size: 14px; color: var(--fg-dim);
-  }
-  .step-list li:last-child { border-bottom: none; }
-  .step-num {
-    flex: 0 0 30px; height: 30px;
-    border-radius: 8px;
-    background: var(--accent-glow);
-    color: var(--accent-hi);
-    display: grid; place-items: center;
-    font-family: var(--mono); font-size: 12px; font-weight: 700;
-  }
-
-  /* ── Architecture ── */
-  .arch-wrap { display: grid; grid-template-columns: 1.2fr 1fr; gap: 44px; align-items: start; }
-  @media (max-width: 880px) { .arch-wrap { grid-template-columns: 1fr; } }
-  .arch-diagram {
-    background: color-mix(in srgb, var(--code-bg) 90%, transparent);
-    border: 1px solid var(--code-border);
-    border-radius: var(--radius-lg);
-    padding: 26px;
-    overflow-x: auto;
-    font-family: var(--mono); font-size: 11.5px; line-height: 1.5;
-    color: var(--fg-dim);
-    white-space: pre;
-    backdrop-filter: blur(4px);
-  }
-  .arch-diagram .hl { color: var(--accent-hi); font-weight: 600; }
-  .arch-notes {
-    list-style: none; padding: 0; margin: 0;
-  }
-  .arch-notes li {
-    padding: 14px 0 14px 22px;
-    border-left: 2px solid var(--border);
-    margin-bottom: 6px;
-    color: var(--fg-dim);
-    font-size: 14px;
-    line-height: 1.6;
-    position: relative;
-    transition: border-color 0.3s;
-  }
-  .arch-notes li:hover { border-left-color: var(--accent); }
-  .arch-notes li::before {
-    content: '';
-    position: absolute; left: -5px; top: 20px;
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 8px var(--accent-glow);
-    transition: transform 0.3s;
-  }
-  .arch-notes li:hover::before { transform: scale(1.4); }
-  .arch-notes li strong { color: var(--fg); }
-
-  /* ── Agents ── */
-  .agents {
-    display: grid; gap: 12px;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  }
-  .agent {
-    display: flex; align-items: center; gap: 14px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 15px 18px;
-    transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  .agent.visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  .agent:hover {
-    border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
-    transform: translateY(-3px);
-    box-shadow: 0 10px 28px rgba(0,0,0,0.25);
-  }
-  .agent.visible:hover {
-    transform: translateY(-3px);
-  }
-  .agent .logo {
-    width: 38px; height: 38px;
-    border-radius: 9px;
-    display: grid; place-items: center;
-    font-family: var(--mono); font-weight: 700;
-    color: white; flex: 0 0 auto;
-    font-size: 14px;
-  }
-  .agent .name { font-weight: 600; font-size: 14.5px; }
-  .agent .meta { font-size: 12px; color: var(--fg-mute); }
-
-  /* ── CLI Reference ── */
-  .cli-grid {
-    display: grid; gap: 16px;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  }
-  .cli-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 24px;
-    transition: border-color 0.25s, transform 0.25s;
-  }
-  .cli-card:hover {
-    border-color: var(--border-hi);
-    transform: translateY(-2px);
-  }
-  .cli-card h4 {
-    margin: 0 0 14px; font-size: 12px;
-    color: var(--accent-hi);
-    font-family: var(--mono);
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
-  .cli-card .row {
-    display: flex; gap: 10px; align-items: baseline;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--code-border);
-    font-size: 13px;
-  }
-  .cli-card .row:last-child { border-bottom: none; }
-  .cli-card .cmd { font-family: var(--mono); color: var(--fg); white-space: nowrap; font-size: 13px; }
-  .cli-card .desc { color: var(--fg-dim); font-size: 12.5px; }
-
-  /* ── CTA Band ── */
-  .cta-band {
-    background: linear-gradient(135deg, var(--accent-soft), var(--accent-glow));
-    border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
-    border-radius: 20px;
-    padding: 64px 48px;
-    text-align: center;
-    position: relative;
-    overflow: hidden;
-  }
-  .cta-band::before {
-    content: '';
-    position: absolute; inset: 0;
-    background: radial-gradient(600px 200px at 50% 0%, var(--accent-glow), transparent 70%);
-    pointer-events: none;
-  }
-  .cta-band h2 { position: relative; z-index: 1; }
-  .cta-band p {
-    color: var(--fg-dim);
-    max-width: 500px;
-    margin: 0 auto 32px;
-    position: relative; z-index: 1;
-    font-size: 15.5px;
-    line-height: 1.65;
-  }
-  .cta-band .hero-actions { margin-top: 0; position: relative; z-index: 1; }
-
-  /* ── Footer ── */
-  footer {
-    border-top: 1px solid var(--border);
-    padding: 48px 0;
-    color: var(--fg-mute);
-    font-size: 13px;
-    position: relative;
-    z-index: 1;
-  }
-  .footer-inner {
-    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;
-  }
-  .footer-links { display: flex; gap: 24px; }
-  .footer-links a { color: var(--fg-dim); font-size: 13px; transition: color 0.2s; }
-  .footer-links a:hover { color: var(--accent-hi); }
-
-  html { scroll-behavior: smooth; scroll-padding-top: 70px; }
-
-  /* ── Scroll-triggered animations ── */
-  .fade-up {
-    opacity: 0;
-    transform: translateY(24px);
-    transition: opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1),
-                transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  .fade-up.visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  .delay-1 { transition-delay: 0.06s; }
-  .delay-2 { transition-delay: 0.12s; }
-  .delay-3 { transition-delay: 0.18s; }
-  .delay-4 { transition-delay: 0.24s; }
-  .delay-5 { transition-delay: 0.30s; }
-  .delay-6 { transition-delay: 0.36s; }
-
-  /* ── Scroll progress indicator (Act structure marker) ── */
-  .scroll-progress {
-    position: fixed; top: 0; left: 0; right: 0; height: 3px;
-    z-index: 60;
-    background: transparent;
-  }
-  .scroll-progress .bar {
-    height: 100%; width: 100%;
-    background: linear-gradient(90deg, #F97316, #FDBA74);
-    transform: scaleX(0); transform-origin: left;
-    will-change: transform;
-    transition: transform 0.08s linear;
-  }
-
-  /* ── Nav scroll-spy active state ── */
-  .nav-links a.active { color: var(--accent-hi); }
-  .nav-links a.active::after { transform: scaleX(1); }
-
-  /* ── Cinematic section act labels ── */
-  .act-label {
-    display: inline-block;
-    font-family: var(--mono);
-    font-size: 11px; font-weight: 600;
-    letter-spacing: 0.12em; text-transform: uppercase;
-    color: var(--accent-hi);
-    margin-bottom: 14px;
-    opacity: 0;
-    transform: translateY(12px);
-    transition: opacity 0.5s ease, transform 0.5s ease;
-  }
-  .act-label.visible { opacity: 1; transform: translateY(0); }
-  .act-label::before {
-    content: '';
-    display: inline-block;
-    width: 24px; height: 1px;
-    background: var(--accent);
-    vertical-align: middle;
-    margin-right: 10px;
-  }
-
-  /* ── Stat counter row (Impact moment) ── */
-  .stat-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 16px;
-    margin-bottom: 56px;
-  }
-  .stat {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 24px;
-    text-align: center;
-    opacity: 0;
-    transform: translateY(16px);
-    transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  .stat.visible { opacity: 1; transform: translateY(0); }
-  .stat .num {
-    font-size: 32px; font-weight: 800;
-    letter-spacing: -0.03em;
-    color: var(--fg);
-    font-family: var(--mono);
-  }
-  .stat .num .suffix { color: var(--accent-hi); }
-  .stat .label {
-    font-size: 13px; color: var(--fg-dim);
-    margin-top: 6px; font-weight: 500;
-  }
-
-  /* ── Breathe spacer (no-dead-scroll recovery) ── */
-  .breathe {
-    height: 12vh;
-    min-height: 80px;
-    position: relative;
-  }
-  .breathe::after {
-    content: '';
-    position: absolute;
-    left: 50%; top: 50%;
-    transform: translate(-50%, -50%);
-    width: 1px; height: 48px;
-    background: linear-gradient(180deg, transparent, var(--border), transparent);
-  }
-
-  /* ── Reduced motion (movematics accessibility rule) ── */
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
-    }
-    .feature, .agent, .stat, .fade-up, .act-label {
-      opacity: 1 !important;
-      transform: none !important;
-    }
-    .hero-orb, .hero::before, .hero::after { display: none; }
-  }
+  .breathe { height: 8vh; min-height: 60px; position: relative; }
 </style>
 </head>
 <body>
 
-<div class="scroll-progress" aria-hidden="true"><div class="bar" id="progress-bar"></div></div>
-
-<nav class="nav">
-  <div class="container nav-inner">
-    <a href="#top" class="brand">
+<nav class="docs-nav">
+  <div class="container docs-nav-inner">
+    <a href="index.html" class="brand">
       <span class="brand-mark">M</span>
       <span>Memorius</span>
     </a>
-    <div class="nav-links" id="nav-links">
-      <a href="#features" class="nav-hide">Features</a>
-      <a href="#quickstart" class="nav-hide">Quick Start</a>
-      <a href="#architecture" class="nav-hide">Architecture</a>
-      <a href="#agents" class="nav-hide">Agents</a>
-      <a href="#cli" class="nav-hide">CLI</a>
-      <a href="https://github.com/Dream-Pixels-Forge/memorius" class="nav-cta">View on GitHub</a>
+    <div class="docs-links">
+      <a href="getting-started.html">Getting Started</a>
+      <a href="cli-reference.html">CLI</a>
+      <a href="mcp-server.html">MCP</a>
+      <a href="hooks.html">Hooks</a>
+      <a href="rest-api.html">REST</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="agents.html">Agents</a>
+      <a href="consolidation.html">Memory Engine</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius" class="btn btn-primary" style="padding:8px 18px;font-size:13px;">GitHub</a>
     </div>
   </div>
 </nav>
 
-<header class="hero" id="top">
+<header class="hero">
   <div class="hero-orb"></div>
   <div class="container">
     <span class="hero-eyebrow">
@@ -759,8 +203,8 @@
     <h1>Give your AI agent<br /><span class="accent">a memory that persists</span></h1>
     <p class="lead">
       Memorius is a self-contained, agent-agnostic memory system with hierarchical
-      knowledge organization, pluggable embeddings, and built-in MCP + REST servers.
-      Neuroscience-inspired consolidation. Works with 7 AI coding agents out of the box.
+      knowledge organization, pluggable embeddings, and neuroscience-inspired
+      consolidation. Works with 7 AI coding agents out of the box.
     </p>
 
     <div class="install" role="group" aria-label="Install command">
@@ -770,12 +214,13 @@
     </div>
 
     <div class="hero-actions">
-      <a class="btn btn-primary" href="https://github.com/Dream-Pixels-Forge/memorius">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.7 5.5.7 11.9c0 5 3.3 9.3 7.8 10.8.6.1.8-.2.8-.6v-2.1c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2 1-.3 2-.4 3-.4s2 .1 3 .4c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.8.1 3.1.7.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.2c0 .3.2.7.8.6 4.5-1.5 7.8-5.8 7.8-10.8C23.3 5.5 18.3.5 12 .5z"/></svg>
-        Star on GitHub
+      <a class="btn btn-primary" href="getting-started.html">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.5 4.5a2.5 2.5 0 013.5 3.5L12 13l2.5 4.5a2.5 2.5 0 01-4.5 2.5L5.5 17 4.5 13.5a2.5 2.5 0 013.5-3.5L10.5 11z"/></svg>
+        Get Started
       </a>
-      <a class="btn btn-ghost" href="https://pypi.org/project/memorius/">
-        View on PyPI
+      <a class="btn btn-ghost" href="https://github.com/Dream-Pixels-Forge/memorius">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.7 5.5.7 11.9c0 5 3.3 9.3 7.8 10.8.6.1.8-.2.8-.6v-2.1c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2 1-.3 2-.4 3-.4s2 .1 3 .4c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.8.1 3.1.7.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.2c0 .3.2.7.8.6 4.5-1.5 7.8-5.8 7.8-10.8C23.3 5.5 18.3.5 12 .5z"/></svg>
+        GitHub
       </a>
     </div>
 
@@ -788,258 +233,153 @@
   </div>
 </header>
 
-<section id="features">
+<div class="breathe"></div>
+
+<!-- ── Features (moved in full from the old monolith) ── -->
+<section class="docs-section" style="padding-top:24px;">
   <div class="container">
-    <span class="act-label" data-act>Act I &mdash; Capabilities</span>
-    <h2>Built for the way agents actually work</h2>
-    <p class="sub">
-      Drop-in memory that any AI agent can use. No lock-in, no per-agent
-      rewrites — one vault, many frontends.
-    </p>
-
-    <div class="stat-row">
-      <div class="stat delay-1"><div class="num"><span class="count" data-target="126">0</span></div><div class="label">Tests passing</div></div>
-      <div class="stat delay-2"><div class="num"><span class="count" data-target="7">0</span></div><div class="label">Agent integrations</div></div>
-      <div class="stat delay-3"><div class="num"><span class="count" data-target="4">0</span></div><div class="label">Entry points</div></div>
-      <div class="stat delay-4"><div class="num"><span class="count" data-target="0">0</span><span class="suffix">.8.4</span></div><div class="label">Version</div></div>
+    <div class="fade-up">
+      <span class="act-label">Capabilities</span>
+      <h2>Built for the way agents actually work</h2>
+      <p class="sub">
+        Drop-in memory that any AI agent can use. No lock-in, no per-agent
+        rewrites — one vault, many frontends.
+      </p>
     </div>
 
-    <div class="skill-section">
-      <div>
-        <h3>One-line skill install</h3>
-        <p>Memorius ships a pre-built agent skill. Install it into your agent's skill directory with a single npx command — no cloning, no build step.</p>
-      </div>
-      <div class="skill-install" role="group" aria-label="Skill install command">
-        <span class="si-prompt">$</span>
-        <code id="skill-cmd">npx skills add github.com/Dream-Pixels-Forge/memorius/tree/main/skills/memorius</code>
-      </div>
-    </div>
-
-    <div class="features" id="feature-grid">
-      <div class="feature delay-1">
+    <div class="cards">
+      <div class="card fade-up delay-1">
         <div class="icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 8V6a2 2 0 012-2h12a2 2 0 012 2v2"/><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/><path d="M12 6v12"/><path d="M8 10v4"/><path d="M16 10v4"/></svg>
         </div>
         <h3>Drop-in for any MCP client</h3>
         <p>Point any MCP-compatible client at <code>memorius serve</code> and instantly get memory, semantic search, and diary tools. No SDK to embed.</p>
+        <a class="card-link" href="mcp-server.html">MCP Server</a>
       </div>
-      <div class="feature delay-2">
+      <div class="card fade-up delay-2">
         <div class="icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 7h18"/><path d="M3 12h12"/><path d="M3 17h8"/><path d="M15 12l4-4"/><path d="M15 17l4-4"/></svg>
         </div>
         <h3>Hierarchical knowledge</h3>
         <p>Organize memory with a <strong>Vault → Shelf → Folder → Note</strong> hierarchy. Mine conversation transcripts into structured memories automatically.</p>
+        <a class="card-link" href="getting-started.html#hierarchy">Learn the hierarchy</a>
       </div>
-      <div class="feature delay-3">
+      <div class="card fade-up delay-3">
         <div class="icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v4"/><path d="M8.5 16.5L7 18"/><path d="M15.5 16.5L17 18"/><path d="M5 17l2-3"/><path d="M19 17l-2-3"/></svg>
         </div>
         <h3>Pluggable embeddings</h3>
         <p>ChromaDB default with bundled ONNX, sentence-transformers for higher quality, or OpenAI for production. Swap with one config change.</p>
+        <a class="card-link" href="architecture.html#embeddings">Configuration</a>
       </div>
-      <div class="feature delay-4">
+      <div class="card fade-up delay-4">
         <div class="icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="2"/><path d="M12 14v4"/><path d="M12 6v4"/><path d="M18 12h4"/><path d="M2 12h4"/><path d="M6 6l3 3"/><path d="M15 15l3 3"/><path d="M15 9l3-3"/><path d="M6 18l3-3"/></svg>
         </div>
         <h3>7 agent integrations</h3>
         <p>Claude Code, Codex CLI, Gemini CLI, OpenCode, Pi, OpenClaude, OpenClaw — auto-detected from hook payloads, no config needed.</p>
+        <a class="card-link" href="agents.html">All agents</a>
       </div>
-      <div class="feature delay-5">
+      <div class="card fade-up delay-5">
         <div class="icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 10h20"/><path d="M6 14h4"/><path d="M14 14h4"/><path d="M6 18h4"/><path d="M14 18h4"/></svg>
         </div>
         <h3>Neuroscience consolidation</h3>
         <p>Interference-based forgetting, engram maturation, and neuromodulator gating model how biological memory systems decay and consolidate. Typed graph edges with spreading activation.</p>
+        <a class="card-link" href="consolidation.html">Memory engine</a>
       </div>
-      <div class="feature delay-6">
+      <div class="card fade-up delay-6">
         <div class="icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h8"/><path d="M8 17h6"/><path d="M12 9v4"/></svg>
         </div>
         <h3>REST API + Obsidian sync</h3>
         <p>FastAPI HTTP server for any non-MCP client. Bidirectional Obsidian vault sync with YAML frontmatter and folder hierarchy preservation.</p>
+        <a class="card-link" href="rest-api.html">REST API</a>
       </div>
     </div>
   </div>
 </section>
 
-<section id="quickstart">
+<!-- ── Documentation hub ── -->
+<section class="docs-section">
   <div class="container">
-    <h2>Up and running in 30 seconds</h2>
-    <p class="sub">Install, initialize, store, search. That's it.</p>
+    <div class="fade-up">
+      <span class="act-label">Documentation</span>
+      <h2>Everything you need to work with Memorius</h2>
+      <p class="sub">
+        Each concern lives on its own page. Start with getting started, then
+        dive into the exact surface you're wiring up.
+      </p>
+    </div>
 
-    <div class="quickstart-grid">
-      <div>
-        <pre><code><span style="color:#FDBA74"># Install</span>
-pip install memorius
-
-<span style="color:#FDBA74"># Initialize a vault</span>
-memorius init
-
-<span style="color:#FDBA74"># Store a memory</span>
-memorius store "The sky is blue because Rayleigh scattering scatters shorter wavelengths more" \
-  --vault main --shelf science --folder physics
-
-<span style="color:#FDBA74"># Semantic search</span>
-memorius search "why is the sky blue"
-
-<span style="color:#FDBA74"># Mine memories from a transcript</span>
-memorius mine transcript.txt --vault conversations
-
-<span style="color:#FDBA74"># Write a diary entry</span>
-memorius diary --session "session-001" --title "Research findings"
-
-<span style="color:#FDBA74"># Check vault status</span>
-memorius status</code></pre>
+    <div class="cards">
+      <div class="card fade-up delay-1">
+        <div class="icon"><svg viewBox="0 0 24 24"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/></svg></div>
+        <h3>Getting Started</h3>
+        <p>Install, initialize, store your first memory, and understand the Vault → Shelf → Folder → Note hierarchy.</p>
+        <a class="card-link" href="getting-started.html">Read</a>
       </div>
-      <div class="quickstart-desc">
-        <h3>From zero to persistent memory</h3>
-        <p>No cloud account, no API keys, no setup ceremony. Just install and go.</p>
-        <ul class="step-list">
-          <li><span class="step-num">01</span> <span>Install the package &mdash; one <code>pip</code> command, no heavy dependencies beyond ChromaDB.</span></li>
-          <li><span class="step-num">02</span> <span>Initialize a vault &mdash; creates the storage directory and config at <code>~/.memorius/</code>.</span></li>
-          <li><span class="step-num">03</span> <span>Store your first memory with <code>memorius store</code> &mdash; automatic embedding and hierarchical tagging.</span></li>
-          <li><span class="step-num">04</span> <span>Find anything later with semantic search &mdash; relevance-ranked results from ChromaDB vector store.</span></li>
-        </ul>
+      <div class="card fade-up delay-2">
+        <div class="icon"><svg viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></div>
+        <h3>CLI Reference</h3>
+        <p>Every subcommand — store, search, mine, extract, consolidate, prune, repair, doctor, and the full flags on each.</p>
+        <a class="card-link" href="cli-reference.html">Browse commands</a>
+      </div>
+      <div class="card fade-up delay-3">
+        <div class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="5" r="2"/><circle cx="12" cy="19" r="2"/><line x1="12" y1="7" x2="12" y2="9"/><line x1="12" y1="15" x2="12" y2="17"/></svg></div>
+        <h3>MCP Server</h3>
+        <p>Point any MCP client at <code>memorius serve</code>. All 29 tools, JSON-RPC over stdio, client config snippets.</p>
+        <a class="card-link" href="mcp-server.html">See the tools</a>
+      </div>
+      <div class="card fade-up delay-4">
+        <div class="icon"><svg viewBox="0 0 24 24"><path d="M4 4h16v12H4z"/><path d="M8 20h8"/><path d="M12 16v4"/></svg></div>
+        <h3>Agent Hooks</h3>
+        <p>Auto-detecting lifecycle hooks for 7 agents. 10 action types, the detection priority, and the <code>memorius-hook</code> CLI.</p>
+        <a class="card-link" href="hooks.html">Wire up hooks</a>
+      </div>
+      <div class="card fade-up delay-5">
+        <div class="icon"><svg viewBox="0 0 24 24"><path d="M3 9l18 0"/><path d="M3 15l18 0"/><circle cx="7" cy="9" r="1.5"/><circle cx="7" cy="15" r="1.5"/></svg></div>
+        <h3>REST API</h3>
+        <p>FastAPI server for non-MCP clients. Full endpoint table, API key auth, rate limits, daemon mode, TLS.</p>
+        <a class="card-link" href="rest-api.html">Reference</a>
+      </div>
+      <div class="card fade-up delay-6">
+        <div class="icon"><svg viewBox="0 0 24 24"><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><path d="M8.5 16.5L7 18"/><path d="M15.5 16.5L17 18"/></svg></div>
+        <h3>Architecture</h3>
+        <p>How the vault engine, search pipeline, embeddings, vector backends, and knowledge graph fit together.</p>
+        <a class="card-link" href="architecture.html">Understand it</a>
+      </div>
+      <div class="card fade-up delay-1">
+        <div class="icon"><svg viewBox="0 0 24 24"><path d="M17 8h1a4 4 0 110 8h-1"/><path d="M3 8h13"/><path d="M3 12h9"/><path d="M3 16h5"/></svg></div>
+        <h3>Agent Compatibility</h3>
+        <p>Which agents are supported, the hook event each emits, detection priority, and how to plug in your own.</p>
+        <a class="card-link" href="agents.html">Supported agents</a>
+      </div>
+      <div class="card fade-up delay-2">
+        <div class="icon"><svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M5 8l7-5 7 5"/><path d="M5 16l7 5 7-5"/></svg></div>
+        <h3>Memory Engine</h3>
+        <p>Temporal decay, consolidation, pruning, knowledge graph edges, fact-checking, and the <code>repair</code> / <code>doctor</code> health tools.</p>
+        <a class="card-link" href="consolidation.html">The engine</a>
+      </div>
+      <div class="card fade-up delay-3">
+        <div class="icon"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7"/></svg></div>
+        <h3>Agent Skill Install</h3>
+        <p>One <code>npx</code> command installs the pre-built agent skill that teaches Hermes-compatible agents to use memorius proactively.</p>
+        <a class="card-link" href="getting-started.html#skill">Install the skill</a>
       </div>
     </div>
   </div>
 </section>
 
-<section id="architecture">
+<!-- ── CTA ── -->
+<section class="docs-section">
   <div class="container">
-    <span class="act-label" data-act>Act II &mdash; How It Works</span>
-    <h2>Architecture</h2>
-    <p class="sub">A single Python package, four entry points, two storage backends, and a neuroscience-inspired consolidation engine.</p>
-
-    <div class="arch-wrap">
-<pre class="arch-diagram"><span class="hl">┌────────────────────────────────────────────────────────────┐
-│                       Memorius                             │
-├────────────────────────────────────────────────────────────┤
-│  CLI        memorius init | store | search | mine | ...    │
-│  MCP        JSON-RPC protocol server (stdin/stdout)        │
-│  REST       FastAPI HTTP server (optional)                 │
-│  Hooks      Auto-detect: Claude Code, Codex, Gemini, ...   │
-│  Obsidian   Import / export notes from Obsidian vaults     │
-├────────────────────────────────────────────────────────────┤
-│  Vault Engine                                              │
-│  ├── ChromaStore    Vector search (ChromaDB)               │
-│  ├── SQLiteStore    Metadata & hierarchy (SQLite)          │
-│  ├── Embeddings     Pluggable providers (ONNX / SF / OA)   │
-│  └── KnowledgeGraph Typed edges + spreading activation     │
-├────────────────────────────────────────────────────────────┤
-│  Consolidation Engine                                      │
-│  ├── Interference Forgetting  decay by relatedness        │
-│  ├── Engram Maturation        trace → memory → schema    │
-│  └── Neuromodulator Gating    dopamine/sedation modulation │
-├────────────────────────────────────────────────────────────┤
-│  Vault  >  Shelf  >  Folder  >  Note  hierarchy           │
-│  Diaries          Session diary entries                    │
-│  Mine             Extract memories from transcripts        │
-└────────────────────────────────────────────────────────────┘</span></pre>
-
-      <ul class="arch-notes">
-        <li><strong>Vault engine</strong> is the single source of truth &mdash; CLI, MCP, REST, and hooks all route through it.</li>
-        <li><strong>ChromaDB</strong> handles vector search; <strong>SQLite</strong> handles metadata and the hierarchy.</li>
-        <li><strong>Embeddings</strong> are swappable: bundled ONNX (default, no extra deps), <code>sentence-transformers</code>, or OpenAI.</li>
-        <li><strong>Knowledge graph</strong> with typed edges (<code>supports</code>, <code>contradicts</code>, <code>related</code>) and spreading activation for multi-hop recall.</li>
-        <li><strong>Consolidation</strong> models biological memory: interference forgetting, engram maturation, and neuromodulator gating.</li>
-        <li><strong>Hooks</strong> auto-detect which agent sent the event from the JSON payload &mdash; no <code>--agent</code> flag required.</li>
-      </ul>
-    </div>
-  </div>
-</section>
-
-<section id="agents">
-  <div class="container">
-    <span class="act-label" data-act>Act III &mdash; Compatibility</span>
-    <h2>Works with the agents you already use</h2>
-    <p class="sub">
-      Hooks are auto-detected from the event payload &mdash; pipe JSON in, get
-      memories out. No per-agent config to maintain.
-    </p>
-
-    <div class="agents" id="agent-grid">
-      <div class="agent delay-1"><div class="logo" style="background:#cc785c">C</div><div><div class="name">Claude Code</div><div class="meta">Anthropic &mdash; stop, precompact</div></div></div>
-      <div class="agent delay-2"><div class="logo" style="background:#10a37f">X</div><div><div class="name">Codex CLI</div><div class="meta">OpenAI &mdash; session_start, stop</div></div></div>
-      <div class="agent delay-3"><div class="logo" style="background:#4285f4">G</div><div><div class="name">Gemini CLI</div><div class="meta">Google &mdash; stop, session_start</div></div></div>
-      <div class="agent delay-4"><div class="logo" style="background:#F97316">O</div><div><div class="name">OpenCode</div><div class="meta">anomalyco/sst &mdash; stop, precompact</div></div></div>
-      <div class="agent delay-5"><div class="logo" style="background:#f59e0b">P</div><div><div class="name">Pi</div><div class="meta">kachow-compatible &mdash; tool_call, turn_end</div></div></div>
-      <div class="agent delay-6"><div class="logo" style="background:#ec4899">O</div><div><div class="name">OpenClaude</div><div class="meta">stop, precompact</div></div></div>
-      <div class="agent delay-7"><div class="logo" style="background:#64748b">O</div><div><div class="name">OpenClaw</div><div class="meta">openclaw marker &mdash; session_start</div></div></div>
-    </div>
-
-    <p style="color: var(--fg-dim); margin-top: 28px; font-size: 14px;">
-      Detection priority: <code>OpenClaude &rarr; Claude Code &rarr; Codex &rarr; Gemini CLI &rarr; OpenClaw &rarr; OpenCode &rarr; Pi &rarr; Generic</code>.
-    </p>
-  </div>
-</section>
-
-<section id="cli">
-  <div class="container">
-    <h2>CLI reference</h2>
-    <p class="sub">Every command you'll need on day one. Full reference in the README.</p>
-
-    <div class="cli-grid">
-      <div class="cli-card">
-        <h4>Core</h4>
-        <div class="row"><span class="cmd">memorius init</span><span class="desc">Initialize a new vault</span></div>
-        <div class="row"><span class="cmd">memorius status</span><span class="desc">Show vault status</span></div>
-        <div class="row"><span class="cmd">memorius store &lt;text&gt;</span><span class="desc">Store a memory</span></div>
-        <div class="row"><span class="cmd">memorius search &lt;q&gt;</span><span class="desc">Semantic search</span></div>
-        <div class="row"><span class="cmd">memorius mine &lt;file&gt;</span><span class="desc">Extract memories from transcript</span></div>
-        <div class="row"><span class="cmd">memorius ls</span><span class="desc">Browse vault hierarchy</span></div>
-        <div class="row"><span class="cmd">memorius doctor</span><span class="desc">Run health checks</span></div>
-        <div class="row"><span class="cmd">memorius repair</span><span class="desc">Fix vector/meta drift</span></div>
-        <div class="row"><span class="cmd">memorius stats</span><span class="desc">Vault + graph stats</span></div>
-      </div>
-
-      <div class="cli-card">
-        <h4>Diaries</h4>
-        <div class="row"><span class="cmd">memorius diary &lt;session&gt;</span><span class="desc">Write a diary entry</span></div>
-        <div class="row"><span class="cmd">memorius diaries</span><span class="desc">List recent entries</span></div>
-      </div>
-
-      <div class="cli-card">
-        <h4>Servers</h4>
-        <div class="row"><span class="cmd">memorius serve</span><span class="desc">Start MCP server (stdio)</span></div>
-        <div class="row"><span class="cmd">memorius serve-rest</span><span class="desc">Start REST API server</span></div>
-      </div>
-
-      <div class="cli-card">
-        <h4>Obsidian</h4>
-        <div class="row"><span class="cmd">memorius obsidian list</span><span class="desc">Explore vault structure</span></div>
-        <div class="row"><span class="cmd">memorius obsidian import</span><span class="desc">Import notes as memories</span></div>
-        <div class="row"><span class="cmd">memorius obsidian export</span><span class="desc">Export memories as notes</span></div>
-      </div>
-
-      <div class="cli-card">
-        <h4>Knowledge Graph</h4>
-        <div class="row"><span class="cmd">memorius graph stats</span><span class="desc">Graph topology stats</span></div>
-        <div class="row"><span class="cmd">memorius graph export</span><span class="desc">Export / visualize graph</span></div>
-        <div class="row"><span class="cmd">memorius graph link</span><span class="desc">Create typed edge</span></div>
-      </div>
-
-      <div class="cli-card">
-        <h4>Consolidation</h4>
-        <div class="row"><span class="cmd">memorius consolidate</span><span class="desc">Run consolidation cycle</span></div>
-        <div class="row"><span class="cmd">memorius prune</span><span class="desc">Find & archive stale memories</span></div>
-        <div class="row"><span class="cmd">memorius decay</span><span class="desc">Apply decay scoring</span></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="cta">
-  <div class="container">
-    <div class="cta-band">
+    <div class="cta-band fade-up">
       <h2>Ready to give your agent<br />a memory that persists?</h2>
       <p>Install in one command, wire up MCP or hooks, and start storing memories immediately. No cloud, no API keys, no lock-in.</p>
       <div class="hero-actions">
-        <a class="btn btn-primary" href="https://github.com/Dream-Pixels-Forge/memorius">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.7 5.5.7 11.9c0 5 3.3 9.3 7.8 10.8.6.1.8-.2.8-.6v-2.1c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2 1-.3 2-.4 3-.4s2 .1 3 .4c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.8.1 3.1.7.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.2c0 .3.2.7.8.6 4.5-1.5 7.8-5.8 7.8-10.8C23.3 5.5 18.3.5 12 .5z"/></svg>
-          Star on GitHub
-        </a>
-        <a class="btn btn-ghost" href="#quickstart">Quick Start</a>
+        <a class="btn btn-primary" href="getting-started.html">Get Started</a>
+        <a class="btn btn-ghost" href="https://github.com/Dream-Pixels-Forge/memorius">Star on GitHub</a>
       </div>
     </div>
   </div>
@@ -1056,135 +396,57 @@ memorius status</code></pre>
   </div>
 </footer>
 
+<style>
+  .cta-band {
+    background: linear-gradient(135deg, var(--accent-soft), var(--accent-glow));
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+    border-radius: 20px;
+    padding: 64px 48px;
+    text-align: center;
+    position: relative; overflow: hidden;
+  }
+  .cta-band::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(600px 200px at 50% 0%, var(--accent-glow), transparent 70%);
+    pointer-events: none;
+  }
+  .cta-band h2 { position: relative; z-index: 1; font-size: clamp(28px,4vw,38px); letter-spacing:-0.03em; font-weight:700; line-height:1.15; }
+  .cta-band p { color: var(--fg-dim); max-width: 500px; margin: 0 auto 32px; position: relative; z-index: 1; font-size: 15.5px; }
+  .cta-band .hero-actions { margin-top: 0; position: relative; z-index: 1; }
+</style>
+
 <script>
-(function() {
-  /* ── Copy to clipboard ── */
-  var btn = document.getElementById('copy-btn');
-  var cmd = document.getElementById('install-cmd');
-  if (btn && cmd) {
-    btn.addEventListener('click', function() {
+  /* Copy install command */
+  (function () {
+    var btn = document.getElementById('copy-btn');
+    var cmd = document.getElementById('install-cmd');
+    if (!btn || !cmd) return;
+    btn.addEventListener('click', function () {
       var text = cmd.textContent.trim();
-      var doCopy = function() {
-        if (navigator.clipboard && window.isSecureContext) {
-          navigator.clipboard.writeText(text).then(markCopied);
-        } else {
-          var ta = document.createElement('textarea');
-          ta.value = text;
-          ta.style.position = 'fixed';
-          ta.style.opacity = '0';
-          document.body.appendChild(ta);
-          ta.select();
-          try { document.execCommand('copy'); markCopied(); } catch(e) {}
-          document.body.removeChild(ta);
-        }
-      };
       function markCopied() {
         btn.textContent = 'Copied!';
         btn.classList.add('copied');
-        setTimeout(function() {
+        setTimeout(function () {
           btn.textContent = 'Copy';
           btn.classList.remove('copied');
         }, 1600);
       }
-      doCopy();
-    });
-  }
-
-  /* ── Scroll progress bar ── */
-  var bar = document.getElementById('progress-bar');
-  var ticking = false;
-  function updateProgress() {
-    var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
-    var max = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-    var pct = max > 0 ? (scrollTop / max) : 0;
-    if (bar) bar.style.transform = 'scaleX(' + Math.min(1, pct) + ')';
-    ticking = false;
-  }
-  window.addEventListener('scroll', function() {
-    if (!ticking) { requestAnimationFrame(updateProgress); ticking = true; }
-  }, { passive: true });
-  updateProgress();
-
-  /* ── Nav scroll-spy (highlight active section) ── */
-  var navLinks = document.querySelectorAll('#nav-links a[href^="#"]');
-  var sections = [];
-  navLinks.forEach(function(a) {
-    var id = a.getAttribute('href').slice(1);
-    var el = document.getElementById(id);
-    if (el) sections.push({ link: a, el: el });
-  });
-  var spyObserver = new IntersectionObserver(function(entries) {
-    entries.forEach(function(entry) {
-      if (entry.isIntersecting) {
-        var match = sections.find(function(s) { return s.el === entry.target; });
-        navLinks.forEach(function(a) { a.classList.remove('active'); });
-        if (match) match.link.classList.add('active');
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(markCopied, function () {});
+      } else {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); markCopied(); } catch (e) {}
+        document.body.removeChild(ta);
       }
     });
-  }, { rootMargin: '-40% 0px -55% 0px', threshold: 0 });
-  sections.forEach(function(s) { spyObserver.observe(s.el); });
-
-  /* ── Animated stat counters (count up on reveal) ── */
-  function animateCount(el) {
-    var target = parseInt(el.getAttribute('data-target'), 10);
-    if (target <= 0) { el.textContent = '0'; return; }
-    var duration = 1200;
-    var start = null;
-    function step(ts) {
-      if (!start) start = ts;
-      var progress = Math.min(1, (ts - start) / duration);
-      var eased = 1 - Math.pow(1 - progress, 3);
-      el.textContent = Math.floor(eased * target).toString();
-      if (progress < 1) requestAnimationFrame(step);
-      else el.textContent = target.toString();
-    }
-    requestAnimationFrame(step);
-  }
-  var countObserver = new IntersectionObserver(function(entries) {
-    entries.forEach(function(entry) {
-      if (entry.isIntersecting) {
-        animateCount(entry.target);
-        countObserver.unobserve(entry.target);
-      }
-    });
-  }, { threshold: 0.5 });
-  document.querySelectorAll('.count').forEach(function(el) { countObserver.observe(el); });
-
-  /* ── Scroll-triggered entrance animations ── */
-  var animateElements = function(selector, threshold) {
-    var elements = document.querySelectorAll(selector);
-    if (!elements.length) return;
-    var observer = new IntersectionObserver(function(entries) {
-      entries.forEach(function(entry) {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('visible');
-          observer.unobserve(entry.target);
-        }
-      });
-    }, { threshold: threshold || 0.1 });
-    elements.forEach(function(el) { observer.observe(el); });
-  };
-
-  animateElements('.feature', 0.08);
-  animateElements('.agent', 0.1);
-  animateElements('.stat', 0.3);
-
-  /* ── Act labels + fade-up section headings ── */
-  var fadeEls = document.querySelectorAll('section h2, section .sub, .act-label');
-  fadeEls.forEach(function(el) {
-    el.classList.add('fade-up');
-    var obs = new IntersectionObserver(function(entries) {
-      entries.forEach(function(entry) {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('visible');
-          obs.unobserve(entry.target);
-        }
-      });
-    }, { threshold: 0.15 });
-    obs.observe(el);
-  });
-})();
+  })();
 </script>
-
+<script src="assets/site.js"></script>
 </body>
 </html>

@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Getting Started — Memorius</title>
+<meta name="description" content="Install, initialize, and store your first memory with Memorius. Understand the Vault → Shelf → Folder → Note hierarchy and the agent skill install." />
+<meta name="theme-color" content="#F97316" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23F97316'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='ui-monospace,SFMono-Regular,monospace' font-size='34' font-weight='700' fill='white'%3EM%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+
+<nav class="docs-nav">
+  <div class="container docs-nav-inner">
+    <a href="index.html" class="brand"><span class="brand-mark">M</span><span>Memorius</span></a>
+    <div class="docs-links">
+      <a href="getting-started.html">Getting Started</a>
+      <a href="cli-reference.html">CLI</a>
+      <a href="mcp-server.html">MCP</a>
+      <a href="hooks.html">Hooks</a>
+      <a href="rest-api.html">REST</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="agents.html">Agents</a>
+      <a href="consolidation.html">Memory Engine</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius" class="btn" style="background:var(--accent);color:#fff;padding:8px 18px;font-size:13px;font-weight:600;border-radius:8px;">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="docs-hero">
+  <div class="container">
+    <span class="crumb">Documentation / Getting Started</span>
+    <h1>Up and running in 30 seconds</h1>
+    <p class="lead">Install, initialize, store, search. No cloud account, no API keys, no setup ceremony.</p>
+  </div>
+</header>
+
+<main class="docs-main">
+  <div class="container doc-layout">
+    <aside class="doc-toc">
+      <div class="toc-title">On this page</div>
+      <a href="#install">Install</a>
+      <a href="#init">Initialize a vault</a>
+      <a href="#store">Store a memory</a>
+      <a href="#search">Semantic search</a>
+      <a href="#hierarchy">The hierarchy</a>
+      <a href="#skill">Install the agent skill</a>
+      <a href="#first-week">Your first week</a>
+    </aside>
+
+    <div class="doc-content">
+      <section class="docs-section" id="install">
+        <h2><span class="act-label">Step 1</span> Install</h2>
+        <p class="sub">One command. All features — vector search, reranker, REST API, knowledge graph, and the agent skill — are included out of the box.</p>
+<pre><code>pip install memorius</code></pre>
+        <div class="callout">
+          <div class="co-title">Verify the install</div>
+          Run <code>memorius --version</code> to confirm the CLI is on your <code>PATH</code>, then <code>memorius init</code> to create <code>~/.memorius/config.yaml</code> and the storage directory.
+        </div>
+        <p>For development (adds <code>pytest</code> + <code>pytest-asyncio</code>):</p>
+<pre><code>pip install "memorius[dev]"</code></pre>
+      </section>
+
+      <section class="docs-section" id="init">
+        <h2><span class="act-label">Step 2</span> Initialize a vault</h2>
+        <p class="sub">Creates the config file and storage. Runs the ONNX model download on first use.</p>
+<pre><code>memorius init</code></pre>
+        <p>If you want to pre-download the bundled ONNX embedding model now (instead of on first search):</p>
+<pre><code>memorius setup</code></pre>
+        <p>The vault engine lives under <code>~/.memorius/data</code> by default. You can override every setting via the <code>MEMORIUS_*</code> environment variables or the YAML config — see <a href="architecture.html#configuration">Architecture → Configuration</a>.</p>
+      </section>
+
+      <section class="docs-section" id="store">
+        <h2><span class="act-label">Step 3</span> Store your first memory</h2>
+        <p class="sub">Content is embedded automatically and placed in the hierarchy you name.</p>
+<pre><code>memorius store "The sky is blue because Rayleigh scattering scatters shorter wavelengths more" \
+  --vault main --shelf science --folder physics</code></pre>
+        <p>Flags: <code>--vault</code> / <code>--shelf</code> / <code>--folder</code> / <code>--note</code> name the four levels of the hierarchy (all default to <code>main</code> / <code>default</code>). <code>--ttl 30</code> sets a time-to-live in days.</p>
+      </section>
+
+      <section class="docs-section" id="search">
+        <h2><span class="act-label">Step 4</span> Find it later with semantic search</h2>
+        <p class="sub">Relevance-ranked results from the vector store — you don't need the exact words.</p>
+<pre><code>memorius search "why is the sky blue"</code></pre>
+        <p>Useful flags: <code>--n 20</code> (more results), <code>--expand-graph</code> (pull in 1-hop linked memories), <code>--rerank</code> (cross-encoder precision), <code>--web</code> (fallback to live web when local recall is thin). Full flag reference is on the <a href="cli-reference.html">CLI page</a>.</p>
+      </section>
+
+      <section class="docs-section" id="hierarchy">
+        <h2>The Vault → Shelf → Folder → Note hierarchy</h2>
+        <p class="sub">Four levels of organization, so a single vault can hold everything from one project to an entire research corpus.</p>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Level</th><th>What it holds</th><th>Example</th></tr></thead>
+            <tbody>
+              <tr><td><code>Vault</code></td><td>A top-level namespace. One per project/domain.</td><td><code>main</code>, <code>conversations</code>, <code>research</code></td></tr>
+              <tr><td><code>Shelf</code></td><td>A category or theme within a vault.</td><td><code>science</code>, <code>decisions</code>, <code>bugs</code></td></tr>
+              <tr><td><code>Folder</code></td><td>A sub-grouping within a shelf.</td><td><code>physics</code>, <code>auth</code></td></tr>
+              <tr><td><code>Note</code></td><td>The individual memory itself.</td><td><code>rayleigh-scattering</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Browse the live structure at any time:</p>
+<pre><code>memorius ls</code></pre>
+        <p>Diaries, mined transcripts, and extracted memories each land in their own shelves, so your vault stays organized without manual filing.</p>
+      </section>
+
+      <section class="docs-section" id="skill">
+        <h2>Install the agent skill</h2>
+        <p class="sub">Memorius ships a pre-built agent skill. One command installs it into your agent's skill directory — no cloning, no build step.</p>
+<pre><code>npx skills add github.com/Dream-Pixels-Forge/memorius/tree/main/skills/memorius</code></pre>
+        <p>The skill teaches any Hermes-compatible agent to use memorius proactively: auto-capture rules, smart context injection, session diaries, and workflow templates. For agents without the skill format, use the <a href="mcp-server.html">MCP server</a> or the CLI directly.</p>
+      </section>
+
+      <section class="docs-section" id="first-week">
+        <h2>Recommended first-week flow</h2>
+        <ol>
+          <li><strong>Day 1</strong> — <code>memorius init</code>, store a handful of decisions, search for them. Feel the hierarchy.</li>
+          <li><strong>Day 2</strong> — Mine a real transcript: <code>memorius mine transcript.txt --vault conversations</code>.</li>
+          <li><strong>Day 3</strong> — Wire your agent: add the <a href="mcp-server.html">MCP server</a> to Claude Code / Codex / Gemini, or <a href="hooks.html">hook it up</a> so memories capture automatically at session boundaries.</li>
+          <li><strong>Ongoing</strong> — Run <code>memorius doctor</code> after big sessions, and <code>memorius consolidate</code> to merge duplicates as the vault grows.</li>
+        </ol>
+        <div class="callout">
+          <div class="co-title">Where to go next</div>
+          Explore the <a href="cli-reference.html">full CLI reference</a>, connect an agent via <a href="mcp-server.html">MCP</a> or <a href="hooks.html">hooks</a>, or understand the <a href="architecture.html">architecture</a> underneath.
+        </div>
+      </section>
+
+      <div class="pager">
+        <a href="index.html"><div class="p-label">← Home</div><div class="p-title">Back to landing</div></a>
+        <a href="cli-reference.html" class="next"><div class="p-label">Next →</div><div class="p-title">CLI Reference</div></a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="container footer-inner">
+    <div>&copy; Memorius &middot; MIT licensed &middot; Built for agents that need to remember.</div>
+    <div class="footer-links">
+      <a href="https://github.com/Dream-Pixels-Forge/memorius">GitHub</a>
+      <a href="https://pypi.org/project/memorius/">PyPI</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius/issues">Issues</a>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

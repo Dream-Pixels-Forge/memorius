@@ -11,101 +11,55 @@
   <a href="https://github.com/Dream-Pixels-Forge/memorius/actions/workflows/release.yml"><img src="https://github.com/Dream-Pixels-Forge/memorius/actions/workflows/release.yml/badge.svg" alt="PyPI publish"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   <a href="https://python.org"><img src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue" alt="Python 3.11 | 3.12"></a>
-  <a href="https://github.com/Dream-Pixels-Forge/memorius/blob/main/CHANGELOG.md"><img src="https://img.shields.io/badge/changelog-v0.8.4-green" alt="Changelog"></a>
+  <a href="https://github.com/Dream-Pixels-Forge/memorius/blob/main/CHANGELOG.md"><img src="https://img.shields.io/badge/changelog-v0.8.6-green" alt="Changelog"></a>
 </p>
 
-> **Works with Claude Code, Codex CLI, Gemini CLI, OpenClaude, OpenCode, Pi, and any MCP-compatible agent.**
+> **Works with Claude Code, Codex CLI, Gemini CLI, OpenClaude, OpenCode, Pi, OpenClaw, and any MCP-compatible agent.**
 >
-> **Landing page:** https://dream-pixels-forge.github.io/memorius/
+> **📚 Documentation:** https://dream-pixels-forge.github.io/memorius/ — install, CLI reference, MCP server, hooks, REST API, architecture, and the memory engine, all on the site.
 >
 > If you find this project useful, leaving a star ⭐ on the repository is the best way to support my work!
 
-## Installation
+Memorius is a self-contained, agent-agnostic memory system with hierarchical knowledge
+organization, pluggable embeddings, and neuroscience-inspired consolidation. One vault,
+many frontends — CLI, MCP, REST, and auto-detecting agent hooks. **No cloud, no API keys,
+no lock-in.**
+
+## Install
 
 ```bash
 pip install memorius
 ```
 
-All features — vector search, cross-encoder reranker, REST API server, SQLite-vec
-backend, OpenAI embeddings, knowledge graph, and the agent skill — are included
-out of the box. No extra install flags needed.
+All features — vector search, cross-encoder reranker, REST API server, SQLite-vec backend,
+OpenAI embeddings, knowledge graph, and the agent skill — are included out of the box. No
+extra install flags needed.
 
-Verify the install:
+Verify:
 
 ```bash
 memorius --version
 memorius init          # creates ~/.memorius/config.yaml + storage dir
 ```
 
-> **REST API server is included by default** — `fastapi`, `uvicorn`, `pydantic`,
-> and `sse-starlette` are now core dependencies. No extra `[rest]` install flag needed.
-
-### For Development
+<details>
+<summary><b>For development</b></summary>
 
 ```bash
-pip install memorius[dev]   # adds pytest + pytest-asyncio
+pip install "memorius[dev]"   # adds pytest + pytest-asyncio
 ```
 
-## Agent Skills
+</details>
 
-Memorius ships with a ready-to-use **agent skill** at `skills/memorius/` that
-teaches any Hermes-compatible agent to use memorius proactively — auto-capture
-rules, smart context injection, session diaries, and workflow templates.
-
-### Install the skill
-
-```bash
-npx skills add github.com/Dream-Pixels-Forge/memorius/tree/main/skills/memorius
-```
-
-For agents without a Hermes skill format, use MCP (below) or the CLI directly.
-
-| Agent | Install command |
-|-------|----------------|
-| Claude Code | `claude mcp add memorius -- memorius serve` |
-| Codex CLI | `codex mcp add memorius -- memorius serve` |
-| Gemini CLI | `gemini mcp add memorius $(which memorius) serve` |
-| Cursor | Add to `.cursor/mcp.json`: `{"mcpServers": {"memorius": {"command": "memorius", "args": ["serve"]}}}` |
-| Aider | `aider --mcp-servers memorius=memorius serve` |
-
-### Skill structure
-
-```
-skills/
-  memorius/
-    SKILL.md              # Full skill definition (auto-capture, context injection, diary rules)
-    README.md             # Quick command reference
-    .memorius_version     # Version tracker
-```
-
-## Why Memorius?
-
-Most AI memory tools lock you into one agent ecosystem. Memorius is **agent-agnostic by design** — the same memory vault works whether you use Claude Code, Codex CLI, Gemini CLI, or any MCP-compatible agent. No vendor lock-in.
-
-| Feature | Memorius | Others |
-|---------|----------|--------|
-| Agent support | **7 agents** (auto-detected) | Usually 1-3 |
-| Protocol | **Open MCP standard** | Proprietary plugins |
-| Memory hierarchy | Vault → Shelf → Folder → Note | Flat |
-| Temporal decay | Ebbinghaus forgetting curve | - |
-| Knowledge graph | Auto-linked memories | - |
-| Fact-checking | Contradiction detection | - |
-| Cross-encoder reranking | ms-marco-MiniLM-L-6-v2 | - |
-| Obsidian integration | Native import/export | - |
-| LLM extraction | OpenAI / Ollama / regex backends | - |
-| Web augmentation | DuckDuckGo / Tavily fallback | - |
-| Dual storage backends | ChromaDB + SQLite-vec | - |
-| Self-hosted | No cloud dependency | Often SaaS |
-| Open source | MIT license | Varies |
-
-## Quick Start
+## Quick start
 
 ```bash
 # Initialize a vault
 memorius init
 
 # Store a memory
-memorius store "The sky is blue because Rayleigh scattering scatters shorter wavelengths more" --vault main --shelf science --folder physics
+memorius store "The sky is blue because Rayleigh scattering scatters shorter wavelengths more" \
+  --vault main --shelf science --folder physics
 
 # Semantic search
 memorius search "why is the sky blue"
@@ -113,700 +67,59 @@ memorius search "why is the sky blue"
 # Mine memories from a conversation
 memorius mine transcript.txt --vault conversations
 
-# LLM-powered structured extraction
-memorius extract meeting-notes.txt --backend openai
-
 # Check status
 memorius status
-
-# Write a diary entry
-memorius diary "session-001" --title "Research findings"
 ```
 
-<img width="979" height="632" alt="Screenshot from 2026-06-18 15-14-39" src="https://github.com/user-attachments/assets/6cbca59b-1a3c-4b1d-85e8-dd5b256b9061" />
+That's the whole loop: **store → embed → search**. Read the
+[Getting Started guide](https://dream-pixels-forge.github.io/memorius/getting-started.html)
+for the vault hierarchy, the agent skill, and a recommended first-week flow.
 
-## What's New in v0.8.4
+## Documentation
 
-- **Neuroscience-inspired architecture** — interference-based forgetting, engram maturation, and neuromodulator-gated retrieval in consolidation.
-- **Typed knowledge graph edges** — `temporal_before`, `causal_leads_to`, `episodic_part_of`, `semantic_instance_of` relation types plus spreading-activation retrieval.
-- **Episodic/semantic store segregation** — raw interaction traces route to an episodic store; distilled facts go to the semantic store.
-- **Hybrid retrieval** — vector + BM25/FTS5 keyword fusion; no more keyword blind-spots.
-- **Token-efficient index** — HNSW optimization knobs in `config.vector_optimization`.
-- **6 new test files (88 tests)** covering all new features; full Phase 5 gate: 126/126 passing.
-- **Bug fixes** — exponential spreading-activation decay, `VaultEngine.status()` dict-comprehension, consolidation `math`/`_parse_dt` imports.
+The full docs live on the site — each concern on its own page:
 
-See [CHANGELOG.md](CHANGELOG.md) for full release history.
-
-## Architecture
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│                         Memorius                             │
-├──────────────────────────────────────────────────────────────┤
-│  CLI        memorius init | store | search | mine | ...      │
-│  MCP        JSON-RPC protocol server (stdin/stdout)          │
-│  REST       FastAPI HTTP server (API key auth + rate limit)  │
-│  Hooks      Auto-detect: Claude Code, Codex, Gemini, ...    │
-│  Obsidian   Import / export notes from Obsidian vaults       │
-├──────────────────────────────────────────────────────────────┤
-│  Vault Engine (thin orchestrator)                            │
-│  ├── SearchModule    5-stage search pipeline                 │
-│  │   ├── Filter      folder/note/tags metadata filters       │
-│  │   ├── Vector      ChromaDB/sqlite-vec cosine search       │
-│  │   ├── Temporal    Ebbinghaus decay scoring                │
-│  │   ├── Rerank      Cross-encoder precision ranking         │
-│  │   └── Graph       1-hop BFS expansion                     │
-│  ├── StoreModule     Memory CRUD operations                  │
-│  │   ├── Store       Create with embedding + metadata        │
-│  │   ├── Update      Content change + re-embed               │
-│  │   ├── Delete      Remove from vector + meta stores        │
-│  │   ├── Touch       Record access for decay reinforcement   │
-│  │   └── List        Cursor-paginated retrieval               │
-│  ├── ChromaStore     Vector search (ChromaDB HNSW)           │
-│  ├── SqliteVecStore  Single-file alternative (sqlite-vec)    │
-│  ├── SQLiteStore     Metadata & hierarchy (SQLite)           │
-│  ├── KnowledgeGraph  Auto-linked memories + contradictions   │
-│  ├── TemporalDecay   Ebbinghaus forgetting curve             │
-│  └── Embeddings      Pluggable providers (ONNX / SF / OA)   │
-├──────────────────────────────────────────────────────────────┤
-│  Vault  >  Shelf  >  Folder  >  Note  hierarchy              │
-│  Diaries          Session diary entries                      │
-│  Mine             Extract memories from transcripts          │
-│  Extract          LLM-powered structured extraction          │
-│  Consolidate      Cluster + merge duplicate memories         │
-│  Factcheck        Contradiction detection with web fallback  │
-│  Prune            Decay-based stale memory archival          │
-│  Export/Import    JSON or Markdown vault portability          │
-├──────────────────────────────────────────────────────────────┤
-│  Plugin Gen    →  Generate per-agent plugins                 │
-│  Normalizers   →  Import Discord/Telegram/WhatsApp/etc       │
-│  Obsidian      →  Bidirectional vault sync                   │
-└──────────────────────────────────────────────────────────────┘
-```
-
-## Configuration
-
-Config lives at `~/.memorius/config.yaml` (auto-created on `memorius init`):
-
-```yaml
-storage:
-  path: ~/.memorius/data
-  type: chroma            # chroma (default) | sqlite-vec (single-file)
-
-embeddings:
-  provider: chroma-default  # chroma-default | sentence-transformers | openai
-  model: all-MiniLM-L6-v2
-
-vault:
-  default: main
-
-server:
-  mcp_port: 8911
-  rest_port: 8912
-  host: 127.0.0.1
-
-retrieval:
-  web_fallback: false        # opt-in: augment thin local recall with web
-  web_provider: duckduckgo   # duckduckgo (keyless) | tavily (keyed) | mock (tests)
-  tavily_api_key: null       # or set TAVILY_API_KEY env var
-  web_min_results: 1         # if ZERO local hits, fall back to web
-  web_max_results: 5         # max web results to return
-```
-
-Environment variable overrides:
-
-| Variable | Overrides |
+| Page | What's on it |
 |---|---|
-| `MEMORIUS_STORAGE_PATH` | `storage.path` |
-| `MEMORIUS_STORAGE_TYPE` | `storage.type` |
-| `MEMORIUS_EMBEDDINGS_PROVIDER` | `embeddings.provider` |
-| `MEMORIUS_DEFAULT_VAULT` | `vault.default` |
-| `MEMORIUS_MCP_PORT` | `server.mcp_port` |
-| `MEMORIUS_REST_PORT` | `server.rest_port` |
-| `MEMORIUS_HOST` | `server.host` |
-| `MEMORIUS_OPENAI_API_KEY` | `embeddings.openai.api_key` |
-| `MEMORIUS_WEB_PROVIDER` | `retrieval.web_provider` |
-| `MEMORIUS_WEB_FALLBACK` | `retrieval.web_fallback` |
-| `MEMORIUS_TAVILY_API_KEY` | `retrieval.tavily_api_key` |
-| `MEMORIUS_MODEL_CACHE_DIR` | ONNX model cache directory |
+| [Getting Started](https://dream-pixels-forge.github.io/memorius/getting-started.html) | Install, init, first memory, the Vault→Shelf→Folder→Note hierarchy, agent skill |
+| [CLI Reference](https://dream-pixels-forge.github.io/memorius/cli-reference.html) | Every subcommand and flag (incl. `repair` and `--json`) |
+| [MCP Server](https://dream-pixels-forge.github.io/memorius/mcp-server.html) | All 29 tools + per-agent client config snippets |
+| [Agent Hooks](https://dream-pixels-forge.github.io/memorius/hooks.html) | Auto-detecting lifecycle hooks, 10 actions, normalizers, security |
+| [REST API](https://dream-pixels-forge.github.io/memorius/rest-api.html) | Full endpoint table, auth, rate limits, daemon mode, TLS |
+| [Architecture](https://dream-pixels-forge.github.io/memorius/architecture.html) | Search pipeline, embeddings, vector backends, graph, configuration |
+| [Agent Compatibility](https://dream-pixels-forge.github.io/memorius/agents.html) | Which agents, detection priority, how to plug in your own |
+| [Memory Engine](https://dream-pixels-forge.github.io/memorius/consolidation.html) | Decay, consolidation, pruning, fact-checking, reranking, doctor, repair |
 
-## Vector Store Backends
-
-Memorius uses a **VectorStore ABC** (abstract base class) for swappable backends. Both backends implement the same interface (`add`, `delete`, `search`, `get_collections`, `count`, `get_by_ids`):
-
-| Backend | Dependency | Description |
-|---|---|---|
-| **ChromaDB** (default) | ChromaDB (included) | Persistent HNSW cosine search, auto-migration from legacy collections |
-| **SQLite-vec** | SQLite-vec (included) | Single-file alternative, no ChromaDB dependency |
-
-Set `storage.type: sqlite-vec` in config or `MEMORIUS_STORAGE_TYPE=sqlite-vec` to use the lightweight backend.
-
-## Embedding Providers
-
-| Provider | Requirement | Quality |
-|---|---|---|
-| `chroma-default` | ChromaDB (included ONNX) | Good (384d) |
-| `sentence-transformers` | `sentence-transformers` (included) | Better (768d+) |
-| `openai` | `OPENAI_API_KEY` env var | Best (1536d or 3072d) |
-
-Providers are extensible via `EmbeddingFactory.register()` for custom runtime providers.
-
-## Temporal Decay
-
-Memorius implements the **Ebbinghaus forgetting curve** to rank memories by relevance over time:
-
-- **Decay score** (0–1) = age decay (40%) + recency boost (40%) + access reinforcement (20%)
-- **Search ranking** = semantic similarity (60%) + temporal decay (25%) + access frequency (15%)
-- `touch(memory_id)` reinforces a memory on read
-- Stale memories are detected via decay score threshold or TTL expiry
-- **TTL support:** `memorius store "..." --ttl 30` sets `expires_at` in metadata
-
-## Knowledge Graph
-
-- **Auto-linking** on every `store()` call by content proximity (Jaccard word overlap or vector cosine)
-- **BFS expansion** from search results (`--expand-graph` on CLI / `expand_graph=True` on MCP)
-- **Contradiction edges** persisted by `factcheck` (bidirectional `relation='contradicts'`)
-- **Graph visualization** via `memorius graph view` (interactive browser UI) or `memorius graph export-html`
-- **Graph statistics** via `memorius graph stats` or MCP `memorius_graph_stats`
-
-## Cross-Encoder Reranker
-
-Improve search precision with a cross-encoder reranker:
+<details>
+<summary><b>Command cheat sheet</b> (details on the <a href="https://dream-pixels-forge.github.io/memorius/cli-reference.html">CLI reference</a>)</summary>
 
 ```bash
-memorius search "query" --rerank
+memorius store "text" [--vault/--shelf/--folder/--note/--ttl]
+memorius search "query" [--n/--expand-graph/--rerank/--web/--tag]
+memorius mine file.txt [--vault/--text]
+memorius extract file.txt [--backend openai|ollama|regex]
+memorius diary "session" [--title/--summary]
+memorius ls [vault]
+memorius consolidate [--threshold/--dry-run]
+memorius factcheck "stmt" [--web]
+memorius profile "session"
+memorius prune [--threshold/--dry-run/--delete]
+memorius graph [view|export-html|stats|json]
+memorius learn "text" --category bug_fix
+memorius recall "query"
+memorius obsidian [list|import|export]
+memorius export ./backup [--format json|markdown]
+memorius import ./backup.json [--replace]
+memorius doctor            # 6 health checks
+memorius repair [--reindex/--dry-run]   # fix vector/meta drift (v0.8.6)
+memorius stats [--json]      # vault + memory + graph + doctor summary
+memorius status [--json]    # vault + embeddings + recent diaries
+memorius serve               # MCP server (stdio)
+memorius serve-rest [--daemon/--stop]   # FastAPI server
 ```
 
-| Provider | Requirement |
-|---|---|
-| `cross-encoder/ms-marco-MiniLM-L-6-v2` | Included out of the box (`pip install memorius`) |
-
-Adds `__rerank_score__` to memory metadata for transparent ranking.
-
-## Web Search
-
-When local recall is thin, Memorius can optionally augment retrieval with
-live web results. This is **local-first and opt-in** — web search never runs
-unless you ask for it: the `memorius web` command, the `--web` flag on
-`search` / `context` / `factcheck`, or `retrieval.web_fallback: true`.
-
-```bash
-# Live web search (keyless DuckDuckGo by default)
-memorius web "python 3.13 changelog"
-
-# Use the keyed Tavily provider for higher signal-to-noise
-memorius web "python 3.13 changelog" --provider tavily
-
-# Augment a local search with web when local hits are thin
-memorius search "latest rust release" --web
-
-# Fact-check with web cross-reference
-memorius factcheck "Rust 1.80 was released in July 2024" --web
-```
-
-### Providers
-
-| Provider | Key | Notes |
-|---|---|---|
-| `duckduckgo` (default) | none | Keyless, stdlib-only scraper. Works out of the box. |
-| `tavily` | `TAVILY_API_KEY` or `MEMORIUS_TAVILY_API_KEY` | Agent-grade signal-to-noise. Missing key warns and returns `[]` — never crashes. |
-| `mock` | n/a | Test double for offline testing. |
-
-### Configuration
-
-```yaml
-retrieval:
-  web_fallback: false        # opt-in: augment thin local recall with web
-  web_provider: duckduckgo   # duckduckgo (keyless) | tavily (keyed) | mock (tests)
-  tavily_api_key: null       # or set TAVILY_API_KEY / MEMORIUS_TAVILY_API_KEY
-  web_min_results: 1         # fall back to web only when local hits < this
-  web_max_results: 5         # max web results to return
-```
-
-`MEMORIUS_WEB_PROVIDER`, `MEMORIUS_WEB_FALLBACK`, and `MEMORIUS_TAVILY_API_KEY`
-override the corresponding config keys (the raw `TAVILY_API_KEY` is also read
-directly). A missing Tavily key never crashes the CLI — it logs a warning and
-returns no web results.
-
-## LLM-Powered Memory Extraction
-
-The `extract` command uses an LLM to identify and structure memories from unstructured text:
-
-```bash
-memorius extract meeting-notes.txt --backend openai
-memorius extract transcript.txt --backend ollama
-memorius extract notes.txt --backend regex    # fallback, no LLM required
-```
-
-| Backend | Model | Notes |
-|---|---|---|
-| `openai` | gpt-4o-mini | Requires `OPENAI_API_KEY` |
-| `ollama` | llama3.2 | Requires local Ollama server |
-| `regex` | n/a | Rule-based fallback, no LLM needed |
-
-Extracts 6 memory categories: `decision`, `preference`, `fact`, `action_item`, `relationship`, `context`. Includes prompt injection protection, 50KB input limit, and validated structured output with confidence scores.
-
-## Memory Consolidation
-
-Clusters similar memories and merges them into consolidated insights:
-
-```bash
-memorius consolidate --threshold 0.80 --dry-run
-memorius consolidate --vault main
-```
-
-Uses O(N^2) pairwise comparison for clustering. Archives originals after consolidation.
-
-## Memory Pruning
-
-Find and archive stale memories based on temporal decay:
-
-```bash
-memorius prune --threshold 0.1 --dry-run       # preview stale memories
-memorius prune --threshold 0.1                  # soft-archive stale
-memorius prune --threshold 0.1 --delete         # hard-delete
-```
-
-## Export / Import
-
-Back up and migrate vaults between instances:
-
-```bash
-memorius export ./backup --format json          # single JSON file
-memorius export ./backup --format markdown      # individual .md files
-
-memorius import ./backup/backup.json            # merge import
-memorius import ./backup/backup.json --replace  # overwrite mode
-```
-
-JSON export includes hierarchy, memories, diaries, and graph edges (schema versioned). Markdown export creates `.md` files with YAML frontmatter. Uses `SQLiteStore` export/import methods for atomic operations.
-
-## CLI Reference
-
-### Core commands
-
-```bash
-memorius init                Initialize a new vault
-memorius setup               Download ONNX model + initialize vault
-  --force                      Force re-download of model
-  --skip-model                 Skip model download
-memorius status              Show vault status
-  --json                       Output as JSON
-memorius store <text>        Store a memory
-  --vault, -v                  Vault name (default: main)
-  --shelf, -s                  Shelf name (default: default)
-  --folder, -f                 Folder name (default: default)
-  --note, -n                   Note name (default: default)
-  --ttl                        Time-to-live in days (memory expires after N days)
-memorius search <query>      Semantic search
-  --vault, -v                  Filter by vault
-  --shelf, -s                  Filter by shelf
-  --folder                     Filter by folder (Chroma metadata)
-  --note                       Filter by note (Chroma metadata)
-  --tag                        Filter by tag (repeatable; memory must carry ALL supplied tags)
-  --n                          Max results (default: 10)
-  --expand-graph               Also pull in 1-hop graph-linked memories
-  --rerank                     Cross-encoder reranking
-  --web                        Augment with web search when local hits are thin
-memorius get <id>            Get a single memory by UUID
-  --json                       Output as JSON
-memorius update <id>         Update memory content/metadata
-  --content                    New content (omit to keep existing)
-  --metadata                   JSON metadata to shallow-merge
-  --json                       Output as JSON
-memorius delete <id>         Delete a memory by ID (validation + confirmation)
-  --vault, -v                  Vault scope (must match the memory's vault)
-  --shelf, -s                  Shelf scope (must match the memory's shelf)
-  --yes, -y                    Skip the confirmation prompt
-  --dry-run                    Preview what would be deleted
-memorius list                List memories with cursor pagination
-  --vault                      Filter by vault
-  --limit                      Results per page (default: 10)
-  --cursor                     Cursor for next page
-memorius mine <file|text>    Extract memories from transcript
-  --vault, -v                  Target vault (default: main)
-  --text                       Treat input as raw text, not a file path
-memorius extract <file|text> Extract memories from conversation (LLM)
-  --vault                      Target vault (default: main)
-  --shelf                      Target shelf (default: extracted)
-  --backend                    LLM backend: auto|openai|ollama|regex
-memorius diary <session>     Write a diary entry
-  --title                      Entry title
-  --summary                    Entry summary
-  --content                    Entry content
-  --vault                      Vault name (default: main)
-  --exchange-count             Number of exchanges in session
-memorius diaries              List recent diary entries
-memorius ls                   Explore vault hierarchy
-memorius consolidate         Merge duplicate memories
-  --vault                      Filter by vault
-  --threshold                  Similarity threshold 0-1 (default: 0.80)
-  --dry-run                    Preview without changes
-memorius factcheck <stmt>    Fact-check against stored memories
-  --vault                      Filter by vault
-  --web                        Cross-check with web search
-memorius context <query>     Get formatted memory context for injection
-  --vault                      Filter by vault
-  --max                        Max items (default: 5)
-  --web                        Augment with web search
-memorius profile <session>   Build session memory profile
-  --vault                      Vault name (default: main)
-memorius prune               Find/archive stale memories by decay score
-  --threshold                  Decay score threshold (default: 0.1)
-  --dry-run                    Preview without changes
-  --delete                     Hard-delete instead of soft-archive
-  --json                       Output as JSON
-memorius export <dest>       Export vault to JSON or Markdown
-  --format                     json (default) | markdown
-memorius import <src>        Import vault from JSON export
-  --replace                    Overwrite mode (default: merge)
-memorius doctor              Run health checks on the vault
-memorius repair              Reconcile vector store with metadata store
-  --vault                    Restrict to a single vault
-  --reindex                  Re-embed missing vectors
-  --dry-run                  Preview without mutating
-  --json                     Output as JSON
-memorius stats               Show vault + memory + graph statistics
-  --json                       Output as JSON
-memorius web <query>         Live web search
-  --provider                   duckduckgo (default) | tavily
-  --max                        Max results (default: 5)
-memorius serve               Start MCP server (stdio)
-memorius serve-rest          Start REST API server
-  --port                       Port number
-  --host                       Bind address
-  --daemon                     Run as background daemon
-  --stop                       Stop the running daemon
-  --pid-file                   PID file path
-memorius config              Show current configuration
-  --path                       Print config file path only
-memorius --version           Show version
-```
-
-### Obsidian integration
-
-```bash
-memorius obsidian list                Explore vault structure
-  --vault, -v                         Path to Obsidian vault directory
-                                      (default: $OBSIDIAN_VAULT_PATH or
-                                       ~/Documents/Obsidian Vault)
-
-memorius obsidian import              Import Obsidian notes as memorius memories
-  --vault, -v                         Path to Obsidian vault
-  --target-vault                      Target memorius vault (default: main)
-  --target-shelf                      Target memorius shelf (default: obsidian)
-  --tag                               Only import notes with this tag
-  --dry-run                           Preview without importing
-
-memorius obsidian export              Export memorius memories as Obsidian notes
-  --vault, -v                         Path to Obsidian vault
-  --source-vault                      Source memorius vault (default: main)
-  --source-shelf                      Filter by shelf (default: all)
-  --dry-run                           Preview without exporting
-```
-
-Import preserves the file hierarchy: `vault/Subfolder/note.md` maps to
-`vault/Subfolder/vault > shelf > folder > note`. YAML frontmatter is parsed
-and stored as memory attributes.
-
-## MCP Protocol
-
-MCP is the primary interface for AI agents to interact with Memorius. Connect
-any MCP-compatible client by pointing it at the MCP server:
-
-```json
-{
-  "mcpServers": {
-    "memorius": {
-      "command": "memorius",
-      "args": ["serve"]
-    }
-  }
-}
-```
-
-Available MCP tools (28 tools, including 6 new learning tools):
-
-| Tool | Description |
-|---|---|
-| `memorius_status` | Memory vault status |
-| `memorius_store` | Store content in vault/shelf/folder/note hierarchy (with `ttl_days`) |
-| `memorius_search` | Semantic search (`expand_graph`, `rerank`, `tags`, `cursor` pagination) |
-| `memorius_get` | Get a single memory by UUID |
-| `memorius_update` | Update memory content/metadata (re-embeds on change) |
-| `memorius_delete` | Delete a memory by ID |
-| `memorius_list` | List memories with cursor pagination |
-| `memorius_mine` | Extract memories from conversation transcript |
-| `memorius_extract` | LLM-powered structured memory extraction |
-| `memorius_diary_write` | Write session diary entry |
-| `memorius_diary_list` | List diary entries |
-| `memorius_vault_ls` | Browse vault hierarchy |
-| `memorius_consolidate` | Merge duplicate memories, extract insights |
-| `memorius_factcheck` | Fact-check a statement against stored memories |
-| `memorius_context` | Get formatted memory context for injection |
-| `memorius_session_profile` | Build session memory profile for inheritance |
-| `memorius_contradictions` | Get memories that contradict a given memory ID |
-| `memorius_graph_stats` | Knowledge graph statistics (nodes, edges, relations) |
-| `memorius_memory_stats` | Memory tracking statistics (total, active, archived, by vault) |
-| `memorius_prune` | Find stale memories by decay score, archive or delete |
-| `memorius_doctor` | Run health checks (config, storage, vector store, graph) |
-| `memorius_stats` | Compact vault statistics (memories, vaults, graph, learnings) |
-| `memorius_learn` | Store a learning with category, context, and solution |
-| `memorius_recall` | Search learnings with optional category/tag filtering |
-| `memorius_learnings` | List learnings with pagination and filtering |
-| `memorius_apply_learning` | Mark a learning as applied |
-| `memorius_learning_stats` | Get statistics on stored learnings by category |
-
-## REST API
-
-The REST server is always available (no extra install flags needed):
-
-```bash
-memorius serve-rest
-```
-
-Starts a FastAPI server on `http://127.0.0.1:8912` by default.
-
-### Security
-
-- **API key auth:** Set `MEMORIUS_API_KEY` env var; send as `Authorization: Bearer <key>`
-- **Rate limiting:** 500 requests/min per IP
-- **Request body limit:** Maximum body size enforced
-- **CORS:** Restrictive by default (Obsidian app + localhost only)
-- **Daemon mode:** `--daemon` / `--stop` with PID file management
-
-### Endpoints
-
-| Method | Path | Description |
-|---|---|---|
-| GET | `/health` | Health check |
-| GET | `/status` | System status |
-| GET | `/stats` | Full vault + memory + graph stats |
-| GET | `/doctor` | Health checks |
-| GET | `/vault` | Browse vault hierarchy |
-| GET | `/diaries` | List recent diary entries |
-| GET | `/memory/{memory_id}` | Get single memory by UUID |
-| GET | `/contradictions/{memory_id}` | Get contradicting memories |
-| GET | `/memories` | List memories with cursor pagination |
-| GET | `/obsidian` | List notes in Obsidian vault |
-| POST | `/store` | Store a memory |
-| POST | `/search` | Semantic search |
-| POST | `/mine` | Extract memories from transcript |
-| POST | `/diary` | Write diary entry |
-| POST | `/consolidate` | Merge duplicate memories (requires `confirm=true`) |
-| POST | `/extract` | Extract memories from conversation (LLM) |
-| POST | `/factcheck` | Fact-check statement against vault |
-| POST | `/context` | Get formatted memory context for injection |
-| POST | `/prune` | Find and archive stale memories |
-| POST | `/obsidian/import` | Import Obsidian notes as memories |
-| POST | `/obsidian/export` | Export memories as Obsidian notes |
-| PATCH | `/memory/{memory_id}` | Update memory content/metadata |
-| DELETE | `/memory/{memory_id}` | Delete a memory |
-
-## Agent Hooks
-
-Memorius includes **universal agent lifecycle hooks** — auto-detecting,
-agent-agnostic, and framework-free. Hook scripts are generated per agent:
-
-```bash
-memorius-plugin-gen init
-# Edit universal-manifest.yaml
-memorius-plugin-gen generate
-```
-
-### Supported agents (8 adapters)
-
-| Agent | Hook protocol | Events |
-|---|---|---|
-| **OpenClaude** | `OpenClaude` marker in payload | stop, precompact, session_start |
-| **Claude Code** (Anthropic) | `stop_hook_active` / `precompact` | stop, precompact, session_start |
-| **Codex CLI** (OpenAI) | `session_id` + `context_dir` | session_start, session_stop, stop, precompact |
-| **Gemini CLI** (Google) | `conversation_id` + `extensions` | stop, session_start |
-| **OpenClaw** | `openclaw` marker in payload | stop, session_stop, precompact, session_start |
-| **OpenCode** (anomalyco/sst) | `provider` dict + `openCodeVersion` | stop, session_stop, session_start, precompact |
-| **Pi** (kachow-compatible) | `event` in Pi event set | session_start, session_shutdown, pre_compact, tool_call, turn_end |
-| **Generic** | Fallback for unrecognized payloads | Any |
-
-### Hook engine actions (10 types)
-
-| Action | Description |
-|---|---|
-| `mine_dir` | Read transcript file(s) and mine via VaultEngine |
-| `diary` | Write a diary entry |
-| `conditional_diary` | Write diary only after N exchanges (interval-based) |
-| `command` | Execute a shell command (sanitized via `shlex`) |
-| `log` | Log a message |
-| `webhook` | POST event payload to a URL (with SSRF protection) |
-| `inject_context` | Inject relevant memories into context |
-| `consolidate` | Run memory consolidation |
-| `factcheck` | Fact-check a statement from event payload |
-| (allow/block) | Engine can return `block` to pause agent execution |
-
-### Auto-detection (no config needed)
-
-Hooks are auto-detected from stdin — no `--agent` flag required. Just pipe
-agent hook JSON to the memorius hook engine and it figures out which agent
-sent the event:
-
-```bash
-# Hook engine auto-detects the agent
-cat hook-payload.json | memorius-hook mine
-cat hook-payload.json | memorius-hook diary
-```
-
-You can also force a specific agent with `--agent`:
-
-```bash
-memorius-hook mine --agent claude-code
-memorius-hook diary --agent opencode
-```
-
-Detection priority (most-specific first):
-`OpenClaude → Claude Code → Codex → Gemini CLI → OpenClaw → OpenCode → Pi → Generic`
-
-Hook CLI commands:
-
-```bash
-memorius-hook run              Process a hook event from stdin
-memorius-hook init-config      Generate default ~/.memorius/hooks.yaml
-memorius-hook status           Show hook state summary
-```
-
-## Plugin Generator
-
-```bash
-memorius-plugin-gen list          # Show supported agents
-memorius-plugin-gen init          # Create universal-manifest.yaml
-memorius-plugin-gen generate      # Generate plugins for all agents
-memorius-plugin-gen generate --watch  # Live regeneration on config change
-```
-
-Generates plugins for: Claude Code, Codex CLI, Cursor, OpenClaw, and marketplace. Outputs: `plugin.json`, `hooks.json`, hook shell scripts, skill cards, commands, `marketplace.json`, README.
-
-## Conversation Normalizers
-
-```bash
-memorius-normalize detect <files>           # Auto-detect format
-memorius-normalize convert <file>           # Convert to transcript
-memorius-normalize batch <dir>              # Batch convert directory
-memorius-normalize pipe                     # Read stdin, write stdout
-```
-
-| Format | Description |
-|---|---|
-| `discord` | Discord channel export JSON (DiscordChatExporter) |
-| `telegram` | Telegram Desktop chat export JSON |
-| `whatsapp` | WhatsApp plain text export (international + US/EU variants) |
-| `generic-json` | Any JSON with `{role, content}`, `{author, text}`, or `{from, text}` |
-| `generic-messages` | List of message objects with role/author fields |
-| `generic-chat` | Dict with `conversations`/`chats` key |
-| `generic-text` | Plain text with speaker: message pairs or `>` transcript markers |
-
-## Context Injection
-
-Formatted memory blocks for agent system prompts:
-
-```python
-# Full formatted block with category, vault, confidence, source
-format_memory_block(memory)
-
-# Compact format for system prompts
-format_for_system_prompt(memories)
-
-# Combines recent diaries + topic search for session continuity
-inject_for_session(query, vault)
-```
-
-Includes **prompt injection protection** — sanitizes memory content before LLM injection (strips "ignore previous instructions", XML tags, control characters).
-
-## Session Memory Inheritance
-
-```bash
-memorius profile <session>    Build session memory profile
-```
-
-Builds a session profile analyzing recent diaries, memories, and access patterns. Enables cross-session continuity with: summary, key_decisions, ongoing_tasks, recent_topics, context_memories.
-
-## Health Checks
-
-```bash
-memorius doctor
-```
-
-Runs 6 checks: config parseable, storage writable, ONNX model present, vector/meta count drift, collection name length, graph health. Returns structured report with ok/warn/fail/skip per check. Uses `SQLiteStore` public API for metadata queries.
-
-## Validation
-
-All inputs are validated for security and correctness:
-
-- **Names:** `^[a-zA-Z0-9_\-]+$`, max 1000 chars
-- **Memory IDs:** Must be valid UUID (prevents path traversal)
-- **Content:** Max 100KB
-- **Search limit:** Max 100 results
-- **Diary content:** Max 50KB
-- **Request body:** Size limit middleware on REST server
-
-## Thread Safety
-
-- Thread-local SQLite connections
-- `threading.Lock()` for all meta store writes
-- `threading.Lock()` for sqlite-vec store
-- `atexit` handler to close connections
-
-## Security
-
-### Hook Engine
-- Template injection prevention: strips shell metacharacters
-- Command execution: `shlex.split()` with `shell=False` (no shell injection)
-- Webhook SSRF protection: blocks localhost, private IPs, metadata endpoints, non-HTTP schemes
-
-### REST Server
-- API key auth via `MEMORIUS_API_KEY` (Bearer token)
-- Rate limiting: 500 req/min per IP
-- CORS: restrictive by default (Obsidian app + localhost only)
-- Path traversal detection on Obsidian export
-
-## CLI Entry Points
-
-| Command | Description |
-|---|---|
-| `memorius` | Core CLI (init, store, search, mine, etc.) |
-| `memorius-hook` | Agent hook engine (run, init-config, status) |
-| `memorius-plugin-gen` | Plugin generator (list, init, generate) |
-| `memorius-normalize` | Conversation normalizer (detect, convert, batch, pipe) |
-
-## Development
-
-```bash
-git clone https://github.com/Dream-Pixels-Forge/memorius.git
-cd memorius
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-
-# Run tests
-pytest
-
-# Run specific test modules
-pytest tests/test_domain_modules.py -v  # SearchModule + StoreModule tests
-pytest tests/test_core.py -v            # Core vault tests
-
-# Run end-to-end
-memorius init
-memorius store "test memory"
-memorius search "test"
-memorius serve-rest         # REST server available out of the box
-```
-
-### Test Structure
-
-| Test File | Coverage |
-|---|---|
-| `test_domain_modules.py` | SearchModule (7 tests) + StoreModule (19 tests) |
-| `test_core.py` | Core vault operations, config, embeddings |
-| `test_feature_*.py` | Feature-specific tests (backup, batch, consolidation, etc.) |
-| `test_regression_*.py` | Regression tests for specific bugs |
+</details>
 
 ## License
 
-MIT
+[MIT](LICENSE) · Full release history in [CHANGELOG.md](CHANGELOG.md).

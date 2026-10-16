@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>REST API — Memorius</title>
+<meta name="description" content="FastAPI HTTP server for non-MCP clients. Full endpoint table, API key auth, rate limits, CORS, daemon mode, and TLS." />
+<meta name="theme-color" content="#F97316" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23F97316'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='ui-monospace,SFMono-Regular,monospace' font-size='34' font-weight='700' fill='white'%3EM%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+
+<nav class="docs-nav">
+  <div class="container docs-nav-inner">
+    <a href="index.html" class="brand"><span class="brand-mark">M</span><span>Memorius</span></a>
+    <div class="docs-links">
+      <a href="getting-started.html">Getting Started</a>
+      <a href="cli-reference.html">CLI</a>
+      <a href="mcp-server.html">MCP</a>
+      <a href="hooks.html">Hooks</a>
+      <a href="rest-api.html">REST</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="agents.html">Agents</a>
+      <a href="consolidation.html">Memory Engine</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius" class="btn" style="background:var(--accent);color:#fff;padding:8px 18px;font-size:13px;font-weight:600;border-radius:8px;">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="docs-hero">
+  <div class="container">
+    <span class="crumb">Documentation / REST API</span>
+    <h1>REST API</h1>
+    <p class="lead">A FastAPI server for any non-MCP client. Included out of the box — <code>fastapi</code>, <code>uvicorn</code>, <code>pydantic</code>, and <code>sse-starlette</code> are core dependencies. No extra install flags.</p>
+  </div>
+</header>
+
+<main class="docs-main">
+  <div class="container doc-layout">
+    <aside class="doc-toc">
+      <div class="toc-title">On this page</div>
+      <a href="#start">Start the server</a>
+      <a href="#auth">Security</a>
+      <a href="#endpoints-read">Read endpoints</a>
+      <a href="#endpoints-write">Write endpoints</a>
+      <a href="#graph-endpoints">Graph &amp; visualizer</a>
+    </aside>
+
+    <div class="doc-content">
+      <section class="docs-section" id="start">
+        <h2>Start the server</h2>
+        <p class="sub">Binds to <code>http://127.0.0.1:8912</code> by default. Ports come from <code>server.mcp_port</code> / <code>server.rest_port</code> in config.</p>
+<pre><code># foreground
+memorius serve-rest
+
+# background daemon
+memorius serve-rest --daemon
+
+# stop the daemon
+memorius serve-rest --stop</code></pre>
+        <p>Flags: <code>--port</code>, <code>--host</code> (default <code>127.0.0.1</code>), <code>--daemon</code>, <code>--stop</code>, <code>--pid-file</code>, and <code>--tls-cert</code> / <code>--tls-key</code> (PEM) for HTTPS.</p>
+      </section>
+
+      <section class="docs-section" id="auth">
+        <h2>Security</h2>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Control</th><th>Behavior</th></tr></thead>
+            <tbody>
+              <tr><td><strong>API key auth</strong></td><td>Set <code>MEMORIUS_API_KEY</code>; send as <code>Authorization: Bearer &lt;key&gt;</code>.</td></tr>
+              <tr><td><strong>Rate limiting</strong></td><td>500 requests/minute per IP.</td></tr>
+              <tr><td><strong>Body limit</strong></td><td>Maximum request body size enforced by middleware.</td></tr>
+              <tr><td><strong>CORS</strong></td><td>Restrictive by default — Obsidian app + localhost only.</td></tr>
+              <tr><td><strong>Daemon mode</strong></td><td><code>--daemon</code> / <code>--stop</code> with PID-file management.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="docs-section" id="endpoints-read">
+        <h2>Read endpoints</h2>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>GET</td><td><code>/health</code></td><td>Health check (<code>/health/live</code>, <code>/health/ready</code> also exposed).</td></tr>
+              <tr><td>GET</td><td><code>/status</code></td><td>System status.</td></tr>
+              <tr><td>GET</td><td><code>/stats</code></td><td>Full vault + memory + graph stats.</td></tr>
+              <tr><td>GET</td><td><code>/doctor</code></td><td>Run the 6 health checks.</td></tr>
+              <tr><td>GET</td><td><code>/vault</code></td><td>Browse the vault hierarchy.</td></tr>
+              <tr><td>GET</td><td><code>/diaries</code></td><td>List recent diary entries.</td></tr>
+              <tr><td>GET</td><td><code>/memories</code></td><td>List memories with cursor pagination.</td></tr>
+              <tr><td>GET</td><td><code>/memory/{id}</code></td><td>Get one memory by UUID.</td></tr>
+              <tr><td>GET</td><td><code>/contradictions/{id}</code></td><td>Memories that contradict a given memory.</td></tr>
+              <tr><td>GET</td><td><code>/obsidian</code></td><td>List notes in an Obsidian vault.</td></tr>
+              <tr><td>GET</td><td><code>/metrics</code></td><td>Server metrics.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="docs-section" id="endpoints-write">
+        <h2>Write endpoints</h2>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>POST</td><td><code>/store</code></td><td>Store a memory.</td></tr>
+              <tr><td>POST</td><td><code>/search</code></td><td>Semantic search.</td></tr>
+              <tr><td>POST</td><td><code>/mine</code></td><td>Extract memories from a transcript.</td></tr>
+              <tr><td>POST</td><td><code>/diary</code></td><td>Write a diary entry.</td></tr>
+              <tr><td>POST</td><td><code>/consolidate</code></td><td>Merge duplicate memories (requires <code>confirm=true</code>).</td></tr>
+              <tr><td>POST</td><td><code>/extract</code></td><td>LLM extraction from a conversation.</td></tr>
+              <tr><td>POST</td><td><code>/factcheck</code></td><td>Fact-check a statement against the vault.</td></tr>
+              <tr><td>POST</td><td><code>/context</code></td><td>Formatted context block for injection.</td></tr>
+              <tr><td>POST</td><td><code>/prune</code></td><td>Find and archive stale memories.</td></tr>
+              <tr><td>POST</td><td><code>/obsidian/import</code></td><td>Import Obsidian notes as memories.</td></tr>
+              <tr><td>POST</td><td><code>/obsidian/export</code></td><td>Export memories as Obsidian notes.</td></tr>
+              <tr><td>PATCH</td><td><code>/memory/{id}</code></td><td>Update a memory's content/metadata.</td></tr>
+              <tr><td>DELETE</td><td><code>/memory/{id}</code></td><td>Delete a memory.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="docs-section" id="graph-endpoints">
+        <h2>Graph &amp; visualizer</h2>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>GET</td><td><code>/graph/data</code></td><td>Graph topology as JSON.</td></tr>
+              <tr><td>GET</td><td><code>/graph/view</code></td><td>Served interactive graph visualization.</td></tr>
+              <tr><td>GET</td><td><code>/visualize</code></td><td>Standalone HTML graph export.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="pager">
+        <a href="hooks.html"><div class="p-label">← Previous</div><div class="p-title">Agent Hooks</div></a>
+        <a href="architecture.html" class="next"><div class="p-label">Next →</div><div class="p-title">Architecture</div></a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="container footer-inner">
+    <div>&copy; Memorius &middot; MIT licensed &middot; Built for agents that need to remember.</div>
+    <div class="footer-links">
+      <a href="https://github.com/Dream-Pixels-Forge/memorius">GitHub</a>
+      <a href="https://pypi.org/project/memorius/">PyPI</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius/issues">Issues</a>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

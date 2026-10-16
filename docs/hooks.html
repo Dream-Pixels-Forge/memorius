@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agent Hooks — Memorius</title>
+<meta name="description" content="Auto-detecting, agent-agnostic lifecycle hooks for 7 agents. 10 hook actions, detection priority, the memorius-hook CLI, the plugin generator, and conversation normalizers." />
+<meta name="theme-color" content="#F97316" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23F97316'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='ui-monospace,SFMono-Regular,monospace' font-size='34' font-weight='700' fill='white'%3EM%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+
+<nav class="docs-nav">
+  <div class="container docs-nav-inner">
+    <a href="index.html" class="brand"><span class="brand-mark">M</span><span>Memorius</span></a>
+    <div class="docs-links">
+      <a href="getting-started.html">Getting Started</a>
+      <a href="cli-reference.html">CLI</a>
+      <a href="mcp-server.html">MCP</a>
+      <a href="hooks.html">Hooks</a>
+      <a href="rest-api.html">REST</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="agents.html">Agents</a>
+      <a href="consolidation.html">Memory Engine</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius" class="btn" style="background:var(--accent);color:#fff;padding:8px 18px;font-size:13px;font-weight:600;border-radius:8px;">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="docs-hero">
+  <div class="container">
+    <span class="crumb">Documentation / Hooks</span>
+    <h1>Agent hooks</h1>
+    <p class="lead">Universal, auto-detecting lifecycle hooks — pipe agent hook JSON in, get memories out. No per-agent config to maintain. Eight adapters cover seven named agents plus a generic fallback.</p>
+  </div>
+</header>
+
+<main class="docs-main">
+  <div class="container doc-layout">
+    <aside class="doc-toc">
+      <div class="toc-title">On this page</div>
+      <a href="#how">How hooks work</a>
+      <a href="#actions">Hook actions</a>
+      <a href="#detection">Detection priority</a>
+      <a href="#hook-cli">memorius-hook CLI</a>
+      <a href="#plugin-gen">Plugin generator</a>
+      <a href="#normalizers">Conversation normalizers</a>
+      <a href="#security">Security</a>
+    </aside>
+
+    <div class="doc-content">
+      <section class="docs-section" id="how">
+        <h2>How hooks work</h2>
+        <p class="sub">A hook script is generated per agent. When an agent fires a lifecycle event, it pipes a JSON payload to the <code>memorius-hook</code> engine, which auto-detects which agent sent it and runs the configured actions.</p>
+        <p>Generate the hook scripts and plugins for every supported agent:</p>
+<pre><code>memorius-plugin-gen init      # creates universal-manifest.yaml
+# edit the manifest to pick agents + actions
+memorius-plugin-gen generate  # emits per-agent plugins, hook scripts, skill cards</code></pre>
+        <p>Then point your agent at the generated hook. The engine reads stdin, detects the agent, and executes the actions for that event — <code>mine</code>, <code>diary</code>, <code>inject_context</code>, and more.</p>
+      </section>
+
+      <section class="docs-section" id="actions">
+        <h2>Hook actions</h2>
+        <p class="sub">Ten action types the engine can run on an event. The engine may also return <code>block</code> to pause agent execution (allow/block semantics).</p>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Action</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>mine_dir</code></td><td>Read transcript file(s) and mine via the vault engine.</td></tr>
+              <tr><td><code>diary</code></td><td>Write a diary entry.</td></tr>
+              <tr><td><code>conditional_diary</code></td><td>Write a diary only after N exchanges (interval-based).</td></tr>
+              <tr><td><code>command</code></td><td>Execute a shell command (sanitized via <code>shlex</code>, <code>shell=False</code>).</td></tr>
+              <tr><td><code>log</code></td><td>Log a message.</td></tr>
+              <tr><td><code>webhook</code></td><td>POST the event payload to a URL (with SSRF protection).</td></tr>
+              <tr><td><code>inject_context</code></td><td>Inject relevant memories into context.</td></tr>
+              <tr><td><code>consolidate</code></td><td>Run memory consolidation.</td></tr>
+              <tr><td><code>factcheck</code></td><td>Fact-check a statement from the event payload.</td></tr>
+              <tr><td><code>allow/block</code></td><td>Engine returns <code>block</code> to pause agent execution.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="docs-section" id="detection">
+        <h2>Auto-detection &amp; priority</h2>
+        <p class="sub">No <code>--agent</code> flag needed — the engine figures out which agent sent the event from the payload. Force one with <code>--agent</code> if you prefer.</p>
+        <p>Detection priority (most-specific first):</p>
+<pre><code>OpenClaude → Claude Code → Codex → Gemini CLI → OpenClaw → OpenCode → Pi → Generic</code></pre>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Agent</th><th>Marker / protocol</th><th>Events</th></tr></thead>
+            <tbody>
+              <tr><td><strong>OpenClaude</strong></td><td><code>OpenClaude</code> marker in payload</td><td>stop, precompact, session_start</td></tr>
+              <tr><td><strong>Claude Code</strong></td><td><code>stop_hook_active</code> / <code>precompact</code></td><td>stop, precompact, session_start</td></tr>
+              <tr><td><strong>Codex CLI</strong></td><td><code>session_id</code> + <code>context_dir</code></td><td>session_start, session_stop, stop, precompact</td></tr>
+              <tr><td><strong>Gemini CLI</strong></td><td><code>conversation_id</code> + <code>extensions</code></td><td>stop, session_start</td></tr>
+              <tr><td><strong>OpenClaw</strong></td><td><code>openclaw</code> marker</td><td>stop, session_stop, precompact, session_start</td></tr>
+              <tr><td><strong>OpenCode</strong></td><td><code>provider</code> dict + <code>openCodeVersion</code></td><td>stop, session_stop, session_start, precompact</td></tr>
+              <tr><td><strong>Pi</strong></td><td><code>event</code> in the Pi event set</td><td>session_start, session_shutdown, pre_compact, tool_call, turn_end</td></tr>
+              <tr><td><strong>Generic</strong></td><td>fallback for unrecognized payloads</td><td>any</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="docs-section" id="hook-cli">
+        <h2>The <code>memorius-hook</code> CLI</h2>
+<pre><code>memorius-hook run              # process a hook event from stdin
+memorius-hook init-config      # generate default ~/.memorius/hooks.yaml
+memorius-hook status           # show hook state summary</code></pre>
+        <p>Auto-detect the agent by piping the payload in:</p>
+<pre><code>cat hook-payload.json | memorius-hook mine
+cat hook-payload.json | memorius-hook diary
+
+# or force a specific agent:
+memorius-hook mine --agent claude-code
+memorius-hook diary --agent opencode</code></pre>
+      </section>
+
+      <section class="docs-section" id="plugin-gen">
+        <h2>Plugin generator</h2>
+        <p class="sub">Generates per-agent plugins: <code>plugin.json</code>, <code>hooks.json</code>, hook shell scripts, skill cards, commands, <code>marketplace.json</code>, and a README.</p>
+<pre><code>memorius-plugin-gen list              # show supported agents
+memorius-plugin-gen init              # create universal-manifest.yaml
+memorius-plugin-gen generate          # generate plugins for all agents
+memorius-plugin-gen generate --watch  # live regeneration on config change</code></pre>
+      </section>
+
+      <section class="docs-section" id="normalizers">
+        <h2>Conversation normalizers</h2>
+        <p class="sub">The <code>memorius-normalize</code> CLI converts Discord, Telegram, WhatsApp, and generic chat exports into a uniform transcript that <code>mine</code> / <code>extract</code> understand.</p>
+<pre><code>memorius-normalize detect &lt;files&gt;   # auto-detect the format
+memorius-normalize convert &lt;file&gt;   # convert one file to a transcript
+memorius-normalize batch &lt;dir&gt;      # convert a whole directory
+memorius-normalize pipe             # read stdin, write stdout</code></pre>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Format</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>discord</code></td><td>Discord channel export JSON (DiscordChatExporter).</td></tr>
+              <tr><td><code>telegram</code></td><td>Telegram Desktop chat export JSON.</td></tr>
+              <tr><td><code>whatsapp</code></td><td>WhatsApp plain-text export (international + US/EU variants).</td></tr>
+              <tr><td><code>generic-json</code></td><td>Any JSON with <code>{role, content}</code>, <code>{author, text}</code>, or <code>{from, text}</code>.</td></tr>
+              <tr><td><code>generic-messages</code></td><td>List of message objects with role/author fields.</td></tr>
+              <tr><td><code>generic-chat</code></td><td>Dict with a <code>conversations</code> / <code>chats</code> key.</td></tr>
+              <tr><td><code>generic-text</code></td><td>Plain text with <code>speaker:</code> lines or <code>&gt;</code> transcript markers.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="docs-section" id="security">
+        <h2>Security hardening</h2>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Defense</th><th>Detail</th></tr></thead>
+            <tbody>
+              <tr><td>Command execution</td><td><code>shlex.split()</code> with <code>shell=False</code> — no shell injection; shell metacharacters are stripped from templates.</td></tr>
+              <tr><td>Webhook SSRF</td><td>Blocks localhost, private IPs, cloud metadata endpoints, and non-HTTP schemes.</td></tr>
+              <tr><td>Context injection</td><td>Prompt-injection protection sanitizes memory content before LLM injection (strips "ignore previous instructions", XML tags, control characters).</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="pager">
+        <a href="mcp-server.html"><div class="p-label">← Previous</div><div class="p-title">MCP Server</div></a>
+        <a href="rest-api.html" class="next"><div class="p-label">Next →</div><div class="p-title">REST API</div></a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="container footer-inner">
+    <div>&copy; Memorius &middot; MIT licensed &middot; Built for agents that need to remember.</div>
+    <div class="footer-links">
+      <a href="https://github.com/Dream-Pixels-Forge/memorius">GitHub</a>
+      <a href="https://pypi.org/project/memorius/">PyPI</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius/issues">Issues</a>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

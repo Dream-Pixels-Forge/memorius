@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Memory Engine — Memorius</title>
+<meta name="description" content="The neuroscience-inspired memory engine: Ebbinghaus temporal decay, consolidation, pruning, knowledge-graph edges, fact-checking, cross-encoder reranking, web fallback, and the doctor / repair health tools." />
+<meta name="theme-color" content="#F97316" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23F97316'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='ui-monospace,SFMono-Regular,monospace' font-size='34' font-weight='700' fill='white'%3EM%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+
+<nav class="docs-nav">
+  <div class="container docs-nav-inner">
+    <a href="index.html" class="brand"><span class="brand-mark">M</span><span>Memorius</span></a>
+    <div class="docs-links">
+      <a href="getting-started.html">Getting Started</a>
+      <a href="cli-reference.html">CLI</a>
+      <a href="mcp-server.html">MCP</a>
+      <a href="hooks.html">Hooks</a>
+      <a href="rest-api.html">REST</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="agents.html">Agents</a>
+      <a href="consolidation.html">Memory Engine</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius" class="btn" style="background:var(--accent);color:#fff;padding:8px 18px;font-size:13px;font-weight:600;border-radius:8px;">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="docs-hero">
+  <div class="container">
+    <span class="crumb">Documentation / Memory Engine</span>
+    <h1>The memory engine</h1>
+    <p class="lead">Neuroscience-inspired consolidation, temporal decay, and health tooling. This is the part that keeps your vault accurate, compact, and useful as it grows.</p>
+  </div>
+</header>
+
+<main class="docs-main">
+  <div class="container doc-layout">
+    <aside class="doc-toc">
+      <div class="toc-title">On this page</div>
+      <a href="#consolidation">Consolidation</a>
+      <a href="#decay">Temporal decay</a>
+      <a href="#pruning">Pruning</a>
+      <a href="#graph">Knowledge graph</a>
+      <a href="#factcheck">Fact-checking</a>
+      <a href="#rerank">Cross-encoder reranking</a>
+      <a href="#web">Web fallback</a>
+      <a href="#doctor">doctor</a>
+      <a href="#repair">repair</a>
+    </aside>
+
+    <div class="doc-content">
+      <section class="docs-section" id="consolidation">
+        <h2>Consolidation</h2>
+        <p class="sub">Clusters similar memories and merges them into a consolidated insight, archiving the originals. Models the biological trace → memory → schema maturation.</p>
+<pre><code>memorius consolidate --dry-run            # preview clusters
+memorius consolidate --threshold 0.80     # merge at 80% similarity
+memorius consolidate --vault main          # scope to one vault</code></pre>
+        <p>Uses O(N²) pairwise comparison for clustering. Runs automatically when <code>consolidation.enabled</code> is on (config) and can also be triggered by a hook action. Related MCP tool: <code>memorius_consolidate</code>.</p>
+      </section>
+
+      <section class="docs-section" id="decay">
+        <h2>Temporal decay</h2>
+        <p class="sub">The Ebbinghaus forgetting curve ranks memories by relevance over time. Two scores drive it:</p>
+        <ul>
+          <li><strong>Decay score</strong> (0–1) = age decay (40%) + recency boost (40%) + access reinforcement (20%).</li>
+          <li><strong>Search ranking</strong> = semantic similarity (60%) + temporal decay (25%) + access frequency (15%).</li>
+        </ul>
+        <p>Reading a memory reinforces it via <code>touch()</code>. Stale memories surface through the decay threshold or explicit TTL expiry — set with <code>memorius store "..." --ttl 30</code>.</p>
+      </section>
+
+      <section class="docs-section" id="pruning">
+        <h2>Pruning</h2>
+        <p class="sub">Find and archive (or hard-delete) stale memories by decay score.</p>
+<pre><code>memorius prune --threshold 0.1 --dry-run   # preview stale memories
+memorius prune --threshold 0.1             # soft-archive stale memories
+memorius prune --threshold 0.1 --delete    # hard-delete</code></pre>
+        <p>Soft-archived memories stay queryable but stop counting toward active retrieval; <code>--delete</code> removes them from both stores. Accepts <code>--json</code>.</p>
+      </section>
+
+      <section class="docs-section" id="graph">
+        <h2>Knowledge graph</h2>
+        <p>Memories auto-link on every <code>store()</code> by content proximity. Edge types:</p>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Relation</th><th>Meaning</th></tr></thead>
+            <tbody>
+              <tr><td><code>related</code></td><td>General content proximity (Jaccard / cosine).</td></tr>
+              <tr><td><code>references</code></td><td>One memory points at another.</td></tr>
+              <tr><td><code>contradicts</code></td><td>Surfaced by <code>factcheck</code>; bidirectional.</td></tr>
+              <tr><td><code>co_occurs</code></td><td>Appeared in the same context/session.</td></tr>
+              <tr><td><code>temporal_before</code></td><td>Typed temporal ordering.</td></tr>
+              <tr><td><code>causal_leads_to</code></td><td>Typed causal link.</td></tr>
+              <tr><td><code>episodic_part_of</code></td><td>Episodic → semantic part-of.</td></tr>
+              <tr><td><code>semantic_instance_of</code></td><td>Typed semantic instance relation.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Inspect with <code>memorius graph stats</code>, <code>memorius graph view</code> (interactive browser), or <code>memorius graph export-html</code> (standalone file).</p>
+      </section>
+
+      <section class="docs-section" id="factcheck">
+        <h2>Fact-checking</h2>
+        <p class="sub">Verify a claim against stored memories. Verdicts: <code>verified</code> / <code>contradicted</code> / <code>uncertain</code> / <code>no_match</code>.</p>
+<pre><code>memorius factcheck "Rust 1.80 was released in July 2024"
+memorius factcheck "..." --web     # cross-check uncertain claims with the web</code></pre>
+        <p>Contradictions are persisted as bidirectional <code>contradicts</code> graph edges and are queryable via <code>memorius_contradictions</code> (MCP) and <code>/contradictions/{id}</code> (REST).</p>
+      </section>
+
+      <section class="docs-section" id="rerank">
+        <h2>Cross-encoder reranking</h2>
+        <p class="sub">Optional precision pass over top-k vector hits.</p>
+<pre><code>memorius search "query" --rerank</code></pre>
+        <p>Uses <code>cross-encoder/ms-marco-MiniLM-L-6-v2</code> (included out of the box). Adds <code>__rerank_score__</code> to metadata for transparent ranking. Hybrid retrieval (vector + BM25/FTS5) is on by default so keyword blind-spots don't drop results.</p>
+      </section>
+
+      <section class="docs-section" id="web">
+        <h2>Web fallback</h2>
+        <p class="sub">Local-first and opt-in — the vault is searched first; web is only consulted when local recall is thin or you ask for it.</p>
+<pre><code>memorius web "python 3.13 changelog"                 # keyless DuckDuckGo
+memorius web "..." --provider tavily                 # keyed, higher signal
+memorius search "latest rust release" --web          # augment a local search
+memorius factcheck "..." --web                        # cross-check a claim</code></pre>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Provider</th><th>Key</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td><code>duckduckgo</code> (default)</td><td>none</td><td>Keyless, stdlib-only. Works out of the box.</td></tr>
+              <tr><td><code>tavily</code></td><td><code>TAVILY_API_KEY</code></td><td>Agent-grade signal. A missing key warns and returns <code>[]</code> — never crashes.</td></tr>
+              <tr><td><code>mock</code></td><td>n/a</td><td>Test double for offline testing.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="docs-section" id="doctor">
+        <h2><code>memorius doctor</code> — health checks</h2>
+        <p class="sub">Runs 6 checks and returns a structured ok / warn / fail / skip report.</p>
+        <ol>
+          <li>Config is parseable.</li>
+          <li>Storage directory is writable.</li>
+          <li>ONNX model is present.</li>
+          <li>Vector/meta count drift (points at <a href="#repair"><code>repair</code></a> when it fires).</li>
+          <li>Collection name length (Chroma limit).</li>
+          <li>Graph health.</li>
+        </ol>
+<pre><code>memorius doctor</code></pre>
+      </section>
+
+      <section class="docs-section" id="repair">
+        <h2><code>memorius repair</code> — fix vector/meta drift</h2>
+        <p class="sub"><em>New in v0.8.6.</em> Reconciles the Chroma vector store with the authoritative <code>memory_meta</code> table. Remove orphaned vectors, optionally re-embed missing ones.</p>
+<pre><code>memorius repair --dry-run          # preview what would change
+memorius repair                    # remove orphaned vectors
+memorius repair --reindex          # also re-embed metadata rows missing a vector
+memorius repair --vault main       # scope to a single vault
+memorius repair --json             # machine-readable report</code></pre>
+        <div class="callout">
+          <div class="co-title">Report fields</div>
+          <code>meta_count</code>, <code>vector_count</code>, <code>orphans_found</code>, <code>orphans_removed</code>, <code>missing_found</code>, <code>missing_reindexed</code>, <code>in_sync</code>, <code>dry_run</code>. When <code>doctor</code> detects drift, it now points you here.
+        </div>
+      </section>
+
+      <div class="pager">
+        <a href="agents.html"><div class="p-label">← Previous</div><div class="p-title">Agent Compatibility</div></a>
+        <a href="index.html" class="next"><div class="p-label">Back →</div><div class="p-title">Landing</div></a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="container footer-inner">
+    <div>&copy; Memorius &middot; MIT licensed &middot; Built for agents that need to remember.</div>
+    <div class="footer-links">
+      <a href="https://github.com/Dream-Pixels-Forge/memorius">GitHub</a>
+      <a href="https://pypi.org/project/memorius/">PyPI</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius/issues">Issues</a>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

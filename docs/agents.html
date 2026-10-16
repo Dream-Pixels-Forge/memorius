@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agent Compatibility — Memorius</title>
+<meta name="description" content="Which agents Memorius supports out of the box — 7 auto-detected agents plus a generic fallback — the hook events each emits, and how to plug in your own." />
+<meta name="theme-color" content="#F97316" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23F97316'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='ui-monospace,SFMono-Regular,monospace' font-size='34' font-weight='700' fill='white'%3EM%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+
+<nav class="docs-nav">
+  <div class="container docs-nav-inner">
+    <a href="index.html" class="brand"><span class="brand-mark">M</span><span>Memorius</span></a>
+    <div class="docs-links">
+      <a href="getting-started.html">Getting Started</a>
+      <a href="cli-reference.html">CLI</a>
+      <a href="mcp-server.html">MCP</a>
+      <a href="hooks.html">Hooks</a>
+      <a href="rest-api.html">REST</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="agents.html">Agents</a>
+      <a href="consolidation.html">Memory Engine</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius" class="btn" style="background:var(--accent);color:#fff;padding:8px 18px;font-size:13px;font-weight:600;border-radius:8px;">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="docs-hero">
+  <div class="container">
+    <span class="crumb">Documentation / Agents</span>
+    <h1>Works with the agents you already use</h1>
+    <p class="lead">Hooks are auto-detected from the event payload — pipe JSON in, get memories out. No per-agent config to maintain. Seven named agents plus a generic fallback.</p>
+  </div>
+</header>
+
+<main class="docs-main">
+  <div class="container doc-layout">
+    <aside class="doc-toc">
+      <div class="toc-title">On this page</div>
+      <a href="#matrix">Compatibility matrix</a>
+      <a href="#detection">Detection priority</a>
+      <a href="#three-ways">Three ways to integrate</a>
+      <a href="#custom">Plug in your own agent</a>
+    </aside>
+
+    <div class="doc-content">
+      <section class="docs-section" id="matrix">
+        <h2>Compatibility matrix</h2>
+        <p class="sub">Each agent's hook protocol and the lifecycle events it emits. All seven are detected automatically — no <code>--agent</code> flag required.</p>
+        <div class="cards">
+          <div class="card fade-up delay-1">
+            <div class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+            <h3>Claude Code</h3>
+            <p>Anthropic. Marker: <code>stop_hook_active</code> / <code>precompact</code>. Events: stop, precompact, session_start.</p>
+            <a class="card-link" href="mcp-server.html#client-snippets">Connect via MCP</a>
+          </div>
+          <div class="card fade-up delay-2">
+            <div class="icon"><svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M5 12h14"/></svg></div>
+            <h3>Codex CLI</h3>
+            <p>OpenAI. Marker: <code>session_id</code> + <code>context_dir</code>. Events: session_start, session_stop, stop, precompact.</p>
+            <a class="card-link" href="mcp-server.html#client-snippets">Connect via MCP</a>
+          </div>
+          <div class="card fade-up delay-3">
+            <div class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M4 12h4M16 12h4M12 4v4M12 16v4"/></svg></div>
+            <h3>Gemini CLI</h3>
+            <p>Google. Marker: <code>conversation_id</code> + <code>extensions</code>. Events: stop, session_start.</p>
+            <a class="card-link" href="mcp-server.html#client-snippets">Connect via MCP</a>
+          </div>
+          <div class="card fade-up delay-1">
+            <div class="icon"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg></div>
+            <h3>OpenCode</h3>
+            <p>anomalyco/sst. Marker: <code>provider</code> dict + <code>openCodeVersion</code>. Events: stop, session_stop, session_start, precompact.</p>
+            <a class="card-link" href="hooks.html#detection">Hook details</a>
+          </div>
+          <div class="card fade-up delay-2">
+            <div class="icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20"/></svg></div>
+            <h3>Pi</h3>
+            <p>kachow-compatible. Marker: <code>event</code> in the Pi event set. Events: session_start, session_shutdown, pre_compact, tool_call, turn_end.</p>
+            <a class="card-link" href="hooks.html#detection">Hook details</a>
+          </div>
+          <div class="card fade-up delay-3">
+            <div class="icon"><svg viewBox="0 0 24 24"><path d="M12 3l9 5v8l-9 5-9-5V8z"/></svg></div>
+            <h3>OpenClaude</h3>
+            <p>Marker: <code>OpenClaude</code> in payload. Events: stop, precompact, session_start.</p>
+            <a class="card-link" href="hooks.html#detection">Hook details</a>
+          </div>
+          <div class="card fade-up delay-4">
+            <div class="icon"><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14M8 12h8"/></svg></div>
+            <h3>OpenClaw</h3>
+            <p>Marker: <code>openclaw</code> in payload. Events: stop, session_stop, precompact, session_start.</p>
+            <a class="card-link" href="hooks.html#detection">Hook details</a>
+          </div>
+          <div class="card fade-up delay-5">
+            <div class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 12h6M12 9v6"/></svg></div>
+            <h3>Generic</h3>
+            <p>Fallback for any unrecognized payload. Works with any agent that can pipe JSON to a hook — including custom frameworks.</p>
+            <a class="card-link" href="hooks.html#custom">Use the generic adapter</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="docs-section" id="detection">
+        <h2>Detection priority</h2>
+        <p class="sub">When multiple markers could match, the most-specific wins. Order is fixed:</p>
+<pre><code>OpenClaude → Claude Code → Codex → Gemini CLI → OpenClaw → OpenCode → Pi → Generic</code></pre>
+        <p>You can override auto-detection with <code>--agent &lt;name&gt;</code> on any <code>memorius-hook</code> command.</p>
+      </section>
+
+      <section class="docs-section" id="three-ways">
+        <h2>Three ways to integrate</h2>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Method</th><th>Best for</th><th>How</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><strong>MCP server</strong></td>
+                <td>Any MCP-compatible agent (Claude Code, Codex, Gemini, Cursor, Aider…)</td>
+                <td>Point the agent at <code>memorius serve</code>. See <a href="mcp-server.html">MCP Server</a>.</td>
+              </tr>
+              <tr>
+                <td><strong>Agent hooks</strong></td>
+                <td>Auto-capture at session boundaries</td>
+                <td>Generate per-agent hook scripts with <code>memorius-plugin-gen</code>. See <a href="hooks.html">Hooks</a>.</td>
+              </tr>
+              <tr>
+                <td><strong>Agent skill</strong></td>
+                <td>Hermes-compatible agents that should use memorius proactively</td>
+                <td>One <code>npx</code> command. See <a href="getting-started.html#skill">Install the skill</a>.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="docs-section" id="custom">
+        <h2>Plug in your own agent</h2>
+        <p class="sub">Memorius is agent-agnostic by design. Two paths for a custom agent:</p>
+        <ol>
+          <li><strong>Generic hook adapter.</strong> Pipe your agent's event JSON to <code>memorius-hook</code>. The <code>Generic</code> fallback handles any unrecognized payload — no marker needed.</li>
+          <li><strong>A new marker.</strong> Add a recognition rule to the hook engine's detection table so your agent gets its own adapter (events, actions) instead of the generic path.</li>
+        </ol>
+        <div class="callout">
+          <div class="co-title">No MCP support in your agent?</div>
+          Use the <a href="rest-api.html">REST API</a> directly — any HTTP client can store and search memories against the same vault.
+        </div>
+      </section>
+
+      <div class="pager">
+        <a href="architecture.html"><div class="p-label">← Previous</div><div class="p-title">Architecture</div></a>
+        <a href="consolidation.html" class="next"><div class="p-label">Next →</div><div class="p-title">Memory Engine</div></a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="container footer-inner">
+    <div>&copy; Memorius &middot; MIT licensed &middot; Built for agents that need to remember.</div>
+    <div class="footer-links">
+      <a href="https://github.com/Dream-Pixels-Forge/memorius">GitHub</a>
+      <a href="https://pypi.org/project/memorius/">PyPI</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius/issues">Issues</a>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

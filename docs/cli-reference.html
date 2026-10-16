@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CLI Reference — Memorius</title>
+<meta name="description" content="Complete Memorius CLI reference — every subcommand and flag: init, store, search, mine, extract, consolidate, prune, doctor, repair, stats, graph, learn, and the obsidian subcommands." />
+<meta name="theme-color" content="#F97316" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23F97316'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='ui-monospace,SFMono-Regular,monospace' font-size='34' font-weight='700' fill='white'%3EM%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+
+<nav class="docs-nav">
+  <div class="container docs-nav-inner">
+    <a href="index.html" class="brand"><span class="brand-mark">M</span><span>Memorius</span></a>
+    <div class="docs-links">
+      <a href="getting-started.html">Getting Started</a>
+      <a href="cli-reference.html">CLI</a>
+      <a href="mcp-server.html">MCP</a>
+      <a href="hooks.html">Hooks</a>
+      <a href="rest-api.html">REST</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="agents.html">Agents</a>
+      <a href="consolidation.html">Memory Engine</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius" class="btn" style="background:var(--accent);color:#fff;padding:8px 18px;font-size:13px;font-weight:600;border-radius:8px;">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="docs-hero">
+  <div class="container">
+    <span class="crumb">Documentation / CLI</span>
+    <h1>CLI reference</h1>
+    <p class="lead">Every command on the <code>memorius</code> entry point, grouped by concern. The companion <code>memorius-hook</code>, <code>memorius-plugin-gen</code>, and <code>memorius-normalize</code> CLIs are documented on the <a href="hooks.html">Hooks</a> page.</p>
+  </div>
+</header>
+
+<main class="docs-main">
+  <div class="container doc-layout">
+    <aside class="doc-toc">
+      <div class="toc-title">On this page</div>
+      <a href="#global">Global flags</a>
+      <a href="#core">Core</a>
+      <a href="#memory">Memory CRUD</a>
+      <a href="#transcripts">Transcripts & extraction</a>
+      <a href="#diaries">Diaries</a>
+      <a href="#graph">Knowledge graph</a>
+      <a href="#engine">Memory engine</a>
+      <a href="#learnings">Learnings</a>
+      <a href="#obsidian">Obsidian</a>
+      <a href="#servers">Servers & config</a>
+    </aside>
+
+    <div class="doc-content">
+      <section class="docs-section" id="global">
+        <h2>Global flags</h2>
+        <p class="sub">Available on every invocation.</p>
+        <div class="cli-grid">
+          <div class="cli-card">
+            <h4>Invocation</h4>
+            <div class="row"><span class="cmd">memorius --version</span><span class="desc">Print the running version</span></div>
+            <div class="row"><span class="cmd">memorius --config PATH</span><span class="desc">Use an alternate config file</span></div>
+            <div class="row"><span class="cmd">memorius --debug</span><span class="desc">Enable debug logging</span></div>
+          </div>
+        </div>
+        <div class="callout">
+          <div class="co-title">JSON output</div>
+          Several read commands accept <code>--json</code> for machine-readable output (<code>status</code>, <code>stats</code>, <code>get</code>, <code>update</code>, <code>prune</code>, <code>learnings</code>, <code>learning-stats</code>, <code>repair</code>). Warnings stay <code>exit 0</code>; only real errors exit non-zero.
+        </div>
+      </section>
+
+      <section class="docs-section" id="core">
+        <h2><span class="act-label">Core</span> Setup, status & health</h2>
+        <div class="cli-grid">
+          <div class="cli-card">
+            <h4>Initialize</h4>
+            <div class="row"><span class="cmd">memorius init</span><span class="desc">Create config + storage dir and the main vault</span></div>
+            <div class="row"><span class="cmd">memorius setup</span><span class="desc">Download ONNX model, init, and verify</span>
+              <span class="flags">--force · --skip-model</span></div>
+            <div class="row"><span class="cmd">memorius status</span><span class="desc">Vault + embedding + recent diaries</span>
+              <span class="flags">--json</span></div>
+          </div>
+          <div class="cli-card">
+            <h4>Health &amp; integrity</h4>
+            <div class="row"><span class="cmd">memorius doctor</span><span class="desc">Run 6 health checks (config, storage, model, drift, name length, graph)</span></div>
+            <div class="row"><span class="cmd">memorius repair</span><span class="desc">Reconcile vector store ↔ metadata table; remove orphans, optionally re-embed</span>
+              <span class="flags">--vault · --reindex · --dry-run · --json</span></div>
+            <div class="row"><span class="cmd">memorius stats</span><span class="desc">Vault + memory + graph + doctor summary</span>
+              <span class="flags">--json</span></div>
+          </div>
+        </div>
+        <div class="callout">
+          <div class="co-title">repair — new in v0.8.6</div>
+          <code>memorius repair</code> fixes vector/meta drift: it removes Chroma vectors that no longer have a metadata row (orphans) and, with <code>--reindex</code>, re-embeds metadata rows missing a vector. <code>memorius doctor</code> points you here when it detects drift. See <a href="consolidation.html#repair">Memory Engine → repair</a>.
+        </div>
+      </section>
+
+      <section class="docs-section" id="memory">
+        <h2><span class="act-label">Memory</span> Store, read, update, delete</h2>
+        <div class="cli-grid">
+          <div class="cli-card">
+            <h4>Write</h4>
+            <div class="row"><span class="cmd">memorius store &lt;text&gt;</span><span class="desc">Embed + store content (reads stdin if no arg)</span>
+              <span class="flags">--vault · --shelf · --folder · --note · --ttl DAYS</span></div>
+            <div class="row"><span class="cmd">memorius update &lt;id&gt;</span><span class="desc">Update content and/or metadata (re-embeds on change)</span>
+              <span class="flags">--content · --metadata JSON · --json</span></div>
+          </div>
+          <div class="cli-card">
+            <h4>Read</h4>
+            <div class="row"><span class="cmd">memorius search &lt;q&gt;</span><span class="desc">Semantic search (reads stdin if no arg)</span>
+              <span class="flags">--n · --vault · --shelf · --folder · --note · --tag · --expand-graph · --rerank · --web</span></div>
+            <div class="row"><span class="cmd">memorius get &lt;id&gt;</span><span class="desc">Fetch one memory by UUID</span>
+              <span class="flags">--json</span></div>
+            <div class="row"><span class="cmd">memorius list</span><span class="desc">Cursor-paginated listing</span>
+              <span class="flags">--vault · --limit · --cursor</span></div>
+            <div class="row"><span class="cmd">memorius ls</span><span class="desc">Browse the Vault→Shelf→Folder→Note tree</span>
+              <span class="flags">--vault</span></div>
+          </div>
+          <div class="cli-card">
+            <h4>Delete</h4>
+            <div class="row"><span class="cmd">memorius delete &lt;id&gt;</span><span class="desc">Delete one memory (validates + confirms)</span>
+              <span class="flags">--vault · --shelf · --yes · --dry-run</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="docs-section" id="transcripts">
+        <h2><span class="act-label">Transcripts</span> Mine, extract, fact-check, context</h2>
+        <div class="cli-grid">
+          <div class="cli-card">
+            <h4>Extract</h4>
+            <div class="row"><span class="cmd">memorius mine &lt;file&gt;</span><span class="desc">Mine raw transcript into structured memories</span>
+              <span class="flags">--vault · --text</span></div>
+            <div class="row"><span class="cmd">memorius extract &lt;file&gt;</span><span class="desc">LLM-powered structured extraction (6 categories)</span>
+              <span class="flags">--vault · --shelf · --backend auto|openai|ollama|regex</span></div>
+          </div>
+          <div class="cli-card">
+            <h4>Verify &amp; inject</h4>
+            <div class="row"><span class="cmd">memorius factcheck &lt;stmt&gt;</span><span class="desc">Verify a claim against stored memories</span>
+              <span class="flags">--vault · --web</span></div>
+            <div class="row"><span class="cmd">memorius context &lt;q&gt;</span><span class="desc">Formatted context block for prompt injection</span>
+              <span class="flags">--vault · --max · --web</span></div>
+            <div class="row"><span class="cmd">memorius profile &lt;session&gt;</span><span class="desc">Build a session memory profile for inheritance</span>
+              <span class="flags">--vault</span></div>
+          </div>
+          <div class="cli-card">
+            <h4>Web fallback</h4>
+            <div class="row"><span class="cmd">memorius web &lt;q&gt;</span><span class="desc">Live web search (opt-in primitive)</span>
+              <span class="flags">--max · --provider duckduckgo|tavily</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="docs-section" id="diaries">
+        <h2><span class="act-label">Diaries</span> Session notes</h2>
+        <div class="cli-grid">
+          <div class="cli-card">
+            <h4>Diaries</h4>
+            <div class="row"><span class="cmd">memorius diary &lt;session&gt;</span><span class="desc">Write a diary entry (interactive if args omitted)</span>
+              <span class="flags">--title · --summary · --content · --vault · --exchange-count</span></div>
+            <div class="row"><span class="cmd">memorius diaries</span><span class="desc">List the 10 most recent entries</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="docs-section" id="graph">
+        <h2><span class="act-label">Knowledge graph</span> Typed edges &amp; visualization</h2>
+        <div class="cli-grid">
+          <div class="cli-card">
+            <h4>Graph</h4>
+            <div class="row"><span class="cmd">memorius graph stats</span><span class="desc">Nodes, edges, relation counts</span></div>
+            <div class="row"><span class="cmd">memorius graph view</span><span class="desc">Open interactive graph in browser</span>
+              <span class="flags">--vault · --shelf · --relation · --min-weight · --limit · --no-open</span></div>
+            <div class="row"><span class="cmd">memorius graph export-html</span><span class="desc">Export a standalone interactive HTML viz</span>
+              <span class="flags">-o · --vault · --shelf · --relation · --min-weight · --limit</span></div>
+            <div class="row"><span class="cmd">memorius graph json</span><span class="desc">Dump graph topology as JSON</span>
+              <span class="flags">--vault · --shelf · --relation · --min-weight · --limit</span></div>
+          </div>
+        </div>
+        <p>Edge relations: <code>related</code>, <code>references</code>, <code>contradicts</code>, <code>co_occurs</code>, plus typed <code>temporal_before</code>, <code>causal_leads_to</code>, <code>episodic_part_of</code>, <code>semantic_instance_of</code>. Details on the <a href="consolidation.html#graph">Memory Engine</a> page.</p>
+      </section>
+
+      <section class="docs-section" id="engine">
+        <h2><span class="act-label">Memory engine</span> Consolidate, prune, backup</h2>
+        <div class="cli-grid">
+          <div class="cli-card">
+            <h4>Consolidation &amp; decay</h4>
+            <div class="row"><span class="cmd">memorius consolidate</span><span class="desc">Cluster + merge similar memories</span>
+              <span class="flags">--vault · --threshold 0-1 · --dry-run</span></div>
+            <div class="row"><span class="cmd">memorius prune</span><span class="desc">Archive/delete stale memories by decay score</span>
+              <span class="flags">--threshold · --dry-run · --delete · --json</span></div>
+          </div>
+          <div class="cli-card">
+            <h4>Backup &amp; portability</h4>
+            <div class="row"><span class="cmd">memorius export &lt;dest&gt;</span><span class="desc">Export vault to JSON or Markdown</span>
+              <span class="flags">--format json|markdown</span></div>
+            <div class="row"><span class="cmd">memorius import &lt;src&gt;</span><span class="desc">Import a JSON export</span>
+              <span class="flags">--replace</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="docs-section" id="learnings">
+        <h2><span class="act-label">Learnings</span> Agent self-improvement capture</h2>
+        <p class="sub">Structured "I learned this" memories with category, context, solution, and confidence. The <a href="mcp-server.html">MCP</a> exposes the same as <code>memorius_learn</code> / <code>memorius_recall</code>.</p>
+        <div class="cli-grid">
+          <div class="cli-card">
+            <h4>Learn</h4>
+            <div class="row"><span class="cmd">memorius learn &lt;text&gt;</span><span class="desc">Store a learning (required <code>--category</code>)</span>
+              <span class="flags">--category · --context · --solution · --tag · --vault · --confidence</span></div>
+            <div class="row"><span class="cmd">memorius apply-learning &lt;id&gt;</span><span class="desc">Increment a learning's application counter</span></div>
+          </div>
+          <div class="cli-card">
+            <h4>Recall</h4>
+            <div class="row"><span class="cmd">memorius recall &lt;q&gt;</span><span class="desc">Search past learnings</span>
+              <span class="flags">--category · --tag · --vault · --limit</span></div>
+            <div class="row"><span class="cmd">memorius learnings</span><span class="desc">List learnings + summary</span>
+              <span class="flags">--category · --vault · --limit · --json</span></div>
+            <div class="row"><span class="cmd">memorius learning-stats</span><span class="desc">Learning statistics</span>
+              <span class="flags">--vault · --json</span></div>
+          </div>
+        </div>
+        <p>Categories: <code>bug_fix</code>, <code>strategy</code>, <code>pattern</code>, <code>self_improvement</code>, <code>tool_usage</code>, <code>code_snippet</code>, <code>workflow</code>.</p>
+      </section>
+
+      <section class="docs-section" id="obsidian">
+        <h2><span class="act-label">Obsidian</span> Bidirectional vault sync</h2>
+        <p class="sub">Import your Obsidian notes as memories, or export memories back as Markdown with YAML frontmatter. Hierarchy is preserved.</p>
+        <div class="cli-grid">
+          <div class="cli-card">
+            <h4>Obsidian</h4>
+            <div class="row"><span class="cmd">memorius obsidian list</span><span class="desc">List notes in an Obsidian vault</span>
+              <span class="flags">--vault (Obsidian dir)</span></div>
+            <div class="row"><span class="cmd">memorius obsidian import</span><span class="desc">Import notes as memorius memories</span>
+              <span class="flags">--vault · --target-vault · --target-shelf · --tag · --dry-run</span></div>
+            <div class="row"><span class="cmd">memorius obsidian export</span><span class="desc">Export memories as Obsidian notes</span>
+              <span class="flags">--vault · --source-vault · --source-shelf · --dry-run</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="docs-section" id="servers">
+        <h2><span class="act-label">Servers &amp; config</span> MCP, REST, and inspection</h2>
+        <div class="cli-grid">
+          <div class="cli-card">
+            <h4>Servers</h4>
+            <div class="row"><span class="cmd">memorius serve</span><span class="desc">Start the MCP server over stdio</span>
+              <span class="flags">--port (unused for stdio)</span></div>
+            <div class="row"><span class="cmd">memorius serve-rest</span><span class="desc">Start the FastAPI REST server</span>
+              <span class="flags">--port · --host · --daemon · --stop · --pid-file · --tls-cert · --tls-key</span></div>
+          </div>
+          <div class="cli-card">
+            <h4>Config</h4>
+            <div class="row"><span class="cmd">memorius config</span><span class="desc">Print the active config (YAML → JSON)</span>
+              <span class="flags">--path (print config file path only)</span></div>
+          </div>
+        </div>
+        <p>See <a href="mcp-server.html">MCP Server</a> for tool details and <a href="rest-api.html">REST API</a> for endpoint details.</p>
+      </section>
+
+      <div class="pager">
+        <a href="getting-started.html"><div class="p-label">← Previous</div><div class="p-title">Getting Started</div></a>
+        <a href="mcp-server.html" class="next"><div class="p-label">Next →</div><div class="p-title">MCP Server</div></a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="container footer-inner">
+    <div>&copy; Memorius &middot; MIT licensed &middot; Built for agents that need to remember.</div>
+    <div class="footer-links">
+      <a href="https://github.com/Dream-Pixels-Forge/memorius">GitHub</a>
+      <a href="https://pypi.org/project/memorius/">PyPI</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius/issues">Issues</a>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

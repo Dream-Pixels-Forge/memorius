@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MCP Server — Memorius</title>
+<meta name="description" content="Connect any MCP-compatible client to Memorius. All 29 tools, JSON-RPC over stdio, and client configuration snippets for Claude Code, Codex, Gemini, and Cursor." />
+<meta name="theme-color" content="#F97316" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23F97316'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='ui-monospace,SFMono-Regular,monospace' font-size='34' font-weight='700' fill='white'%3EM%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+
+<nav class="docs-nav">
+  <div class="container docs-nav-inner">
+    <a href="index.html" class="brand"><span class="brand-mark">M</span><span>Memorius</span></a>
+    <div class="docs-links">
+      <a href="getting-started.html">Getting Started</a>
+      <a href="cli-reference.html">CLI</a>
+      <a href="mcp-server.html">MCP</a>
+      <a href="hooks.html">Hooks</a>
+      <a href="rest-api.html">REST</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="agents.html">Agents</a>
+      <a href="consolidation.html">Memory Engine</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius" class="btn" style="background:var(--accent);color:#fff;padding:8px 18px;font-size:13px;font-weight:600;border-radius:8px;">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="docs-hero">
+  <div class="container">
+    <span class="crumb">Documentation / MCP Server</span>
+    <h1>MCP server</h1>
+    <p class="lead">MCP is the primary interface for AI agents. Connect any MCP-compatible client by pointing it at <code>memorius serve</code> — JSON-RPC over stdio, no port, no auth. 29 tools.</p>
+  </div>
+</header>
+
+<main class="docs-main">
+  <div class="container doc-layout">
+    <aside class="doc-toc">
+      <div class="toc-title">On this page</div>
+      <a href="#connect">Connect a client</a>
+      <a href="#client-snippets">Per-agent config</a>
+      <a href="#tools-memory">Memory tools</a>
+      <a href="#tools-extract">Extraction tools</a>
+      <a href="#tools-graph">Graph &amp; stats tools</a>
+      <a href="#tools-learn">Learning tools</a>
+      <a href="#tools-system">System tools</a>
+    </aside>
+
+    <div class="doc-content">
+      <section class="docs-section" id="connect">
+        <h2>Connect an MCP client</h2>
+        <p class="sub">Run the server, then register it in your client's MCP config.</p>
+<pre><code>memorius serve</code></pre>
+        <p>Generic MCP client config (Claude Code, Codex, Gemini all use a similar shape):</p>
+<pre><code>{
+  "mcpServers": {
+    "memorius": {
+      "command": "memorius",
+      "args": ["serve"]
+    }
+  }
+}</code></pre>
+        <p>The tools surface immediately. Each tool returns a JSON result that your agent can read without a custom SDK.</p>
+      </section>
+
+      <section class="docs-section" id="client-snippets">
+        <h2>Per-agent snippets</h2>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Agent</th><th>Install command</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Claude Code</strong></td><td><code>claude mcp add memorius -- memorius serve</code></td></tr>
+              <tr><td><strong>Codex CLI</strong></td><td><code>codex mcp add memorius -- memorius serve</code></td></tr>
+              <tr><td><strong>Gemini CLI</strong></td><td><code>gemini mcp add memorius $(which memorius) serve</code></td></tr>
+              <tr><td><strong>Cursor</strong></td><td>Add to <code>.cursor/mcp.json</code>: <code>{"mcpServers": {"memorius": {"command": "memorius", "args": ["serve"]}}}</code></td></tr>
+              <tr><td><strong>Aider</strong></td><td><code>aider --mcp-servers memorius=memorius serve</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="docs-section" id="tools-memory">
+        <h2>Memory tools</h2>
+        <p class="sub">Store, read, update, and search memories in the vault hierarchy.</p>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Tool</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td><code>memorius_store</code></td><td>Store content in a vault/shelf/folder/note path; supports <code>ttl_days</code>.</td></tr>
+              <tr><td><code>memorius_search</code></td><td>Semantic search with <code>expand_graph</code>, <code>rerank</code>, <code>tags</code>, and cursor pagination.</td></tr>
+              <tr><td><code>memorius_get</code></td><td>Fetch one memory by UUID, including full content + metadata.</td></tr>
+              <tr><td><code>memorius_update</code></td><td>Update content/metadata; re-embeds when content changes.</td></tr>
+              <tr><td><code>memorius_delete</code></td><td>Delete a memory by ID from both vector and metadata stores.</td></tr>
+              <tr><td><code>memorius_list</code></td><td>List memories with cursor pagination (newest first).</td></tr>
+              <tr><td><code>memorius_vault_ls</code></td><td>Browse the vault hierarchy — vaults, shelves, folders, notes.</td></tr>
+              <tr><td><code>memorius_context</code></td><td>Formatted memory block for injection into agent context.</td></tr>
+              <tr><td><code>memorius_contradictions</code></td><td>Memories that contradict a given memory (knowledge-graph <code>contradicts</code> edges).</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="docs-section" id="tools-extract">
+        <h2>Extraction tools</h2>
+        <p class="sub">Turn raw conversation into structured memories.</p>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Tool</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td><code>memorius_mine</code></td><td>Extract memories from a conversation transcript into the <code>conversations</code> shelf.</td></tr>
+              <tr><td><code>memorius_extract</code></td><td>LLM-structured extraction — decisions, preferences, facts, action items.</td></tr>
+              <tr><td><code>memorius_diary_write</code></td><td>Write a session diary entry.</td></tr>
+              <tr><td><code>memorius_diary_list</code></td><td>List recent diary entries across sessions.</td></tr>
+              <tr><td><code>memorius_factcheck</code></td><td>Fact-check a statement; surfaces contradictions.</td></tr>
+              <tr><td><code>memorius_session_profile</code></td><td>Build a session memory profile for inheritance.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="docs-section" id="tools-graph">
+        <h2>Graph &amp; stats tools</h2>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Tool</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td><code>memorius_graph_stats</code></td><td>Knowledge-graph statistics — nodes, edges, relations.</td></tr>
+              <tr><td><code>memorius_graph_export</code></td><td>Export or query graph topology; can emit a self-contained HTML visualization.</td></tr>
+              <tr><td><code>memorius_memory_stats</code></td><td>Memory tracking — total, active, archived, by vault.</td></tr>
+              <tr><td><code>memorius_stats</code></td><td>Compact vault stats for status display.</td></tr>
+              <tr><td><code>memorius_status</code></td><td>Vault count, memory count, recent diaries, embedding provider.</td></tr>
+              <tr><td><code>memorius_prune</code></td><td>Find stale memories by decay score; optionally archive or delete.</td></tr>
+              <tr><td><code>memorius_consolidate</code></td><td>Merge similar memories, extract insights.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="docs-section" id="tools-learn">
+        <h2>Learning tools</h2>
+        <p class="sub">Agent self-improvement loop — capture a learning, recall it later, track how often it's applied.</p>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Tool</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td><code>memorius_learn</code></td><td>Store a learning — bug fix, strategy, pattern, tool tip, snippet, or workflow.</td></tr>
+              <tr><td><code>memorius_recall</code></td><td>Search past learnings by category/tag.</td></tr>
+              <tr><td><code>memorius_learnings</code></td><td>List all learnings with application counts and summary.</td></tr>
+              <tr><td><code>memorius_apply_learning</code></td><td>Mark a learning as applied (increments its counter).</td></tr>
+              <tr><td><code>memorius_learning_stats</code></td><td>Learning statistics — counts, categories, application rates, confidence.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="docs-section" id="tools-system">
+        <h2>System tools</h2>
+        <div class="doc-table-wrap">
+          <table>
+            <thead><tr><th>Tool</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td><code>memorius_doctor</code></td><td>Run health checks — config, storage, vector store, graph integrity.</td></tr>
+              <tr><td><code>memorius_repair</code></td><td>Reconcile vector ↔ metadata drift; remove orphans, optionally re-embed. <em>New in v0.8.6.</em></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="pager">
+        <a href="cli-reference.html"><div class="p-label">← Previous</div><div class="p-title">CLI Reference</div></a>
+        <a href="hooks.html" class="next"><div class="p-label">Next →</div><div class="p-title">Agent Hooks</div></a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="container footer-inner">
+    <div>&copy; Memorius &middot; MIT licensed &middot; Built for agents that need to remember.</div>
+    <div class="footer-links">
+      <a href="https://github.com/Dream-Pixels-Forge/memorius">GitHub</a>
+      <a href="https://pypi.org/project/memorius/">PyPI</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius/issues">Issues</a>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>
