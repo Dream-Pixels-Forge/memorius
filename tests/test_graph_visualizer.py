@@ -115,7 +115,7 @@ def test_export_graph_html_file(tmp_path):
     try:
         engine.store("Test memory content", vault="main", shelf="test", note="sample", _vector=[0.1]*384)
 
-        out_file = tmp_path / "graph_output.html"
+        out_file = tmp_path / "data" / "graph_output.html"
         html = engine.export_graph_html(dest=str(out_file))
 
         assert out_file.exists()
