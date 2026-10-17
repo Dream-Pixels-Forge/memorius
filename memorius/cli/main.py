@@ -713,42 +713,51 @@ def _stop_daemon(pid_file: Path):
 
 def _start_daemon(engine, host: str, port: int, pid_file: Path,
                    tls_cert: str | None = None, tls_key: str | None = None):
-    """Start REST server as a background daemon."""
+    """Start REST server as a background daemon.
+
+    Launches a detached subprocess that writes its own PID file and serves
+    the REST API. A Popen-based detach (start_new_session on Unix,
+    DETACHED_PROCESS on Windows) is used instead of a double-fork because
+    fork() inherits the caller's interpreter state — under pytest, the
+    forked child re-runs pytest's atexit handlers and dies with a
+    spurious SystemExit, while the PID file write races the parent's
+    assertions. The parent writes the PID file synchronously from
+    proc.pid, so the file exists before this returns.
+    """
     import os
     import sys
     import subprocess
 
-    if os.name == "nt":
-        # Windows: launch detached subprocess
-        # Pass configuration via environment variables to avoid shell injection
-        # through string interpolation in python -c commands.
-        daemon_script = (
-            "import os, sys; sys.stdin = open(os.devnull); "
-            "from pathlib import Path; "
-            "Path(os.environ['MEMORIUS_PID_FILE']).write_text(str(os.getpid())); "
-            "from memorius.rest_server import run_rest_server; "
-            "from memorius.vault import VaultEngine; "
-            "from memorius.config import load_config; "
-            "e = VaultEngine(load_config()); "
+    # Pass configuration via environment variables to avoid shell injection
+    # through string interpolation in python -c commands.
+    daemon_script = (
+        "import os, sys; sys.stdin = open(os.devnull); "
+        "from pathlib import Path; "
+        "Path(os.environ['MEMORIUS_PID_FILE']).write_text(str(os.getpid())); "
+        "from memorius.rest_server import run_rest_server; "
+        "from memorius.vault import VaultEngine; "
+        "from memorius.config import load_config; "
+        "e = VaultEngine(load_config()); "
+        "run_rest_server(e, host=os.environ['MEMORIUS_HOST'], "
+        "port=int(os.environ['MEMORIUS_PORT']))"
+    )
+    env = os.environ.copy()
+    env["MEMORIUS_HOST"] = host
+    env["MEMORIUS_PORT"] = str(port)
+    env["MEMORIUS_PID_FILE"] = str(pid_file)
+    if tls_cert and tls_key:
+        env["MEMORIUS_TLS_CERT"] = tls_cert
+        env["MEMORIUS_TLS_KEY"] = tls_key
+        daemon_script = daemon_script.replace(
             "run_rest_server(e, host=os.environ['MEMORIUS_HOST'], "
-            "port=int(os.environ['MEMORIUS_PORT']))"
+            "port=int(os.environ['MEMORIUS_PORT']))",
+            "run_rest_server(e, host=os.environ['MEMORIUS_HOST'], "
+            "port=int(os.environ['MEMORIUS_PORT']), "
+            "tls_cert=os.environ.get('MEMORIUS_TLS_CERT'), "
+            "tls_key=os.environ.get('MEMORIUS_TLS_KEY'))",
         )
-        env = os.environ.copy()
-        env["MEMORIUS_HOST"] = host
-        env["MEMORIUS_PORT"] = str(port)
-        env["MEMORIUS_PID_FILE"] = str(pid_file)
-        if tls_cert and tls_key:
-            env["MEMORIUS_TLS_CERT"] = tls_cert
-            env["MEMORIUS_TLS_KEY"] = tls_key
-            daemon_script = daemon_script.replace(
-                "run_rest_server(e, host=os.environ['MEMORIUS_HOST'], "
-                "port=int(os.environ['MEMORIUS_PORT']))",
-                "run_rest_server(e, host=os.environ['MEMORIUS_HOST'], "
-                "port=int(os.environ['MEMORIUS_PORT']), "
-                "tls_cert=os.environ.get('MEMORIUS_TLS_CERT'), "
-                "tls_key=os.environ.get('MEMORIUS_TLS_KEY'))",
-            )
-        cmd = [sys.executable, "-c", daemon_script]
+    cmd = [sys.executable, "-c", daemon_script]
+    if os.name == "nt":
         proc = subprocess.Popen(
             cmd,
             creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
@@ -756,41 +765,17 @@ def _start_daemon(engine, host: str, port: int, pid_file: Path,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        pid_file.parent.mkdir(parents=True, exist_ok=True)
-        pid_file.write_text(str(proc.pid))
-        print(f"Daemon started (PID {proc.pid})")
     else:
-        # Unix: double-fork
-        pid = os.fork()
-        if pid > 0:
-            print(f"Daemon started (PID {pid})")
-            return
-
-        os.setsid()
-
-        pid = os.fork()
-        if pid > 0:
-            sys.exit(0)
-
-        # Redirect stdio
-        sys.stdin = open(os.devnull, "r")
-        sys.stdout = open(os.devnull, "w")
-        sys.stderr = open(os.devnull, "w")
-
-        # Write PID file
-        pid_file.parent.mkdir(parents=True, exist_ok=True)
-        pid_file.write_text(str(os.getpid()))
-
-        import atexit
-        def _cleanup():
-            pid_file.unlink(missing_ok=True)
-        atexit.register(_cleanup)
-
-        import signal
-        signal.signal(signal.SIGHUP, signal.SIG_IGN)
-
-        from memorius.rest_server import run_rest_server
-        run_rest_server(engine, host=host, port=port)
+        proc = subprocess.Popen(
+            cmd,
+            start_new_session=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    pid_file.parent.mkdir(parents=True, exist_ok=True)
+    pid_file.write_text(str(proc.pid))
+    print(f"Daemon started (PID {proc.pid})")
 
 
 def cmd_config(engine, args, config):
