@@ -34,3 +34,5 @@ pip-delete-this-directory.txt
 *.mementos
 .pypirc
 AGENTS.md
+# qwen scratch
+.qwen/

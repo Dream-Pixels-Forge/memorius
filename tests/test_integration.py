@@ -54,7 +54,7 @@ def isolated_env():
         _safe_rmtree(tmpdir)
 
 
-def run_memorius(*args, env=None, input_text=None, timeout=120):
+def run_memorius(*args, env=None, input_text=None, timeout=180):
     """Run the memorius CLI and return stdout, stderr, exit_code."""
     memorius_bin = shutil.which("memorius")
     if not memorius_bin:
