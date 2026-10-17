@@ -42,6 +42,17 @@ memorius --version
 memorius init          # creates ~/.memorius/config.yaml + storage dir
 ```
 
+## CLI Reference
+
+### memorius stats
+Show vault + memory + graph statistics
+   --json    Output as JSON
+
+### memorius status
+Show vault status
+   --json    Output as JSON
+
+
 <details>
 <summary><b>For development</b></summary>
 
