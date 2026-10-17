@@ -6,6 +6,7 @@
 - Active branch: bug/25-test_graph_visualizer_test_export_graph_html_file (PR #37 OPEN, issue #25 OPEN)
 - Vault health: all doctor checks pass (meta=826, vectors=826 after repair --reindex)
 - Status: bug/25 fixes committed + pushed; awaiting PR review/merge
+- [2026-10-17] Triage done: #31–#34 closed stale (verified 15/15 pass); #26–#30 wired to PR #37 (180s timeout); #23/#24 root-caused → PR #38 (Popen detach in _start_daemon); #22 → PR #35 (README CLI-ref anchor)
 
 ## Phase Completion
 - [x] Phase 0: Bootstrap (DISCOVERY.md + AUDIT.md)
