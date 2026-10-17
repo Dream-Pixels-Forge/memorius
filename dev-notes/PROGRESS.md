@@ -3,10 +3,10 @@
 ## Current State
 - Project: memorius
 - Version: 0.8.6 (tag v0.8.6 pushed, GitHub release published 2026-10-16, PyPI latest = 0.8.6)
-- Active branch: bug/25-test_graph_visualizer_test_export_graph_html_file (PR #37 OPEN, issue #25 OPEN)
+- Active branch: main (all v0.8.6 PRs merged: #37, #38, #35)
 - Vault health: all doctor checks pass (meta=826, vectors=826 after repair --reindex)
-- Status: bug/25 fixes committed + pushed; awaiting PR review/merge
-- [2026-10-17] Triage done: #31–#34 closed stale (verified 15/15 pass); #26–#30 wired to PR #37 (180s timeout); #23/#24 root-caused → PR #38 (Popen detach in _start_daemon); #22 → PR #35 (README CLI-ref anchor)
+- Status: v0.8.6 goal MET (goal-met audit 10/10, gate exit 0, 2026-10-17); all issues #22–#34 closed
+- [2026-10-17] Triage done: #31–#34 closed stale (verified 15/15 pass); #26–#30 wired to PR #37 (180s timeout); #23/#24 root-caused → PR #38 (Popen detach in _start_daemon); #22 → PR #35 (README CLI-ref anchor). PRs #37/#38/#35 merged to main with CI green (3.11+3.12). New convention: auto-merge only when all CI green + zero open issues/warnings + goal-met MET 10/10.
 
 ## Phase Completion
 - [x] Phase 0: Bootstrap (DISCOVERY.md + AUDIT.md)
