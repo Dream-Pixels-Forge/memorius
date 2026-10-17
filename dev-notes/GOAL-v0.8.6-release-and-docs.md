@@ -11,21 +11,21 @@ Complete the v0.8.6 release pipeline (tag + GitHub release + PyPI publish), then
 - GitHub Pages supports multi-page static sites, so the split pages can live as separate HTML files under `docs/` and be linked from the landing page.
 
 ### Deliverables
-- [ ] v0.8.6 shipped: git tag `v0.8.6` pushed, GitHub release created, PyPI shows 0.8.6 as latest
-- [ ] `docs/index.html` split into concern-based files (e.g. landing/hero, getting-started, CLI reference, architecture, integration) — no single monolithic file
-- [ ] On-site documentation covering: what memorius is, install, quick start, CLI reference, MCP server setup, hooks, REST API, vault/shelf hierarchy, graph, consolidation, repair/doctor, agent skill install
-- [ ] Slimmed README.md: quick-start + links to on-site docs, no long-form feature duplication
-- [ ] All pages responsive and consistent with the existing orange cinematic design system
-- [ ] New/changed HTML validated (no broken links, no build errors); pages render in browser
+- [x] v0.8.6 shipped: git tag `v0.8.6` pushed, GitHub release created, PyPI shows 0.8.6 as latest
+- [x] `docs/index.html` split into concern-based files (e.g. landing/hero, getting-started, CLI reference, architecture, integration) — no single monolithic file
+- [x] On-site documentation covering: what memorius is, install, quick start, CLI reference, MCP server setup, hooks, REST API, vault/shelf hierarchy, graph, consolidation, repair/doctor, agent skill install
+- [x] Slimmed README.md: quick-start + links to on-site docs, no long-form feature duplication
+- [x] All pages responsive and consistent with the existing orange cinematic design system
+- [x] New/changed HTML validated (no broken links, no build errors); pages render in browser
 
 ### Definition of Done
-- [ ] `gh release view v0.8.6` succeeds and PyPI lists 0.8.6
-- [ ] `git tag` shows `v0.8.6` on the pushed commit
-- [ ] `docs/index.html` no longer contains all concerns; at least 4 separate concern-based doc pages exist under `docs/`
-- [ ] Landing page links to the new doc pages; each link target resolves
-- [ ] README.md line count is significantly reduced and links to the on-site docs
-- [ ] Every CLI subcommand (incl. `repair`, `--json`) is documented on-site
-- [ ] Site renders without broken internal links
+- [x] `gh release view v0.8.6` succeeds and PyPI lists 0.8.6
+- [x] `git tag` shows `v0.8.6` on the pushed commit
+- [x] `docs/index.html` no longer contains all concerns; at least 4 separate concern-based doc pages exist under `docs/`
+- [x] Landing page links to the new doc pages; each link target resolves
+- [x] README.md line count is significantly reduced and links to the on-site docs
+- [x] Every CLI subcommand (incl. `repair`, `--json`) is documented on-site
+- [x] Site renders without broken internal links
 
 ### Verification Steps
 1. `git tag v0.8.6 && git push origin v0.8.6 && gh release create v0.8.6` → release exists

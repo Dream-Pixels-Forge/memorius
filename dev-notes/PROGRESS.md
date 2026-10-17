@@ -2,9 +2,10 @@
 
 ## Current State
 - Project: memorius
-- Started: $(date +%Y-%m-%d)
-- Current Phase: 3
-- Status: in-progress
+- Version: 0.8.6 (tag v0.8.6 pushed, GitHub release published 2026-10-16, PyPI latest = 0.8.6)
+- Active branch: bug/25-test_graph_visualizer_test_export_graph_html_file (PR #37 OPEN, issue #25 OPEN)
+- Vault health: all doctor checks pass (meta=826, vectors=826 after repair --reindex)
+- Status: bug/25 fixes committed + pushed; awaiting PR review/merge
 
 ## Phase Completion
 - [x] Phase 0: Bootstrap (DISCOVERY.md + AUDIT.md)
