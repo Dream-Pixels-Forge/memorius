@@ -16,7 +16,7 @@ import uuid
 from collections.abc import Generator
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger("memorius.meta")
 
@@ -43,6 +43,11 @@ atexit.register(_close_thread_conn)
 
 class SQLiteStore:
     """Metadata store for vaults, shelves, folders, notes, and diaries."""
+
+    if TYPE_CHECKING:
+        from memorius.graph import GraphResult
+
+        def _cleanup_idle_connections(self) -> None: ...
 
     def __init__(self, path: Path):
         self._db_path = path / "memorius.db"
@@ -459,7 +464,7 @@ class SQLiteStore:
         )
 
     def expand_graph(self, seed_ids: list[str], hops: int = 1,
-                     min_weight: float = 0.3, max_nodes: int = 50) -> dict[str, Any]:
+                     min_weight: float = 0.3, max_nodes: int = 50) -> GraphResult:
         """Expand from seed IDs through the graph."""
         from memorius.graph import expand_graph
         return expand_graph(self._conn(), seed_ids, hops, min_weight, max_nodes)
@@ -1032,7 +1037,9 @@ class SQLiteStore:
 
     def count_meta_rows(self) -> int:
         """Count rows in memory_meta."""
-        return self.fetchone("SELECT COUNT(*) as c FROM memory_meta")["c"]
+        row = self.fetchone("SELECT COUNT(*) as c FROM memory_meta")
+        assert row is not None
+        return row["c"]
 
     def list_memory_meta(self, vault: str | None = None,
                          include_archived: bool = True) -> list[dict[str, Any]]:
@@ -1061,7 +1068,9 @@ class SQLiteStore:
     def count_graph_edges(self) -> int:
         """Count rows in memory_graph."""
         try:
-            return self.fetchone("SELECT COUNT(*) as c FROM memory_graph")["c"]
+            row = self.fetchone("SELECT COUNT(*) as c FROM memory_graph")
+            assert row is not None
+            return row["c"]
         except Exception:  # best-effort: graph table may not exist yet — return 0
             return 0
 

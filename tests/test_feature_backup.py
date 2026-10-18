@@ -28,7 +28,7 @@ def engine():
     shutil.rmtree(tmp, ignore_errors=True)
     if hasattr(eng, "_vector") and hasattr(eng._vector, "_client"):
         try:
-            eng._vector._client = None
+            eng._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
         except Exception:
             pass
 
@@ -99,7 +99,7 @@ class TestExportImportJSON:
         shutil.rmtree(tmp2, ignore_errors=True)
         if hasattr(engine2, "_vector") and hasattr(engine2._vector, "_client"):
             try:
-                engine2._vector._client = None
+                engine2._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
             except Exception:
                 pass
 
@@ -178,7 +178,7 @@ class TestExportImportJSON:
         shutil.rmtree(tmp3, ignore_errors=True)
         if hasattr(engine3, "_vector") and hasattr(engine3._vector, "_client"):
             try:
-                engine3._vector._client = None
+                engine3._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
             except Exception:
                 pass
 

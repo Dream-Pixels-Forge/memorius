@@ -30,7 +30,7 @@ def engine():
     shutil.rmtree(tmp, ignore_errors=True)
     if hasattr(eng, "_vector") and hasattr(eng._vector, "_client"):
         try:
-            eng._vector._client = None
+            eng._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
         except Exception:
             pass
 
@@ -46,6 +46,8 @@ def test_sqlite_store_no_connection_crosstalk_between_paths():
 
     d1 = Path(tempfile.mkdtemp())
     d2 = Path(tempfile.mkdtemp())
+    s1: SQLiteStore | None = None
+    s2: SQLiteStore | None = None
     try:
         s1 = SQLiteStore(d1)
         s2 = SQLiteStore(d2)
@@ -67,8 +69,10 @@ def test_sqlite_store_no_connection_crosstalk_between_paths():
         assert "vault_from_s1" in [v["name"] for v in s1.list_vaults()]
         assert "vault_from_s2" in [v["name"] for v in s2.list_vaults()]
     finally:
-        s1.close()
-        s2.close()
+        if s1 is not None:
+            s1.close()
+        if s2 is not None:
+            s2.close()
         shutil.rmtree(d1, ignore_errors=True)
         shutil.rmtree(d2, ignore_errors=True)
 

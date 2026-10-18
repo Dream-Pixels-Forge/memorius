@@ -35,7 +35,7 @@ class _StubVaultEngine:
 
 def _make_engine(tmp_path: Path, vault: _StubVaultEngine) -> HookEngine:
     engine = HookEngine()
-    engine._vault = vault
+    engine._vault = vault  # pyright: ignore[reportAttributeAccessIssue]
     engine.state_manager = type(engine.state_manager)(tmp_path / "state")
     return engine
 

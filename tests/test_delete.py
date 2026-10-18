@@ -23,7 +23,7 @@ def engine():
     shutil.rmtree(tmp, ignore_errors=True)
     if hasattr(eng, "_vector") and hasattr(eng._vector, "_client"):
         try:
-            eng._vector._client = None
+            eng._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
         except Exception:
             pass
 
@@ -50,7 +50,7 @@ def test_validate_memory_id_rejects_bad_input():
     from memorius.validation import validate_memory_id
     for bad in ("", "   ", None, "not-a-uuid", "../etc/passwd", "12345"):
         with pytest.raises(ValueError):
-            validate_memory_id(bad)
+            validate_memory_id(bad)  # pyright: ignore[reportArgumentType]
 
 
 # ── Engine.delete ─────────────────────────────────────────────────────────────

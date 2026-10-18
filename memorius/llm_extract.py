@@ -152,7 +152,7 @@ def _extract_with_openai(conversation: str, model: str = "gpt-4o-mini") -> list[
         )
 
         content = resp.choices[0].message.content
-        data = json.loads(content)
+        data = json.loads(content or "")
         memories = data if isinstance(data, list) else data.get("memories", [])
 
         validated = []

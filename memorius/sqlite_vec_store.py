@@ -24,7 +24,7 @@ logger = logging.getLogger("memorius.vector.sqlite_vec")
 _local_last_use = threading.local()
 
 
-def _vec_to_blob(vec: list[float] | Any) -> bytes:
+def _vec_to_blob(vec: Any) -> bytes:
     """Pack a float vector into a bytes blob for sqlite-vec."""
     if hasattr(vec, "tolist"):
         vec = vec.tolist()

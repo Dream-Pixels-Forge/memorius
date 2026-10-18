@@ -48,6 +48,7 @@ def _wait_for_lock(storage_dir: Path, proc: subprocess.Popen, timeout: float = 6
         if lock_file.exists() and lock_file.read_text().strip() == str(proc.pid):
             return
         if proc.poll() is not None:
+            assert proc.stderr is not None
             stderr = proc.stderr.read().decode(errors="replace")
             raise AssertionError(f"serve exited before acquiring lock (rc={proc.returncode}): {stderr[-2000:]}")
         time.sleep(0.2)
@@ -75,6 +76,7 @@ def test_second_serve_refuses_while_first_runs(tmp_path):
         second = _launch_serve(tmp_path)
         rc = second.wait(timeout=30)
         elapsed = time.time() - started
+        assert second.stderr is not None
         stderr = second.stderr.read().decode(errors="replace")
 
         assert rc == 1, f"second serve must exit non-zero, got rc={rc}: {stderr[-2000:]}"

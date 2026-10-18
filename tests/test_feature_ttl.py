@@ -29,7 +29,7 @@ def engine():
     shutil.rmtree(tmp, ignore_errors=True)
     if hasattr(eng, "_vector") and hasattr(eng._vector, "_client"):
         try:
-            eng._vector._client = None
+            eng._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
         except Exception:
             pass
 

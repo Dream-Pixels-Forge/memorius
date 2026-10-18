@@ -225,6 +225,7 @@ class TestBookcaseServe:
             deadline = time.time() + 90
             while time.time() < deadline:
                 if proc.poll() is not None:
+                    assert proc.stdout is not None
                     output = proc.stdout.read().decode()
                     pytest.fail(f"bookcase process exited early: {output}")
                 if not page_text:

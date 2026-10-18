@@ -4,6 +4,7 @@ import datetime
 import tempfile
 import shutil
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -125,7 +126,9 @@ def test_search_updates_heat_score(store):
         created_at="2025-01-01T00:00:00+00:00",
         updated_at="2025-01-01T00:00:00+00:00",
     )
-    vector = FakeVectorStore([mem])
+    from memorius.vector_store import VectorStore
+
+    vector = cast(VectorStore, FakeVectorStore([mem]))
     search = SearchModule(vector, store)
     results = search.search("test query", vault="test")
     assert len(results) == 1
@@ -170,7 +173,9 @@ def test_tier_boosted_search(store):
     store._conn().execute("UPDATE memory_meta SET heat_score=0.05 WHERE id=?", (mid2,))
     store._conn().commit()
 
-    vector = FakeVectorStore()
+    from memorius.vector_store import VectorStore
+
+    vector = cast(VectorStore, FakeVectorStore())
     sm = SearchModule(vector, store)
     results = sm.search("cats")
     ids = [r.id for r in results]
