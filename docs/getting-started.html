@@ -45,6 +45,7 @@
       <a href="#store">Store a memory</a>
       <a href="#search">Semantic search</a>
       <a href="#hierarchy">The hierarchy</a>
+      <a href="#bookcase-3d">See your vault in 3D</a>
       <a href="#skill">Install the agent skill</a>
       <a href="#first-week">Your first week</a>
     </aside>
@@ -103,6 +104,18 @@
         <p>Browse the live structure at any time:</p>
 <pre><code>memorius ls</code></pre>
         <p>Diaries, mined transcripts, and extracted memories each land in their own shelves, so your vault stays organized without manual filing.</p>
+      </section>
+
+      <section class="docs-section" id="bookcase-3d">
+        <h2>See your vault in 3D</h2>
+        <p class="sub">Browse memories the way you'd browse a library: one bookcase, one book per memory, and a librarian who tells you where things live.</p>
+<pre><code>memorius bookcase</code></pre>
+        <p>One command opens the bookcase in your browser on a loopback-only page — no public endpoint, no new server. If the <a href="rest-api.html">REST API</a> isn't running yet, it starts one for you (and stops it again when you quit the page's process).</p>
+        <p>Every memory becomes a book on the case: the spine shows its <code>shelf/folder/note</code> path, the thickness tracks how long the memory is, and the colour tracks recency. The <strong>librarian</strong> greets you, narrates search results with shelf locations, and can even be asked directly — hold the microphone and speak. Toggle the librarian off and every utterance keeps landing as text. Two layouts: <em>by shelf</em> (path order) and <em>by recency</em> (newest on the left). Search the text box and the camera flies to the top match.</p>
+        <div class="callout">
+          <div class="co-title">Flags</div>
+          <code>--port</code> picks the REST port (default 8912), <code>--static-port</code> the page server's port (default 8400), and <code>--no-browser</code> prints the URL instead of opening one. Voice input needs a Chromium-based browser; everything else degrades to text-only.
+        </div>
       </section>
 
       <section class="docs-section" id="skill">
