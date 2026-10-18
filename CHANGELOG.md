@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.9.0 (2026-10-18)
 
 ### New Features
 - **`memorius bookcase`** — open your vault as a 3D bookcase in the browser:
