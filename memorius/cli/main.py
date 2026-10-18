@@ -335,6 +335,31 @@ def main():
 
     # Load config and create engine
     config = load_config(args.config)
+
+    # Single-instance guard (issue #43): a second `memorius serve` against
+    # the same storage dir must fail fast instead of joining a
+    # cross-process WAL lock-contention pool. Runs BEFORE VaultEngine so
+    # a losing process opens no vault files.
+    if args.command == "serve":
+        from memorius.single_instance import (
+            ServeAlreadyRunningError,
+            acquire_serve_lock,
+        )
+
+        try:
+            _serve_lock = acquire_serve_lock(config)
+        except ServeAlreadyRunningError as exc:
+            print(
+                f"memorius: {exc}",
+                file=sys.stderr,
+            )
+            print(
+                f"   Stop that instance (kill {exc.pid} or stop its MCP host) and retry,\n"
+                f"   or point this instance at a different storage path via MEMORIUS_STORAGE_PATH.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+
     engine = VaultEngine(config)
 
     # Dispatch
