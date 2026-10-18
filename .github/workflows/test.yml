@@ -39,4 +39,4 @@ jobs:
 
       - name: Run integration tests (CLI + MCP)
         run: |
-          python -m pytest tests/test_integration.py -q --tb=short
+          python -m pytest tests/test_integration.py tests/test_single_instance.py tests/test_serve_single_instance.py -q --tb=short
