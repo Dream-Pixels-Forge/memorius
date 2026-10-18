@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.9.1 (2026-10-19)
+
+### Fixed
+- **`memorius serve` single-instance guard** (#43) — exclusive `flock` on
+  `<storage.path>/serve.lock` stamped with the incumbent PID. A second
+  `memorius serve` now fails fast (exit 1, under 5s) naming the incumbent
+  instead of deadlocking on SQLite WAL contention. Dead holders are stolen
+  automatically via kernel flock release; platforms without `fcntl`
+  gracefully no-op.
+
+### Changed
+- Dropped the `sentence-transformers` FutureWarning by migrating to the
+  current task-label API (#45); planning docs consolidated under
+  `dev-notes/` (#42, #45, #47).
+- Repo-wide pyright cleanup: 152 → 0 errors across `memorius/` and
+  `tests/` — zero behavior change (annotations, narrowing intermediates,
+  casts, rule-specific ignores) (#46).
+
 ## v0.9.0 (2026-10-18)
 
 ### New Features
