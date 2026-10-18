@@ -11,7 +11,7 @@ import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from memorius.embeddings import EmbeddingProvider
 from memorius.vector_store_base import VectorStore
@@ -49,13 +49,14 @@ def _retry(fn, max_retries: int = 3, base_delay: float = 0.1, exceptions: tuple 
                 delay = base_delay * (2 ** attempt)
                 logger.debug("Retry %d/%d after %.1fs: %s", attempt + 1, max_retries, delay, e)
                 time.sleep(delay)
+    assert last_exc is not None
     raise last_exc
 
 
 class ChromaStore(VectorStore):
     """Vector store backed by ChromaDB."""
 
-    def __init__(self, path: Path, embedding_provider: EmbeddingProvider, config: dict = None):
+    def __init__(self, path: Path, embedding_provider: EmbeddingProvider, config: dict | None = None):
         self._path = path
         self._embed = embedding_provider
         self._config = config or {}
@@ -97,7 +98,7 @@ class ChromaStore(VectorStore):
                 return None
             # Base metadata — identical to the pre-optimization format so
             # collections stay compatible across ChromaDB versions.
-            metadata = {
+            metadata: dict[str, Any] = {
                 "hnsw:space": "cosine",
                 "memorius_vault": vault,
                 "memorius_shelf": shelf,
@@ -123,7 +124,7 @@ class ChromaStore(VectorStore):
 
     def add(self, memory):
         """Add or update a memory in vector storage."""
-        collection = self._collection(memory.vault, memory.shelf)
+        collection: Any = self._collection(memory.vault, memory.shelf)
         now = datetime.now(timezone.utc).isoformat()
         if not memory.created_at:
             memory.created_at = now
@@ -157,6 +158,7 @@ class ChromaStore(VectorStore):
     def delete(self, memory_id: str, vault: str, shelf: str):
         """Delete a memory by ID."""
         collection = self._collection(vault, shelf)
+        assert collection is not None
         collection.delete(ids=[memory_id])
 
     def search(
@@ -180,9 +182,10 @@ class ChromaStore(VectorStore):
             col = self._collections.get(col_name)
             if col is None:
                 continue
+            col_q = col
             try:
                 where = filter_metadata or None
-                res = _retry(lambda: col.query(
+                res = _retry(lambda: col_q.query(
                     query_embeddings=[query_vector],
                     n_results=n_results,
                     where=where,
@@ -305,7 +308,7 @@ class ChromaStore(VectorStore):
         if include_vectors:
             include.append("embeddings")
         try:
-            res = _retry(lambda: col.get(ids=ids, include=include))
+            res = _retry(lambda: col.get(ids=ids, include=cast(Any, include)))
         except Exception:  # best-effort: ChromaDB get failure — return empty list
             logger.debug("ChromaDB get_by_ids failed for (%s,%s)", vault, shelf)
             return []
@@ -319,20 +322,20 @@ class ChromaStore(VectorStore):
         for i, doc_id in enumerate(ids_out):
             meta = metas[i] if i < len(metas) else {}
             doc = docs[i] if i < len(docs) else ""
-            vec = embs[i] if (include_vectors and i < len(embs)) else None
+            vec = cast(list[float] | None, embs[i] if (include_vectors and i < len(embs)) else None)
             out.append(Memory(
                 id=doc_id,
-                vault=meta.get("vault", vault),
-                shelf=meta.get("shelf", shelf),
-                folder=meta.get("folder", ""),
-                note=meta.get("note", ""),
+                vault=cast(str, meta.get("vault", vault)),
+                shelf=cast(str, meta.get("shelf", shelf)),
+                folder=cast(str, meta.get("folder", "")),
+                note=cast(str, meta.get("note", "")),
                 content=doc,
                 metadata={k: v for k, v in meta.items() if k not in (
                     "vault", "shelf", "folder", "note", "content",
                     "created_at", "updated_at",
                 )},
-                created_at=meta.get("created_at", ""),
-                updated_at=meta.get("updated_at", ""),
+                created_at=cast(str, meta.get("created_at", "")),
+                updated_at=cast(str, meta.get("updated_at", "")),
                 vector=vec,
             ))
         return out

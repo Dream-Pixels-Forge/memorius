@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import sys
+from typing import cast
 
 from memorius import __version__ as _memorius_version
 from memorius.validation import (
@@ -422,11 +424,11 @@ class McpServer:
 
         logger.info("MCP server starting (stdio)")
         try:
-            sys.stdout.reconfigure(encoding="utf-8")
+            cast(io.TextIOWrapper, sys.stdout).reconfigure(encoding="utf-8")
         except Exception:
             pass
         try:
-            sys.stdin.reconfigure(encoding="utf-8")
+            cast(io.TextIOWrapper, sys.stdin).reconfigure(encoding="utf-8")
         except Exception:
             pass
 
@@ -460,17 +462,6 @@ class McpServer:
                 memorius_logger.exception(f"MCP unexpected error (%d/%d)", consecutive_errors, max_consecutive_errors)
                 if consecutive_errors >= max_consecutive_errors:
                     memorius_logger.error("Too many consecutive errors, shutting down")
-                    break
-            except Exception as e:
-                consecutive_errors += 1
-                logger.exception("MCP handler error (%d/%d)", consecutive_errors, max_consecutive_errors)
-                # Sanitize error message to avoid leaking internals
-                err_msg = str(e)
-                if len(err_msg) > 200:
-                    err_msg = err_msg[:200] + "..."
-                self._send_error(-32603, err_msg)
-                if consecutive_errors >= max_consecutive_errors:
-                    logger.error("Too many consecutive errors, shutting down")
                     break
 
     def _handle_request(self, msg: dict) -> dict | None:
@@ -547,10 +538,14 @@ class McpServer:
             return {"error": f"Query too long (max {MAX_FIELD_LENGTH} chars)"}
 
         n_results = min(args.get("n_results", 10), MAX_SEARCH_LIMIT)
-        vault = _validate_name(args.get("vault"), "vault") if args.get("vault") else None
-        shelf = _validate_name(args.get("shelf"), "shelf") if args.get("shelf") else None
-        folder = _validate_name(args.get("folder"), "folder") if args.get("folder") else None
-        note = _validate_name(args.get("note"), "note") if args.get("note") else None
+        raw_vault = args.get("vault")
+        raw_shelf = args.get("shelf")
+        raw_folder = args.get("folder")
+        raw_note = args.get("note")
+        vault = _validate_name(raw_vault, "vault") if raw_vault else None
+        shelf = _validate_name(raw_shelf, "shelf") if raw_shelf else None
+        folder = _validate_name(raw_folder, "folder") if raw_folder else None
+        note = _validate_name(raw_note, "note") if raw_note else None
         expand_graph = bool(args.get("expand_graph", False))
         rerank = bool(args.get("rerank", False))
         tags_in = args.get("tags")
@@ -691,8 +686,10 @@ class McpServer:
         return self._engine.get_graph_stats()
 
     def tool_memorius_graph_export(self, args: dict) -> dict:
-        vault = _validate_name(args.get("vault"), "vault") if args.get("vault") else None
-        shelf = _validate_name(args.get("shelf"), "shelf") if args.get("shelf") else None
+        raw_vault = args.get("vault")
+        raw_shelf = args.get("shelf")
+        vault = _validate_name(raw_vault, "vault") if raw_vault else None
+        shelf = _validate_name(raw_shelf, "shelf") if raw_shelf else None
         relation = args.get("relation") if isinstance(args.get("relation"), str) else None
         min_weight = float(args.get("min_weight", 0.0))
         limit = min(int(args.get("limit", 500)), 2000)
@@ -799,7 +796,8 @@ class McpServer:
         return run_checks(engine=self._engine)
 
     def tool_memorius_repair(self, args: dict) -> dict:
-        vault = _validate_name(args.get("vault"), "vault") if args.get("vault") else None
+        raw_vault = args.get("vault")
+        vault = _validate_name(raw_vault, "vault") if raw_vault else None
         result = self._engine.repair(
             vault=vault,
             reindex=bool(args.get("reindex", False)),
@@ -808,7 +806,8 @@ class McpServer:
         return result
 
     def tool_memorius_list(self, args: dict) -> dict:
-        vault = _validate_name(args.get("vault"), "vault") if args.get("vault") else None
+        raw_vault = args.get("vault")
+        vault = _validate_name(raw_vault, "vault") if raw_vault else None
         limit = min(args.get("limit", 10), MAX_SEARCH_LIMIT)
         cursor = args.get("cursor") if isinstance(args.get("cursor"), str) else None
         result = self._engine.list_memories(
@@ -875,7 +874,8 @@ class McpServer:
             except ValueError as e:
                 return {"error": str(e)}
 
-        vault = _validate_name(args.get("vault"), "vault") if args.get("vault") else None
+        raw_vault = args.get("vault")
+        vault = _validate_name(raw_vault, "vault") if raw_vault else None
         tags_in = args.get("tags")
         tags = [str(t) for t in tags_in] if isinstance(tags_in, list) and tags_in else None
         limit = min(args.get("limit", 10), MAX_SEARCH_LIMIT)
@@ -903,7 +903,8 @@ class McpServer:
             except ValueError as e:
                 return {"error": str(e)}
 
-        vault = _validate_name(args.get("vault"), "vault") if args.get("vault") else None
+        raw_vault = args.get("vault")
+        vault = _validate_name(raw_vault, "vault") if raw_vault else None
         limit = min(args.get("limit", 50), MAX_SEARCH_LIMIT)
 
         result = self._engine.list_learnings(
@@ -935,7 +936,8 @@ class McpServer:
         }
 
     def tool_memorius_learning_stats(self, args: dict) -> dict:
-        vault = _validate_name(args.get("vault"), "vault") if args.get("vault") else None
+        raw_vault = args.get("vault")
+        vault = _validate_name(raw_vault, "vault") if raw_vault else None
         return self._engine.get_learning_stats(vault=vault)
 
     def tool_memorius_stats(self, args: dict) -> dict:

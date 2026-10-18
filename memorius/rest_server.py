@@ -34,46 +34,46 @@ logger = logging.getLogger("memorius.rest")
 # Prometheus metrics objects
 if PROMETHEUS_AVAILABLE:
     # Recall latency histogram
-    MEMORIUS_RECALL_LATENCY_SECONDS = Histogram(
+    MEMORIUS_RECALL_LATENCY_SECONDS = Histogram(  # pyright: ignore[reportPossiblyUnboundVariable]
         'memorius_recall_latency_seconds',
         'Time spent recalling memories',
         buckets=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]
     )
     
     # Consolidation queue size gauge
-    MEMORIUS_CONSOLIDATION_QUEUE_SIZE = Gauge(
+    MEMORIUS_CONSOLIDATION_QUEUE_SIZE = Gauge(  # pyright: ignore[reportPossiblyUnboundVariable]
         'memorius_consolidation_queue_size',
         'Number of memories pending consolidation'
     )
     
     # Memory utilization score gauge
-    MEMORIUS_MEMORY_UTILIZATION_SCORE = Gauge(
+    MEMORIUS_MEMORY_UTILIZATION_SCORE = Gauge(  # pyright: ignore[reportPossiblyUnboundVariable]
         'memorius_memory_utilization_score',
         'Memory utilization score (0.0 to 1.0)'
     )
     
     # Total memories counter
-    MEMORIUS_TOTAL_MEMORIES = Gauge(
+    MEMORIUS_TOTAL_MEMORIES = Gauge(  # pyright: ignore[reportPossiblyUnboundVariable]
         'memorius_total_memories',
         'Total number of memories in the vault'
     )
     
     # Store operation counter
-    MEMORIUS_STORE_OPERATIONS_TOTAL = Counter(
+    MEMORIUS_STORE_OPERATIONS_TOTAL = Counter(  # pyright: ignore[reportPossiblyUnboundVariable]
         'memorius_store_operations_total',
         'Total number of store operations',
         ['result']  # success or failure
     )
     
     # Search operation counter
-    MEMORIUS_SEARCH_OPERATIONS_TOTAL = Counter(
+    MEMORIUS_SEARCH_OPERATIONS_TOTAL = Counter(  # pyright: ignore[reportPossiblyUnboundVariable]
         'memorius_search_operations_total',
         'Total number of search operations',
         ['result']  # success or failure
     )
     
     # Mine operation counter
-    MEMORIUS_MINE_OPERATIONS_TOTAL = Counter(
+    MEMORIUS_MINE_OPERATIONS_TOTAL = Counter(  # pyright: ignore[reportPossiblyUnboundVariable]
         'memorius_mine_operations_total',
         'Total number of mine operations',
         ['result']  # success or failure
@@ -271,7 +271,7 @@ class MemoriusAPI:
                 }
             except Exception as e:
                 logger.error(f"Readiness check failed: {e}")
-                return JSONResponse(
+                return JSONResponse(  # pyright: ignore[reportPossiblyUnboundVariable]
                     status_code=503,
                     content={"status": "not ready", "service": "memorius", "error": str(e)}
                 )
@@ -321,10 +321,14 @@ class MemoriusAPI:
             if len(query) > MAX_FIELD_LENGTH:
                 raise HTTPException(status_code=400, detail="Query too long")
             limit = min(payload.get("limit", 10), MAX_SEARCH_LIMIT)
-            vault = _validate_name(payload.get("vault"), "vault") if payload.get("vault") else None
-            shelf = _validate_name(payload.get("shelf"), "shelf") if payload.get("shelf") else None
-            folder = _validate_name(payload.get("folder"), "folder") if payload.get("folder") else None
-            note = _validate_name(payload.get("note"), "note") if payload.get("note") else None
+            raw_vault = payload.get("vault")
+            vault = _validate_name(raw_vault, "vault") if raw_vault else None
+            raw_shelf = payload.get("shelf")
+            shelf = _validate_name(raw_shelf, "shelf") if raw_shelf else None
+            raw_folder = payload.get("folder")
+            folder = _validate_name(raw_folder, "folder") if raw_folder else None
+            raw_note = payload.get("note")
+            note = _validate_name(raw_note, "note") if raw_note else None
             expand_graph = bool(payload.get("expand_graph", False))
             rerank = bool(payload.get("rerank", False))
             tags_in = payload.get("tags")
@@ -440,7 +444,8 @@ class MemoriusAPI:
         async def consolidate(payload: dict[str, Any]):
             if not payload.get("confirm", False):
                 raise HTTPException(status_code=400, detail="Destructive operation requires confirm=true")
-            vault = _validate_name(payload.get("vault"), "vault") if payload.get("vault") else None
+            raw_vault = payload.get("vault")
+            vault = _validate_name(raw_vault, "vault") if raw_vault else None
             threshold = min(max(payload.get("threshold", 0.80), 0.0), 1.0)
             dry_run = payload.get("dry_run", False)
             result = engine.consolidate(vault=vault, similarity_threshold=threshold, dry_run=dry_run)
@@ -474,7 +479,8 @@ class MemoriusAPI:
             statement = payload.get("statement", "")
             if not statement or not isinstance(statement, str):
                 raise HTTPException(status_code=400, detail="Statement is required")
-            vault = _validate_name(payload.get("vault"), "vault") if payload.get("vault") else None
+            raw_vault = payload.get("vault")
+            vault = _validate_name(raw_vault, "vault") if raw_vault else None
             result = engine.check_fact(statement, vault=vault)
             return {
                 "verdict": result.verdict, "statement": result.statement,
@@ -488,7 +494,8 @@ class MemoriusAPI:
             query = payload.get("query", "")
             if not query or not isinstance(query, str):
                 raise HTTPException(status_code=400, detail="Query is required")
-            vault = _validate_name(payload.get("vault"), "vault") if payload.get("vault") else None
+            raw_vault = payload.get("vault")
+            vault = _validate_name(raw_vault, "vault") if raw_vault else None
             max_items = min(payload.get("max_items", 5), MAX_SEARCH_LIMIT)
             context_text = engine.get_context(query=query, vault=vault, max_items=max_items)
             return {"context": context_text, "query": query}
@@ -701,7 +708,7 @@ class MemoriusAPI:
             return run_checks(engine=engine)
 
         @app.get("/memories")
-        async def list_memories(vault: str = None, limit: int = 10, cursor: str = None):
+        async def list_memories(vault: str | None = None, limit: int = 10, cursor: str | None = None):
             result = engine.list_memories(
                 vault=vault, limit=min(limit, 100), with_vectors=False, cursor=cursor,
             )
@@ -718,7 +725,7 @@ class MemoriusAPI:
         async def metrics():
             """Prometheus metrics endpoint."""
             if not PROMETHEUS_AVAILABLE:
-                return PlainTextResponse(
+                return PlainTextResponse(  # pyright: ignore[reportPossiblyUnboundVariable]
                     "Prometheus client not available. Install: pip install prometheus-client",
                     status_code=503
                 )
@@ -756,9 +763,9 @@ class MemoriusAPI:
                 # If we can't update metrics, still serve what we have
                 pass
             
-            return Response(
-                content=generate_latest(),
-                media_type=CONTENT_TYPE_LATEST
+            return Response(  # pyright: ignore[reportPossiblyUnboundVariable]
+                content=generate_latest(),  # pyright: ignore[reportPossiblyUnboundVariable]
+                media_type=CONTENT_TYPE_LATEST  # pyright: ignore[reportPossiblyUnboundVariable]
             )
 
 

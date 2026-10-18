@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 
 class EmbeddingProvider(ABC):
@@ -39,20 +39,22 @@ class SentenceTransformerProvider(EmbeddingProvider):
 
     def _lazy_load(self):
         if self._model is not None:
-            return
+            return self._model
         try:
             from sentence_transformers import SentenceTransformer
-            self._model = SentenceTransformer(self._model_name)
-            self._dim = self._model.get_embedding_dimension()
+            model = SentenceTransformer(self._model_name)
+            self._model = model
+            self._dim = model.get_embedding_dimension() or 384
         except ImportError:
             raise ImportError(
                 "sentence-transformers not installed. "
                 "Install: pip install memorius"
             )
+        return model
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        self._lazy_load()
-        embeddings = self._model.encode(texts, normalize_embeddings=True)
+        model = self._lazy_load()
+        embeddings = model.encode(texts, normalize_embeddings=True)
         return [emb.tolist() for emb in embeddings]
 
     @property
@@ -77,7 +79,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
 
     def _lazy_load(self):
         if self._client is not None:
-            return
+            return self._client
         try:
             from openai import OpenAI
             self._client = OpenAI(api_key=self._api_key)
@@ -86,10 +88,11 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
                 "openai package not installed. "
                 "Install: pip install memorius"
             )
+        return self._client
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        self._lazy_load()
-        resp = self._client.embeddings.create(input=texts, model=self._model)
+        client = self._lazy_load()
+        resp = client.embeddings.create(input=texts, model=self._model)
         # Sort by index to preserve order
         sorted_data = sorted(resp.data, key=lambda d: d.index)
         return [d.embedding for d in sorted_data]
@@ -154,7 +157,7 @@ class ChromaDefaultProvider(EmbeddingProvider):
         # convert to plain Python lists for downstream compatibility.
         if hasattr(result, "tolist"):
             return [v.tolist() for v in result]
-        return result
+        return cast(list[list[float]], result)
 
     @property
     def dimension(self) -> int:

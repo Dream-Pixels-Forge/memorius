@@ -68,10 +68,11 @@ class ServeLock:
     def release(self) -> None:
         if self._fd is None:
             return
-        try:
-            fcntl.flock(self._fd, fcntl.LOCK_UN)
-        except (OSError, AttributeError):
-            pass
+        if fcntl is not None:
+            try:
+                fcntl.flock(self._fd, fcntl.LOCK_UN)
+            except (OSError, AttributeError):
+                pass
         try:
             os.close(self._fd)
         except OSError:

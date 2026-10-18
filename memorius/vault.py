@@ -55,6 +55,9 @@ class VaultEngine:
         # vaults — and any tool that opens <storage>/memorius.db or the
         # "vectors" directory directly — keep working; only the episodic
         # store gets new subdirectories.
+        self._vector: VectorStore
+        self._vector_episodic: VectorStore
+        self._vector_semantic: VectorStore
         if storage_type == "sqlite-vec":
             from memorius.sqlite_vec_store import SqliteVecStore
             self._vector_episodic = SqliteVecStore(storage_path / "vectors_episodic", self._embed)
@@ -116,9 +119,9 @@ class VaultEngine:
             self._meta_episodic.close_connection(self._meta_episodic._db_path)
         except Exception:  # best-effort: prevent cleanup errors from propagating
             pass
-        self._vector = None
-        self._vector_episodic = None
-        self._vector_semantic = None
+        self._vector = None  # pyright: ignore[reportAttributeAccessIssue]
+        self._vector_episodic = None  # pyright: ignore[reportAttributeAccessIssue]
+        self._vector_semantic = None  # pyright: ignore[reportAttributeAccessIssue]
 
     def __del__(self):
         self.close()
@@ -714,7 +717,7 @@ class VaultEngine:
         meta_by_id = {row["id"]: row for row in meta_rows}
 
         # Enumerate all vector IDs across Chroma collections.
-        client = self._vector._lazy_client()
+        client = self._vector._lazy_client()  # pyright: ignore[reportAttributeAccessIssue]
         all_vector_ids: list[str] = []
         for col in client.list_collections():
             try:
@@ -733,7 +736,7 @@ class VaultEngine:
         if orphan_ids and not dry_run:
             # Delete orphans per-collection so each delete targets the right
             # ChromaDB collection (delete is scoped to the collection's rows).
-            for col in self._vector._lazy_client().list_collections():
+            for col in self._vector._lazy_client().list_collections():  # pyright: ignore[reportAttributeAccessIssue]
                 try:
                     col_ids = col.get(include=[])["ids"] or []
                 except Exception:  # best-effort: unreadable collection — skip
@@ -772,7 +775,7 @@ class VaultEngine:
         # Re-count after mutations to report the resulting state.
         meta_count = len(meta_by_id)
         if not dry_run:
-            client = self._vector._lazy_client()
+            client = self._vector._lazy_client()  # pyright: ignore[reportAttributeAccessIssue]
             vector_count = 0
             for col in client.list_collections():
                 try:

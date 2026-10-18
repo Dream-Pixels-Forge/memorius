@@ -179,7 +179,7 @@ def _parse_ddg_lite(html_text: str, max_results: int) -> list[WebResult]:
 
         def handle_starttag(self, tag, attrs):
             d = dict(attrs)
-            cls = d.get("class", "")
+            cls = d.get("class") or ""
             if tag == "a" and "result-link" in cls:
                 self._in_link = True
                 self._cur_text = []

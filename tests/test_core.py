@@ -22,7 +22,7 @@ def engine():
     # ChromeDB's Rust backend holds file handles; force cleanup
     if hasattr(eng, "_vector") and hasattr(eng._vector, "_client"):
         try:
-            eng._vector._client = None
+            eng._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
         except Exception:
             pass
 

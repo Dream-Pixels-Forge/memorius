@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -66,6 +67,7 @@ def test_default_config_substitutes_save_interval():
     for action in cfg.actions.get("session_stop", []):
         if action.type == "conditional_diary":
             interval = action.config.get("interval_exchanges")
+            assert interval is not None
             # Must be coercible to int without raising.
             assert int(interval) == cfg.save_interval
 
@@ -78,7 +80,7 @@ def test_template_substitution_recursive():
         "b": ["list {save_interval}", {"nested": "{save_interval}!"}],
         "c": 42,  # non-strings untouched
     }
-    out = _substitute_templates(data, {"save_interval": "15"})
+    out = cast(dict, _substitute_templates(data, {"save_interval": "15"}))
     assert out["a"] == "x is 15"
     assert out["b"][0] == "list 15"
     assert out["b"][1]["nested"] == "15!"
@@ -101,7 +103,7 @@ def test_save_checkpoint_uses_real_exchange_count():
         eng.config = cfg
         eng.state_manager = sm
         eng._last_event_time = {}
-        eng._engine = None
+        eng._engine = None  # pyright: ignore[reportAttributeAccessIssue]
 
         ev = HookEvent(
             event_type=HookEventType.SESSION_STOP,
@@ -133,7 +135,7 @@ def test_save_checkpoint_counts_events_when_agent_omits_exchange_count():
         eng.config = cfg
         eng.state_manager = sm
         eng._last_event_time = {}
-        eng._engine = None
+        eng._engine = None  # pyright: ignore[reportAttributeAccessIssue]
 
         for i in range(3):
             ev = HookEvent(

@@ -57,7 +57,7 @@ logger = logging.getLogger("memorius.hooks.engine")
 DEFAULT_SAVE_INTERVAL = 15
 
 
-def _substitute_templates(obj, subs: dict[str, str], _depth: int = 0):
+def _substitute_templates(obj, subs: dict[str, str], _depth: int = 0) -> Any:
     """Recursively replace {key} placeholders with string values in a nested structure.
 
     Walks dicts, lists, and scalars. Non-string scalars are passed through
@@ -551,9 +551,9 @@ class HookEngine:
 
         # Check idempotency if configured
         idempotency_key = action.config.get("idempotency_key")
+        idempotency_value: str | None = None
         if idempotency_key:
             # Try to get the idempotency value from the event payload or context
-            idempotency_value = None
             if isinstance(idempotency_key, str) and idempotency_key.startswith("{") and idempotency_key.endswith("}"):
                 # It's a template placeholder
                 key_name = idempotency_key[1:-1]

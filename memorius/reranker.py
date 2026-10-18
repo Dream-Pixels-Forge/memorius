@@ -22,7 +22,7 @@ class CrossEncoderReranker:
 
     def _lazy_load(self):
         if self._model is not None:
-            return
+            return self._model
         try:
             from sentence_transformers import CrossEncoder
         except ImportError:
@@ -31,6 +31,7 @@ class CrossEncoderReranker:
                 "Install: pip install memorius"
             )
         self._model = CrossEncoder(self._model_name)
+        return self._model
 
     def rerank(
         self,
@@ -47,10 +48,10 @@ class CrossEncoderReranker:
         if not documents:
             return []
 
-        self._lazy_load()
+        model = self._lazy_load()
 
         pairs = [(query, doc) for doc in documents]
-        scores = self._model.predict(pairs)
+        scores = model.predict(pairs)
 
         ranked = sorted(
             enumerate(scores), key=lambda x: float(x[1]), reverse=True
