@@ -1,0 +1,104 @@
+<!doctype html>
+<!--
+  Memorius Vault Bookcase — DOM contract (documented here; scene + librarian
+  modules listen/emit on these window events, main module wires the rest):
+
+  Elements:
+    #bc-scene    WebGL canvas (viewport, fixed full-screen behind the UI)
+    #bc-status   status pill (loading / N books / errors)
+    #bc-vault    vault selector (options from GET /vaults)
+    #bc-layout   layout selector ("shelf" default | "recency" newest left)
+    #bc-voice    TTS voice picker (populated from speechSynthesis.getVoices)
+    #bc-search   search input (Enter submits; hold #bc-mic to talk)
+    #bc-mic      hold-to-talk button (Chromium only; disabled elsewhere)
+    #bc-librarian librarian toggle (on = speak, off = text-only guidance)
+    #bc-detail   side panel (book detail / search results)
+    #bc-guidance text log — every librarian utterance is rendered here
+    #bc-tooltip  hover tooltip for books
+
+  Window events:
+    main → scene:
+      "bc:books"      {books: [{id,shelf,folder,note,path,contentLen,createdAt,tags}], layout, vaultLabel}
+      "bc:layout"     {layout}  (re-arranges the current books)
+      "bc:search"     {topId, ids: [id], query}  (camera fly-to + pulsing marks)
+      "bc:reset-view" {}
+    scene → main:
+      "bc:book-hover" {id: string|null, x, y, label}
+      "bc:book-click" {id}
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Memorius — Vault Bookcase</title>
+<meta name="theme-color" content="#0d0b09" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23F97316'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='ui-monospace,monospace' font-size='34' font-weight='700' fill='white'%3EM%3C/text%3C/svg%3E" />
+<link rel="stylesheet" href="./bookcase.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="bc-scene"></canvas>
+<div id="bc-tooltip" hidden></div>
+
+<header class="bc-topbar">
+  <div id="bc-status" class="bc-pill" role="status">loading…</div>
+  <div class="bc-controls">
+    <label class="bc-select-wrap"><span>vault</span>
+      <select id="bc-vault"><option value="">…</option></select>
+    </label>
+    <label class="bc-select-wrap"><span>layout</span>
+      <select id="bc-layout">
+        <option value="shelf">by shelf</option>
+        <option value="recency">by recency</option>
+      </select>
+    </label>
+    <label class="bc-select-wrap"><span>voice</span>
+      <select id="bc-voice"><option value="">default</option></select>
+    </label>
+  </div>
+  <form id="bc-search-form" class="bc-search-form">
+    <input id="bc-search" type="search" placeholder="Search the vault…" autocomplete="off" spellcheck="false" />
+    <button id="bc-mic" type="button" title="Hold to talk" aria-label="Hold to talk">
+      <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+    </button>
+    <button type="submit" class="bc-go">Go</button>
+  </form>
+  <label class="bc-toggle">
+    <input type="checkbox" id="bc-librarian" checked />
+    <span>Librarian</span>
+  </label>
+  <button id="bc-view" type="button" title="Reset camera">⟲ view</button>
+</header>
+
+<aside id="bc-detail" class="bc-detail" hidden>
+  <button id="bc-detail-close" aria-label="Close panel">×</button>
+  <div id="bc-detail-body"></div>
+</aside>
+
+<div id="bc-guidance" class="bc-guidance" role="log" aria-live="polite"></div>
+
+<script type="module" src="./bookcase.js"></script>
+<script>
+  // Fallback: if the module graph (incl. the Three.js CDN) fails to boot,
+  // surface it in the status pill instead of a blank page.
+  window.addEventListener("load", function () {
+    setTimeout(function () {
+      if (!window.__bcBooted) {
+        var pill = document.getElementById("bc-status");
+        if (pill) {
+          pill.textContent = "3D engine failed to load (CDN offline?)";
+          pill.classList.add("bc-pill-error");
+        }
+      }
+    }, 4000);
+  });
+</script>
+</body>
+</html>

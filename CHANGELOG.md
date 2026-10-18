@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### New Features
+- **`memorius bookcase`** — open your vault as a 3D bookcase in the browser:
+  one book per memory (spine = truncated `shelf/folder/note` path, thickness
+  ∝ content length, colour = recency), OrbitControls scene, two layouts
+  (by shelf / by recency), a camera fly-to on search, and a **librarian**
+  voice (Web Speech API: greeting, search narration with shelf locations,
+  hold-to-talk input, voice picker, text fallback when voice is off or
+  unavailable). Loopback-only: the CLI health-checks the REST server
+  (starting it via the existing serve path when down) and serves the
+  packaged `memorius/bookcase/` assets on a loopback static port.
+  Flags: `--port` (default 8912), `--static-port` (default 8400), `--no-browser`.
+- **`GET /vaults`** — new REST endpoint returning `{"vaults": [{name,
+  memories}]}` (union of both metadata stores + per-vault vector counts);
+  backed by a new thin `VaultEngine.list_vaults()`. This is the only
+  server-side change; CORS remains loopback-restrictive.
+- **Docs** — CLI reference row for `memorius bookcase` and a
+  "See your vault in 3D" section in Getting Started.
+
 ## v0.8.6 (2026-10-16)
 
 ### New Features

@@ -514,6 +514,23 @@ class VaultEngine:
             "embedding_dimension": getattr(self._embed, "dimension", 384),
         }
 
+    def list_vaults(self) -> list[dict[str, Any]]:
+        """Enumerate vault names with per-vault memory counts.
+
+        Mirrors status()' vault-union logic (union of both meta stores) and
+        adds the vector-store memory count per vault. Powers GET /vaults.
+        """
+        episodic_vaults = {v["name"] for v in self._meta_episodic.list_vaults()}
+        semantic_vaults = {v["name"] for v in self._meta_semantic.list_vaults()}
+        out: list[dict[str, Any]] = []
+        for name in sorted(episodic_vaults.union(semantic_vaults)):
+            count = (
+                self._vector_episodic.count(vault=name)
+                + self._vector_semantic.count(vault=name)
+            )
+            out.append({"name": name, "memories": count})
+        return out
+
     def get_hierarchy(self, vault: str) -> dict[str, Any]:
         """Get hierarchy for a vault, checking semantic store first then episodic."""
         try:

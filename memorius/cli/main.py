@@ -16,6 +16,7 @@ Usage:
   memorius prune             Find and archive stale memories by decay score
   memorius serve             Start the MCP server (stdio)
   memorius serve-rest        Start the REST API server
+  memorius bookcase          Launch the 3D vault bookcase (browser, loopback)
   memorius config            Show current config
   memorius obsidian list     List notes in an Obsidian vault
   memorius obsidian import   Import Obsidian notes as memories
@@ -133,6 +134,13 @@ def main():
     serve_rest_p.add_argument("--pid-file", default=None, help="PID file path")
     serve_rest_p.add_argument("--tls-cert", default=None, help="Path to TLS certificate file (PEM)")
     serve_rest_p.add_argument("--tls-key", default=None, help="Path to TLS private key file (PEM)")
+
+    bookcase_p = subparsers.add_parser("bookcase", help="Launch the 3D vault bookcase (browser, loopback)")
+    bookcase_p.add_argument("--port", type=int, default=None, help="REST API port (default: 8912)")
+    bookcase_p.add_argument("--static-port", dest="static_port", type=int, default=None,
+                            help="Static asset port for the bookcase page (default: 8400)")
+    bookcase_p.add_argument("--no-browser", action="store_true",
+                            help="Print the URL but don't open a browser")
 
     config_p = subparsers.add_parser("config", help="Show configuration")
     config_p.add_argument("--show", action="store_true", default=True, help="Show config")
@@ -342,6 +350,7 @@ def main():
         "ls": cmd_ls,
         "serve": cmd_serve,
         "serve-rest": cmd_serve_rest,
+        "bookcase": cmd_bookcase,
         "config": cmd_config,
         "obsidian": cmd_obsidian,
         "consolidate": cmd_consolidate,
@@ -658,6 +667,123 @@ def cmd_serve_rest(engine, args, config):
             tls_cert=getattr(args, "tls_cert", None),
             tls_key=getattr(args, "tls_key", None),
         )
+
+
+def _bc_port_in_use(port: int) -> bool:
+    import socket
+    s = socket.socket()
+    try:
+        s.bind(("127.0.0.1", port))
+        return False
+    except OSError:
+        return True
+    finally:
+        s.close()
+
+
+def _bc_health_check(base: str, timeout: float) -> bool:
+    import time as _time
+    import urllib.request
+    deadline = _time.time() + timeout
+    while _time.time() < deadline:
+        try:
+            with urllib.request.urlopen(f"{base}/health", timeout=2) as resp:
+                if resp.status == 200:
+                    return True
+        except Exception:
+            _time.sleep(0.5)
+    return False
+
+
+def cmd_bookcase(engine, args, config):
+    """Launch the 3D vault bookcase (loopback only).
+
+    Health-checks the REST server (starts it via the existing serve path when
+    down), serves memorius/bookcase/ on a loopback static port, prints the
+    URL, and opens the browser unless --no-browser.
+    """
+    import http.server
+    import signal
+    import threading
+    import webbrowser
+    from functools import partial
+
+    import memorius.bookcase as bookcase_pkg
+
+    config_server = config.get("server", {})
+    port = args.port or config_server.get("rest_port", 8912)
+    static_port = args.static_port or config_server.get("static_port", 8400)
+    api_base = f"http://127.0.0.1:{port}"
+
+    # 1. Health-check REST; start it (existing serve path) when down.
+    uvicorn_server = None
+    if _bc_health_check(api_base, timeout=3):
+        print(f"Reusing REST API at {api_base}")
+    else:
+        if _bc_port_in_use(port):
+            print(
+                f"Port {port} is in use by a process that does not answer "
+                f"/health. Stop it or pass --port <other>."
+            )
+            sys.exit(1)
+        try:
+            import uvicorn
+        except ImportError:
+            print("Error: REST server requires uvicorn. Install: pip install memorius")
+            sys.exit(1)
+        from memorius.rest_server import MemoriusAPI
+        app = MemoriusAPI(engine).create_app()
+        uvicorn_server = uvicorn.Server(
+            uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning")
+        )
+        threading.Thread(
+            target=uvicorn_server.run, daemon=True, name="memorius-bookcase-rest"
+        ).start()
+        if not _bc_health_check(api_base, timeout=30):
+            print(f"REST API did not become healthy on {api_base}")
+            sys.exit(1)
+        print(f"Started REST API at {api_base}")
+
+    # 2. Serve the bookcase assets on loopback.
+    if _bc_port_in_use(static_port):
+        print(f"Static port {static_port} is in use — pass --static-port <other>.")
+        sys.exit(1)
+    static_dir = Path(bookcase_pkg.__file__).resolve().parent
+    handler = partial(http.server.SimpleHTTPRequestHandler, directory=str(static_dir))
+    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", static_port), handler)
+    threading.Thread(
+        target=httpd.serve_forever, daemon=True, name="memorius-bookcase-static"
+    ).start()
+
+    url = f"http://127.0.0.1:{static_port}/bookcase.html?api={api_base}"
+    print(f"Vault bookcase: {url}")
+    if not args.no_browser:
+        webbrowser.open(url)
+
+    # 3. Wait until interrupted (Ctrl-C or SIGTERM), then clean up.
+    stop = threading.Event()
+
+    def _on_term(signum, frame):
+        stop.set()
+
+    try:
+        signal.signal(signal.SIGTERM, _on_term)
+    except (ValueError, OSError):
+        pass
+    try:
+        stop.wait()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        if uvicorn_server is not None:
+            uvicorn_server.should_exit = True
+            for thread in threading.enumerate():
+                if thread.name == "memorius-bookcase-rest":
+                    thread.join(timeout=3)
+        engine.close()
+        print("Bookcase stopped.")
 
 
 def _stop_daemon(pid_file: Path):

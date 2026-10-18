@@ -1,0 +1,276 @@
+/* Memorius Vault Bookcase — dark/cinematic, orange accent (site language). */
+:root {
+  --bc-bg: #0d0b09;
+  --bc-panel: rgba(24, 19, 14, 0.82);
+  --bc-panel-line: rgba(249, 115, 22, 0.22);
+  --bc-accent: #f97316;
+  --bc-accent-soft: rgba(249, 115, 22, 0.16);
+  --bc-text: #f5efe6;
+  --bc-text-dim: #a89a86;
+  --bc-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bc-bg);
+  color: var(--bc-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  font-size: 14px;
+}
+
+/* ── 3D viewport ─────────────────────────────────────────────── */
+#bc-scene {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 0;
+}
+
+/* ── top bar ─────────────────────────────────────────────────── */
+.bc-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--bc-panel);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--bc-panel-line);
+}
+
+.bc-pill {
+  min-width: 96px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--bc-accent-soft);
+  border: 1px solid var(--bc-panel-line);
+  color: var(--bc-accent);
+  font-family: var(--bc-mono);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.bc-pill-error { color: #ff7b6b; background: rgba(255, 123, 107, 0.14); }
+
+.bc-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.bc-select-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bc-text-dim);
+}
+
+select, input {
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--bc-text);
+  border: 1px solid var(--bc-panel-line);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-size: 13px;
+  font-family: inherit;
+}
+select:focus, input:focus {
+  outline: none;
+  border-color: var(--bc-accent);
+}
+select:disabled { opacity: 0.4; }
+
+.bc-search-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 220px;
+}
+
+#bc-search {
+  flex: 1;
+  min-width: 140px;
+}
+
+#bc-mic, .bc-go, #bc-view {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid var(--bc-panel-line);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--bc-text);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+#bc-mic:hover, .bc-go:hover, #bc-view:hover {
+  border-color: var(--bc-accent);
+  background: var(--bc-accent-soft);
+}
+#bc-mic.bc-talking {
+  border-color: var(--bc-accent);
+  background: var(--bc-accent);
+  color: #170c02;
+}
+#bc-mic:disabled, #bc-voice:disabled { cursor: not-allowed; }
+
+.bc-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--bc-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.bc-toggle input { accent-color: var(--bc-accent); width: 15px; height: 15px; }
+
+/* ── detail panel ────────────────────────────────────────────── */
+.bc-detail {
+  position: fixed;
+  top: 64px;
+  right: 14px;
+  bottom: 110px;
+  width: 340px;
+  max-width: calc(100vw - 28px);
+  z-index: 20;
+  background: var(--bc-panel);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--bc-panel-line);
+  border-radius: 14px;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+#bc-detail-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: none;
+  border: none;
+  color: var(--bc-text-dim);
+  font-size: 20px;
+  cursor: pointer;
+}
+#bc-detail-close:hover { color: var(--bc-accent); }
+
+.bc-detail h2 {
+  margin: 4px 0 10px;
+  font-size: 14px;
+  color: var(--bc-accent);
+  font-family: var(--bc-mono);
+  word-break: break-word;
+}
+.bc-detail h3 {
+  margin: 14px 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--bc-text-dim);
+}
+.bc-meta {
+  font-family: var(--bc-mono);
+  font-size: 12px;
+  color: var(--bc-text-dim);
+  line-height: 1.7;
+  word-break: break-word;
+}
+.bc-content {
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--bc-text);
+}
+.bc-tag {
+  display: inline-block;
+  margin: 2px 4px 2px 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--bc-panel-line);
+  font-family: var(--bc-mono);
+  font-size: 11px;
+  color: var(--bc-accent);
+}
+
+/* search results list */
+.bc-result {
+  padding: 10px;
+  margin-bottom: 8px;
+  border: 1px solid var(--bc-panel-line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 120ms ease;
+}
+.bc-result:hover { border-color: var(--bc-accent); }
+.bc-result-top {
+  border-color: var(--bc-accent);
+  background: var(--bc-accent-soft);
+}
+.bc-result-title {
+  font-family: var(--bc-mono);
+  font-size: 12px;
+  color: var(--bc-text);
+  word-break: break-word;
+}
+.bc-result-where {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--bc-text-dim);
+}
+
+/* ── guidance log ────────────────────────────────────────────── */
+.bc-guidance {
+  position: fixed;
+  left: 14px;
+  bottom: 14px;
+  z-index: 10;
+  max-width: 520px;
+  padding: 10px 14px;
+  background: var(--bc-panel);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--bc-panel-line);
+  border-radius: 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--bc-text-dim);
+}
+.bc-guidance:empty { display: none; }
+.bc-line { margin: 2px 0; }
+.bc-line::before { content: "▸ "; color: var(--bc-accent); }
+
+/* ── tooltip ─────────────────────────────────────────────────── */
+#bc-tooltip {
+  position: fixed;
+  z-index: 30;
+  pointer-events: none;
+  max-width: 300px;
+  padding: 6px 10px;
+  background: rgba(10, 8, 5, 0.94);
+  border: 1px solid var(--bc-accent);
+  border-radius: 8px;
+  font-family: var(--bc-mono);
+  font-size: 11px;
+  color: var(--bc-text);
+  word-break: break-word;
+}
+

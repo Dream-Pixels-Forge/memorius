@@ -424,6 +424,11 @@ class MemoriusAPI:
             vault = _validate_name(vault, "vault")
             return engine.get_hierarchy(vault)
 
+        @app.get("/vaults")
+        async def vaults():
+            """Enumerate vault names with memory counts (powers the bookcase)."""
+            return {"vaults": engine.list_vaults()}
+
         @app.get("/diaries")
         async def diaries(vault: str | None = None, limit: int = 10):
             if vault:
