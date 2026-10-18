@@ -43,7 +43,7 @@ class SentenceTransformerProvider(EmbeddingProvider):
         try:
             from sentence_transformers import SentenceTransformer
             self._model = SentenceTransformer(self._model_name)
-            self._dim = self._model.get_sentence_embedding_dimension()
+            self._dim = self._model.get_embedding_dimension()
         except ImportError:
             raise ImportError(
                 "sentence-transformers not installed. "
