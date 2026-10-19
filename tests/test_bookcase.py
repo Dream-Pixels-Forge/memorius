@@ -1,12 +1,18 @@
-"""Bookcase goal — 3D vault bookcase + librarian voice.
+"""Bookcase goals — 3D vault bookcase + librarian voice + walkable shelves.
 
-TDD RED→GREEN per dev-notes/GOAL-bookcase-3d-librarian.md:
+TDD RED→GREEN per dev-notes/GOAL-bookcase-3d-librarian.md and
+dev-notes/GOAL-bookcase-walkable-shelves.md:
   1. test_bookcase_assets     — page assets ship in the package, well-formed,
      required element ids, JS references the 5 REST endpoints, ≤500 lines/file.
   2. test_bookcase_api_shapes — the REST contract the page depends on
      (GET /vaults, GET /vault, GET /memories, POST /search, GET /memory/{id}).
   3. test_bookcase_serve      — CLI `bookcase` end-to-end over loopback:
      static page 200, REST /health 200, ports released after terminate.
+  4. test_bookcase_walkable   — walkable-library contract (GOAL-walkable):
+     scene/layout/walk modules exist, first-person controls (WASD +
+     pointer-lock mouse look), aisle layout constants, debug hook exposing
+     sections/audit/camera, and preserved interactions (search flight,
+     book click).
 """
 from __future__ import annotations
 
@@ -29,7 +35,10 @@ REQUIRED_ELEMENT_IDS = [
     "bc-mic", "bc-voice", "bc-vault", "bc-layout", "bc-status",
 ]
 REQUIRED_JS_ENDPOINT_REFS = ["/vault", "/memories", "/search", "/memory/"]
-REQUIRED_ASSETS = ["bookcase.html", "bookcase.css", "bookcase.js"]
+REQUIRED_ASSETS = [
+    "bookcase.html", "bookcase.css", "bookcase.js",
+    "bookcase-scene.js", "bookcase-walk.js", "bookcase-layout.js",
+]
 MAX_LINES_PER_FILE = 500
 
 _VOID_TAGS = {
@@ -264,4 +273,55 @@ class TestBookcaseServe:
 
         assert _port_released(static_port), f"static port {static_port} still held"
         assert _port_released(rest_port), f"REST port {rest_port} still held: {output}"
+
+
+class TestBookcaseWalkable:
+    """Walkable-library contract (GOAL-bookcase-walkable-shelves, Verification 1).
+
+    Asset-level: the scene splits into scene/walk/layout modules, implements
+    first-person controls (WASD + pointer-lock mouse look with drag fallback),
+    arranges ≥3 sections as walkable aisles, exposes a `window.__bookcase`
+    debug hook (sections / book audit / camera), and preserves the existing
+    interactions (search flight, book click, librarian greeting).
+    """
+
+    def _asset(self, name: str) -> str:
+        import memorius.bookcase as bookcase_pkg
+
+        return (Path(bookcase_pkg.__file__).parent / name).read_text(
+            encoding="utf-8"
+        )
+
+    def test_walk_module_first_person_controls(self):
+        walk = self._asset("bookcase-walk.js")
+        # WASD/arrow walking
+        for key in ("KeyW", "KeyA", "KeyS", "KeyD"):
+            assert key in walk, f"walk module missing {key} binding"
+        # pointer-lock mouse look preferred, drag-look fallback
+        assert "requestPointerLock" in walk, "no pointer-lock usage"
+        assert "mousemove" in walk, "no mouse-look handler"
+        # collision: camera must not pass through shelves / below floor
+        assert "clamp" in walk or "AABB" in walk, "no collision clamping"
+
+    def test_layout_module_section_aisle_constants(self):
+        layout = self._asset("bookcase-layout.js")
+        assert "SECTION" in layout, "no section constants"
+        assert "AISLE" in layout, "no aisle constants"
+
+    def test_scene_debug_hook_and_interactions(self):
+        scene = self._asset("bookcase-scene.js")
+        # module graph: scene uses the walk + layout modules
+        assert "./bookcase-walk.js" in scene
+        assert "./bookcase-layout.js" in scene
+        # debug hook required by the headless verification
+        assert "__bookcase" in scene, "no window.__bookcase debug hook"
+        assert "auditBooks" in scene, "debug hook lacks book-arrangement audit"
+        # preserved interactions
+        assert "bc:search" in scene, "search flight lost"
+        assert "bc:book-click" in scene, "book click lost"
+        assert "bc:reset-view" in scene, "view reset lost"
+
+    def test_main_page_imports_scene(self):
+        js = self._asset("bookcase.js")
+        assert "./bookcase-scene.js" in js
 

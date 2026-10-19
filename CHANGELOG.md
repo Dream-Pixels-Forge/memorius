@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.9.2 (2026-10-19)
+
+### New Features
+- **Walkable bookcase** — the 3D vault bookcase is now a first-person
+  library: walk on foot between distinct sections and aisles (WASD/arrow
+  keys at eye height, pointer-lock mouse look with drag fallback), with
+  cases arranged in rows so you physically move between sections instead of
+  orbiting a static wall. Books stand upright in orderly rows on real shelf
+  planks (no floating, no intersecting), each section carries a readable
+  label, and the camera can neither pass through shelves nor drop below the
+  floor. All prior interactions are preserved: book click → info +
+  librarian speech, search → fly-to-book, books pill, librarian greeting,
+  `GET /vaults`-driven sections. Zero REST/MCP/CLI behavior changes; still
+  Three.js r160 via CDN (no bundler). A `window.__bookcase` debug hook
+  (sections / cases / book audit / camera) supports headless verification.
+
 ## v0.9.1 (2026-10-19)
 
 ### Fixed
