@@ -53,6 +53,46 @@ Show vault status
    --json    Output as JSON
 
 
+### memorius bookcase
+Launch the 3D walkable vault bookcase (browser opens automatically, loopback only).
+   --port <n>        REST API port (default: 8912)
+   --static-port <n> Static asset port for the bookcase page (default: 8400)
+   --no-browser      Don't open the browser; just serve the page
+
+
+## Vault Bookcase (3D walkable)
+
+Run the bookcase:
+
+```bash
+memorius bookcase
+```
+
+It starts the REST API on `http://127.0.0.1:8912`, serves the bookcase page on
+`http://127.0.0.1:8400/bookcase.html`, and opens your browser. Everything is
+loopback-only — nothing leaves your machine.
+
+Use `memorius bookcase --no-browser` to serve without opening a tab, then open
+the printed URL yourself. Use `--port` / `--static-port` if the defaults are
+taken.
+
+Once the page is open:
+
+- **Walk:** WASD or arrow keys at eye height. You can't pass through shelves.
+- **Look:** click-drag to look around (pointer-lock if available).
+- **Vault:** pick a vault from the dropdown (options come from `GET /vaults`).
+- **Layout:** switch between "by shelf" and "by recency" to re-arrange cases.
+- **Search:** type in the vault search bar and hit Enter/Go — the camera flies
+  to the matching book and marks it.
+- **Book click:** click a book to open its detail panel (content + librarian
+  speech when the Librarian toggle is on).
+- **Mic:** hold the mic button to speak your search (Chromium only).
+- **Reset view:** click ⟲ view to return to the starting camera position.
+
+The librarian reads each book aloud when toggled on; all utterances are also
+logged in the guidance panel on the page.
+
+
 <details>
 <summary><b>For development</b></summary>
 

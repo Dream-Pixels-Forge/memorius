@@ -77,6 +77,24 @@
   <button id="bc-view" type="button" title="Reset camera">⟲ view</button>
 </header>
 
+<div id="bc-usage" class="bc-usage" hidden>
+  <h2>How to run &amp; use the bookcase</h2>
+  <p><b>Run:</b> <code>memorius bookcase</code> — opens this page on
+  <code>http://127.0.0.1:8400/bookcase.html</code> (loopback only). Add
+  <code>--no-browser</code> to serve without opening a tab, or
+  <code>--port 8912 --static-port 8400</code> to change ports.</p>
+  <ul>
+    <li><b>Walk:</b> WASD / arrow keys at eye height — you can't pass through shelves.</li>
+    <li><b>Look:</b> click-drag to look around (pointer-lock when available).</li>
+    <li><b>Vault:</b> pick a vault from the dropdown (from <code>GET /vaults</code>).</li>
+    <li><b>Layout:</b> switch <i>by shelf</i> / <i>by recency</i> to re-arrange cases.</li>
+    <li><b>Search:</b> type + Enter/Go — the camera flies to the matching book.</li>
+    <li><b>Book click:</b> opens the detail panel (content + librarian speech if on).</li>
+    <li><b>Mic:</b> hold to talk (Chromium only).</li>
+    <li><b>Reset view:</b> click ⟲ view to return to the start.</li>
+  </ul>
+</div>
+
 <aside id="bc-detail" class="bc-detail" hidden>
   <button id="bc-detail-close" aria-label="Close panel">×</button>
   <div id="bc-detail-body"></div>
