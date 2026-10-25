@@ -3,6 +3,7 @@
 import json
 import os
 import shutil
+import site
 import subprocess
 import sys
 import tempfile
@@ -10,6 +11,11 @@ import time
 from pathlib import Path
 
 import pytest
+
+# Resolve the real user site-packages BEFORE any fixture overrides HOME —
+# once HOME points at a temp dir, site.getusersitepackages() returns the
+# (useless) fake path and deps installed in ~/.local become unimportable.
+_USER_SITE = site.getusersitepackages()
 
 
 def _safe_rmtree(path):
@@ -40,6 +46,18 @@ def isolated_env():
         # Sandbox HOME so memorius init writes to ~/.memorius inside tmpdir
         fake_home = Path(tmpdir) / "home"
         fake_home.mkdir()
+        # chromadb's default ONNX embedding function hardcodes its cache at
+        # ~/.cache/chroma/onnx_models (no env override), and memorius's own
+        # pre-download checks ~/.cache/memorius/onnx_models — a sandboxed
+        # HOME makes both miss and re-download ~80MB from S3 per test.
+        # Reuse the developer's real (read-only, immutable) caches when
+        # present; on CI they don't exist and chromadb downloads as before.
+        for rel in (".cache/chroma/onnx_models", ".cache/memorius/onnx_models"):
+            real_cache = Path(old_home) / rel
+            if real_cache.is_dir():
+                link_parent = fake_home / Path(rel).parent
+                link_parent.mkdir(parents=True)
+                (link_parent / Path(rel).name).symlink_to(real_cache)
         os.environ["HOME"] = str(fake_home)
         os.environ["MEMORIUS_STORAGE_PATH"] = str(Path(tmpdir) / "data")
 
@@ -64,8 +82,7 @@ def run_memorius(*args, env=None, input_text=None, timeout=180):
     # When HOME is overridden in tests, Python's user site-packages shifts
     # to the fake HOME, breaking imports of dependencies like chromadb.
     src_dir = str(Path(__file__).resolve().parent.parent)
-    import site
-    user_site = site.getusersitepackages()
+    user_site = _USER_SITE
     merged_env = {**os.environ, **(env or {})}
     existing_pp = merged_env.get("PYTHONPATH", "")
     extra = os.pathsep.join([src_dir, user_site])

@@ -2,7 +2,7 @@
 
 ## Current State
 - Project: memorius
-- Version: 0.9.1 (maintenance release 2026-10-19: serve single-instance guard #44, sentence-transformers warning drop + docs consolidation #45, repo-wide pyright cleanup 152→0 zero-behavior-change #46; PR #48 merged as 902649e, tag v0.9.1 + GitHub release + PyPI published, three-way code↔git↔registry gate ALL MATCH; v0.9.0 bookcase shipped 2026-10-18)
+- Version: 0.9.3 (metadata release 2026-10-19: Python 3.13 classifier + CI 3.13 matrix coverage, zero behavior change; superseded by v0.9.2 walkable bookcase; full history in CHANGELOG.md)
 - Active branch: main (v0.9.0 bookcase merged via PR #40, squash 6ae3ab5)
 - Vault health: all doctor checks pass (meta=826, vectors=826 after repair --reindex)
 - Status: v0.8.6 goal MET (goal-met audit 10/10, gate exit 0, 2026-10-17); all issues #22–#34 closed. Bookcase goal MET (independent audit 10/10, 34 checks, 2026-10-18; PR #40 merged to main, CI green 3.11+3.12, zero open threads)

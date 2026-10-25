@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.9.3 (2026-10-19)
+
+### Changed
+- Declared the `Programming Language :: Python :: 3.13` classifier for
+  clean modern wheels; CI test matrix now covers 3.13 alongside 3.11/3.12.
+  No code changes.
+
 ## v0.9.2 (2026-10-19)
 
 ### New Features
