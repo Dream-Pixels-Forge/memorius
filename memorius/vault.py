@@ -42,6 +42,10 @@ class VaultEngine:
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
+        # Class-level default so close()/__del__ on a half-initialized
+        # engine (e.g. EmbeddingFactory raising in __init__) can't crash
+        # with AttributeError and mask the real error.
+        self._consolidation_daemon = None
         self._config = config or load_config()
         embed_cfg = self._config.get("embeddings", {})
         storage_cfg = self._config.get("storage", {})
