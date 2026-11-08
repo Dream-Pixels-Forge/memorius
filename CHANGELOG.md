@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.9.4 (2026-10-20)
+
+### Fixed
+- **Critical security findings addressed** (#53–#59):
+  - Pinned `chromadb` to `>=0.4.22,<1.0.0` (was loose `>=0.4.22`) — C-05
+  - `memorius consolidate` MCP tool now defaults `dry_run=true` — destructive-by-default eliminated — db.md Critical #9
+
+### Remaining
+- 9 critical findings tracked as open issues #53–#59 (REST/MCP auth, auth tests, input() EOFError, dep lockfile + pip-audit)
+
 ## v0.9.3 (2026-10-19)
 
 ### Changed
