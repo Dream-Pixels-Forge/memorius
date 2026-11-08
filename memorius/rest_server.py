@@ -172,11 +172,13 @@ class MemoriusAPI:
         async def auth_middleware(request: Request, call_next):
             if request.url.path == "/health":
                 return await call_next(request)
-            if api_key:
+            # Read API key dynamically per request (env var may change).
+            request_api_key = os.environ.get("MEMORIUS_API_KEY")
+            if request_api_key:
                 auth_header = request.headers.get("Authorization", "")
                 token = auth_header[7:] if auth_header.startswith("Bearer ") else ""
                 # Use compare_digest to prevent timing-based key enumeration
-                if not hmac.compare_digest(token.encode(), api_key.encode()):
+                if not hmac.compare_digest(token.encode(), request_api_key.encode()):
                     return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key"})
             elif request.method in _MUTATING_METHODS:
                 # No API key configured: read-only GET/HEAD/OPTIONS allowed,
