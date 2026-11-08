@@ -156,6 +156,7 @@ def main():
     consolidate_p.add_argument("--vault", default=None, help="Filter by vault")
     consolidate_p.add_argument("--threshold", type=float, default=0.80, help="Similarity threshold (0-1)")
     consolidate_p.add_argument("--dry-run", action="store_true", help="Preview without changes")
+    consolidate_p.add_argument("--snapshot-dir", default=None, help="Directory to save consolidation snapshot before archiving")
 
     extract_p = subparsers.add_parser("extract", help="Extract memories from conversation")
     extract_p.add_argument("file", nargs="?", default=None, help="Conversation file path")
@@ -208,6 +209,7 @@ def main():
     prune_p.add_argument("--threshold", type=float, default=0.1, help="Decay score threshold (default: 0.1)")
     prune_p.add_argument("--dry-run", action="store_true", help="Preview without touching memories")
     prune_p.add_argument("--delete", dest="hard_delete", action="store_true", help="Hard-delete instead of soft-archive")
+    prune_p.add_argument("--confirm", action="store_true", help="Confirm hard-delete (required with --delete)")
     prune_p.add_argument("--json", dest="output_json", action="store_true", help="Output as JSON")
 
     export_p = subparsers.add_parser("export", help="Export vault to JSON or Markdown")
@@ -961,10 +963,13 @@ def cmd_consolidate(engine, args, config):
         vault=args.vault,
         similarity_threshold=args.threshold,
         dry_run=args.dry_run,
+        snapshot_dir=args.snapshot_dir,
     )
     print(f"  Clusters found:    {result.clusters_found}")
     print(f"  Memories merged:   {result.memories_merged}")
     print(f"  Memories archived: {result.memories_archived}")
+    if result.snapshot_path:
+        print(f"  Snapshot saved:    {result.snapshot_path} ({result.snapshot_memory_count} memories)")
     if result.details:
         print("\n  Details:")
         for d in result.details[:5]:
@@ -1290,10 +1295,15 @@ def cmd_update(engine, args, config):
 
 def cmd_prune(engine, args, config):
     """Find and archive stale memories."""
+    # Hard-delete requires explicit confirmation
+    if args.hard_delete and not args.confirm:
+        print("Error: --delete requires --confirm to acknowledge data loss.")
+        return
     result = engine.prune(
         threshold=args.threshold,
         dry_run=args.dry_run,
         archive=not args.hard_delete,
+        confirm=args.confirm,
     )
     if getattr(args, "output_json", False):
         print(json.dumps(result, indent=2))

@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import os
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -56,6 +57,8 @@ class ConsolidationResult:
     memories_archived: int = 0
     insights_extracted: int = 0
     details: list[dict[str, Any]] = field(default_factory=list)
+    snapshot_path: str | None = None
+    snapshot_memory_count: int = 0
 
 
 def _find_clusters_in_memory(
@@ -315,6 +318,7 @@ def consolidate(
     vault: str | None = None,
     similarity_threshold: float = 0.80,
     dry_run: bool = False,
+    snapshot_dir: str | None = None,
 ) -> ConsolidationResult:
     """Run a consolidation pass on the vault.
 
@@ -323,6 +327,8 @@ def consolidate(
         vault: Filter by vault (None = all)
         similarity_threshold: Cosine similarity threshold for clustering
         dry_run: If True, report what would happen without making changes
+        snapshot_dir: If set, export memories that will be merged to this
+          directory before archiving, providing a snapshot for rollback.
 
     Returns:
         ConsolidationResult with statistics
@@ -440,6 +446,33 @@ def consolidate(
                 result.memories_archived += len(insight["source_ids"])
             except Exception as e2:
                 logger.warning(f"Could not archive source memories: {e2}")
+
+    # Snapshot memories before archiving, if snapshot_dir is set
+    if snapshot_dir and not dry_run and result.memories_archived > 0:
+        import os as _os
+        snapshot_path = _os.path.join(snapshot_dir, f"consolidation_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json")
+        _os.makedirs(snapshot_dir, exist_ok=True)
+        snapshot_data = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "vault": vault,
+            "similarity_threshold": similarity_threshold,
+            "clusters": [
+                {
+                    "source_ids": d["source_ids"],
+                    "cluster_size": d["cluster_size"],
+                    "insight_preview": d["insight_preview"],
+                }
+                for d in result.details
+            ],
+            "memories": [
+                m for m in memories
+                if any(m.get("id") in d["source_ids"] for d in result.details)
+            ],
+        }
+        with open(snapshot_path, "w", encoding="utf-8") as fh:
+            json.dump(snapshot_data, fh, indent=2, default=str)
+        result.snapshot_path = snapshot_path
+        result.snapshot_memory_count = len(snapshot_data["memories"])
 
     logger.info(
         f"Consolidation complete: {result.clusters_found} clusters, "
