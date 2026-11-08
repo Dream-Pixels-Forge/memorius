@@ -781,7 +781,27 @@ def cmd_bookcase(engine, args, config):
         sys.exit(1)
     static_dir = Path(bookcase_pkg.__file__).resolve().parent
     handler = partial(http.server.SimpleHTTPRequestHandler, directory=str(static_dir))
-    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", static_port), handler)
+
+    # Bounded thread pool to prevent thread-per-connection exhaustion (H-24)
+    class _BoundedThreadingHTTPServer(http.server.ThreadingHTTPServer):
+        daemon_threads = True
+        request_queue_size = 50
+
+        def __init__(self, *args, **kwargs):
+            import concurrent.futures
+            self._thread_pool = concurrent.futures.ThreadPoolExecutor(
+                max_workers=50, thread_name_prefix="bookcase-static"
+            )
+            super().__init__(*args, **kwargs)
+
+        def process_request(self, request, client_address):
+            self._thread_pool.submit(super().process_request, request, client_address)
+
+        def server_close(self):
+            self._thread_pool.shutdown(wait=False)
+            super().server_close()
+
+    httpd = _BoundedThreadingHTTPServer(("127.0.0.1", static_port), handler)
     threading.Thread(
         target=httpd.serve_forever, daemon=True, name="memorius-bookcase-static"
     ).start()
