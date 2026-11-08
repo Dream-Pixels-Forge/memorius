@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hmac
 import io
 import json
 import logging
+import os
 import sys
 from typing import cast
 
@@ -490,9 +492,39 @@ class McpServer:
     def _handle_list_tools(self, msg_id):
         return self._make_response(msg_id, {"tools": self.TOOLS})
 
+    # Destructive MCP tools that require authorization when MEMORIUS_MCP_TOKEN is set.
+    _MCP_DESTRUCTIVE_TOOLS = {
+        "memorius_delete",
+        "memorius_prune",
+        "memorius_consolidate",
+        "memorius_graph_export",
+    }
+
+    def _check_mcp_auth(self, tool_name: str, arguments: dict) -> str | None:
+        """Return an error message if MCP auth is required and not provided, else None.
+
+        When MEMORIUS_MCP_TOKEN is set, destructive tools require a matching
+        ``mcp_token`` in the tool arguments. Non-destructive tools remain open
+        for local use. When the env var is unset, all tools are open
+        (backward compatible).
+        """
+        mcp_token = os.environ.get("MEMORIUS_MCP_TOKEN")
+        if not mcp_token:
+            return None  # auth not configured — open access
+        if tool_name not in self._MCP_DESTRUCTIVE_TOOLS:
+            return None  # non-destructive tool — open access
+        provided = arguments.get("mcp_token", "")
+        if not hmac.compare_digest(str(provided).encode(), mcp_token.encode()):
+            return f"MCP authorization required for {tool_name}"
+        return None
+
     def _handle_call_tool(self, msg_id, params: dict):
         tool_name = params.get("name", "")
         arguments = params.get("arguments", {})
+
+        auth_error = self._check_mcp_auth(tool_name, arguments)
+        if auth_error:
+            return self._make_error(msg_id, -32603, auth_error)
 
         handler = self._get_tool_handler(tool_name)
         if handler is None:

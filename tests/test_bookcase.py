@@ -139,43 +139,52 @@ class TestBookcaseApiShapes:
     """REST contract the bookcase page depends on (Verification 2)."""
 
     def test_bookcase_api_shapes(self, client, engine):
-        engine.store(
-            "pytest timeout regression notes",
-            vault="main",
-            shelf="tools",
-            folder="qa",
-        )
+        os.environ["MEMORIUS_API_KEY"] = "test-key"
+        auth_headers = {"Authorization": "Bearer test-key"}
+        try:
+            engine.store(
+                "pytest timeout regression notes",
+                vault="main",
+                shelf="tools",
+                folder="qa",
+            )
 
-        # GET /vaults → {vaults: [{name, memories}]} including "main"
-        response = client.get("/vaults")
-        assert response.status_code == 200
-        body = response.json()
-        assert "vaults" in body
-        entries = {v["name"]: v for v in body["vaults"]}
-        assert "main" in entries
-        for entry in body["vaults"]:
-            assert "name" in entry and "memories" in entry
+            # GET /vaults → {vaults: [{name, memories}]} including "main"
+            response = client.get("/vaults", headers=auth_headers)
+            assert response.status_code == 200
+            body = response.json()
+            assert "vaults" in body
+            entries = {v["name"]: v for v in body["vaults"]}
+            assert "main" in entries
+            for entry in body["vaults"]:
+                assert "name" in entry and "memories" in entry
 
-        # GET /vault?vault=main → hierarchy dict containing the shelves keys
-        response = client.get("/vault", params={"vault": "main"})
-        assert response.status_code == 200
-        tree = response.json()
-        assert isinstance(tree, dict)
-        assert "shelves" in tree
-        assert any(s["name"] == "tools" for s in tree["shelves"])
+            # GET /vault?vault=main → hierarchy dict containing the shelves keys
+            response = client.get("/vault", params={"vault": "main"}, headers=auth_headers)
+            assert response.status_code == 200
+            tree = response.json()
+            assert isinstance(tree, dict)
+            assert "shelves" in tree
+            assert any(s["name"] == "tools" for s in tree["shelves"])
 
-        # GET /memories?limit=5 → {count, next_cursor, memories} with ≤5 items
-        response = client.get("/memories", params={"limit": 5})
-        assert response.status_code == 200
-        body = response.json()
-        assert set(body) >= {"count", "next_cursor", "memories"}
-        assert len(body["memories"]) <= 5
-        first_id = body["memories"][0]["id"]
+            # GET /memories?limit=5 → {count, next_cursor, memories} with ≤5 items
+            response = client.get("/memories", params={"limit": 5}, headers=auth_headers)
+            assert response.status_code == 200
+            body = response.json()
+            assert set(body) >= {"count", "next_cursor", "memories"}
+            assert len(body["memories"]) <= 5
+            first_id = body["memories"][0]["id"]
 
-        # POST /search → 200 with a results list
-        response = client.post("/search", json={"query": "pytest"})
-        assert response.status_code == 200
-        assert isinstance(response.json()["results"], list)
+            # POST /search → 200 with a results list
+            response = client.post(
+                "/search",
+                json={"query": "pytest"},
+                headers=auth_headers,
+            )
+            assert response.status_code == 200
+            assert isinstance(response.json()["results"], list)
+        finally:
+            os.environ.pop("MEMORIUS_API_KEY", None)
 
         # GET /memory/{id} → record with content
         response = client.get(f"/memory/{first_id}")

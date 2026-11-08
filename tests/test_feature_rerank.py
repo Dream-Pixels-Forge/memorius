@@ -1,4 +1,5 @@
 """Tests for Phase 5.2 — Cross-encoder rerank."""
+import os
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -91,13 +92,18 @@ class TestRESTRerankFlag:
         """REST /search accepts rerank field."""
         from fastapi.testclient import TestClient
         from memorius.rest_server import MemoriusAPI
-        api = MemoriusAPI(engine)
-        app = api.create_app()
-        client = TestClient(app)
-        engine.store("Python is a language", vault="main", shelf="default")
-        resp = client.post(
-            "/search",
-            json={"query": "language", "rerank": False},
-        )
-        assert resp.status_code == 200
-        assert resp.json()["count"] >= 1
+        os.environ["MEMORIUS_API_KEY"] = "test-key"
+        try:
+            api = MemoriusAPI(engine)
+            app = api.create_app()
+            client = TestClient(app)
+            engine.store("Python is a language", vault="main", shelf="default")
+            resp = client.post(
+                "/search",
+                json={"query": "language", "rerank": False},
+                headers={"Authorization": "Bearer test-key"},
+            )
+            assert resp.status_code == 200
+            assert resp.json()["count"] >= 1
+        finally:
+            os.environ.pop("MEMORIUS_API_KEY", None)
