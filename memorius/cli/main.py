@@ -139,6 +139,7 @@ def main():
     serve_rest_p.add_argument("--pid-file", default=None, help="PID file path")
     serve_rest_p.add_argument("--tls-cert", default=None, help="Path to TLS certificate file (PEM)")
     serve_rest_p.add_argument("--tls-key", default=None, help="Path to TLS private key file (PEM)")
+    serve_rest_p.add_argument("--insecure", action="store_true", help="Run without TLS (plaintext HTTP). Not recommended for production.")
 
     bookcase_p = subparsers.add_parser("bookcase", help="Launch the 3D vault bookcase (browser, loopback)")
     bookcase_p.add_argument("--port", type=int, default=None, help="REST API port (default: 8912)")
@@ -680,6 +681,18 @@ def cmd_serve_rest(engine, args, config):
     host = args.host or config_server.get("host", "127.0.0.1")
     port = args.port or config_server.get("rest_port", 8912)
     pid_file = Path(args.pid_file or (DEFAULT_CONFIG_DIR / "serve.pid"))
+    insecure = getattr(args, "insecure", False)
+    tls_cert = getattr(args, "tls_cert", None)
+    tls_key = getattr(args, "tls_key", None)
+
+    # TLS required unless --insecure is explicitly passed
+    if not insecure and not (tls_cert and tls_key):
+        print(
+            "Error: TLS is required for memorius serve-rest. "
+            "Provide --tls-cert and --tls-key, or use --insecure for plaintext HTTP.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     if getattr(args, "stop", False):
         _stop_daemon(pid_file)
@@ -688,15 +701,17 @@ def cmd_serve_rest(engine, args, config):
     if getattr(args, "daemon", False):
         _start_daemon(
             engine, host, port, pid_file,
-            tls_cert=getattr(args, "tls_cert", None),
-            tls_key=getattr(args, "tls_key", None),
+            tls_cert=tls_cert,
+            tls_key=tls_key,
+            insecure=insecure,
         )
     else:
         from memorius.rest_server import run_rest_server
         run_rest_server(
             engine, host=host, port=port,
-            tls_cert=getattr(args, "tls_cert", None),
-            tls_key=getattr(args, "tls_key", None),
+            tls_cert=tls_cert,
+            tls_key=tls_key,
+            insecure=insecure,
         )
 
 
@@ -869,7 +884,8 @@ def _stop_daemon(pid_file: Path):
 
 
 def _start_daemon(engine, host: str, port: int, pid_file: Path,
-                   tls_cert: str | None = None, tls_key: str | None = None):
+                   tls_cert: str | None = None, tls_key: str | None = None,
+                   insecure: bool = False):
     """Start REST server as a background daemon.
 
     Launches a detached subprocess that writes its own PID file and serves
@@ -902,6 +918,7 @@ def _start_daemon(engine, host: str, port: int, pid_file: Path,
     env["MEMORIUS_HOST"] = host
     env["MEMORIUS_PORT"] = str(port)
     env["MEMORIUS_PID_FILE"] = str(pid_file)
+    env["MEMORIUS_INSECURE"] = "1" if insecure else "0"
     if tls_cert and tls_key:
         env["MEMORIUS_TLS_CERT"] = tls_cert
         env["MEMORIUS_TLS_KEY"] = tls_key
@@ -912,6 +929,25 @@ def _start_daemon(engine, host: str, port: int, pid_file: Path,
             "port=int(os.environ['MEMORIUS_PORT']), "
             "tls_cert=os.environ.get('MEMORIUS_TLS_CERT'), "
             "tls_key=os.environ.get('MEMORIUS_TLS_KEY'))",
+        )
+        daemon_script = daemon_script.replace(
+            "run_rest_server(e, host=os.environ['MEMORIUS_HOST'], "
+            "port=int(os.environ['MEMORIUS_PORT']), "
+            "tls_cert=os.environ.get('MEMORIUS_TLS_CERT'), "
+            "tls_key=os.environ.get('MEMORIUS_TLS_KEY'))",
+            "run_rest_server(e, host=os.environ['MEMORIUS_HOST'], "
+            "port=int(os.environ['MEMORIUS_PORT']), "
+            "tls_cert=os.environ.get('MEMORIUS_TLS_CERT'), "
+            "tls_key=os.environ.get('MEMORIUS_TLS_KEY'), "
+            "insecure=os.environ.get('MEMORIUS_INSECURE') == '1')",
+        )
+    else:
+        daemon_script = daemon_script.replace(
+            "run_rest_server(e, host=os.environ['MEMORIUS_HOST'], "
+            "port=int(os.environ['MEMORIUS_PORT']))",
+            "run_rest_server(e, host=os.environ['MEMORIUS_HOST'], "
+            "port=int(os.environ['MEMORIUS_PORT']), "
+            "insecure=os.environ.get('MEMORIUS_INSECURE') == '1')",
         )
     cmd = [sys.executable, "-c", daemon_script]
     if os.name == "nt":
