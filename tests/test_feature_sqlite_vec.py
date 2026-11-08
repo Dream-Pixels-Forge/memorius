@@ -131,6 +131,57 @@ class TestSqliteVecStore:
         assert len(results) == 1
         assert results[0].vault == "v1"
 
+    def test_search_filter_metadata_allowed_keys(self, store):
+        """Allowed filter_metadata keys (folder, note) are applied to SQL WHERE."""
+        from memorius.models import Memory
+        mem1 = Memory(id="m1", vault="v1", shelf="main",
+                       folder="alpha", note="notes", content="alpha content")
+        mem2 = Memory(id="m2", vault="v1", shelf="main",
+                       folder="beta", note="notes", content="beta content")
+        store.add(mem1)
+        store.add(mem2)
+
+        # Filter by folder=alpha → only m1
+        results = store.search("content", vault="v1",
+                               filter_metadata={"folder": "alpha"}, n_results=5)
+        assert len(results) == 1
+        assert results[0].id == "m1"
+
+        # Filter by note=notes → both m1 and m2
+        results = store.search("content", vault="v1",
+                               filter_metadata={"note": "notes"}, n_results=5)
+        assert len(results) == 2
+
+    def test_search_filter_metadata_disallowed_key_ignored(self, store, caplog):
+        """Disallowed filter_metadata keys are logged and never reach SQL."""
+        from memorius.models import Memory
+        mem1 = Memory(id="m1", vault="v1", shelf="main",
+                       folder="alpha", note="notes", content="alpha content")
+        store.add(mem1)
+
+        # A malicious key like "__import__" or "1 OR 1=1" must be ignored
+        import logging
+        with caplog.at_level(logging.WARNING):
+            results = store.search("content", vault="v1",
+                                   filter_metadata={"__import__": "os"}, n_results=5)
+        assert len(results) == 1
+        assert results[0].id == "m1"
+        assert any("Ignoring disallowed filter_metadata key" in r
+                   for r in caplog.messages)
+
+    def test_search_filter_metadata_sql_injection_neutralized(self, store):
+        """SQL injection via filter_metadata key is neutralized by allowlist."""
+        from memorius.models import Memory
+        mem1 = Memory(id="m1", vault="v1", shelf="main",
+                       folder="alpha", note="notes", content="alpha content")
+        store.add(mem1)
+
+        # Injection attempt in the KEY (not value — value is parameterized)
+        results = store.search("content", vault="v1",
+                               filter_metadata={"1 OR 1=1": "x"}, n_results=5)
+        assert len(results) == 1
+        assert results[0].id == "m1"
+
 
 class TestEngineSqliteVec:
     def test_engine_store_and_search(self, engine):
