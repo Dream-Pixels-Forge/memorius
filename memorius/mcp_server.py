@@ -133,7 +133,7 @@ class McpServer:
                 "properties": {
                     "vault": {"type": "string", "description": "Filter by vault (default: all)"},
                     "similarity_threshold": {"type": "number", "description": "Similarity threshold 0-1 (default: 0.80)", "default": 0.80},
-                    "dry_run": {"type": "boolean", "description": "Preview without changes (default: false)", "default": False},
+                    "dry_run": {"type": "boolean", "description": "Preview without changes (default: true)", "default": True},
                 },
             },
         },
@@ -620,7 +620,7 @@ class McpServer:
         result = self._engine.consolidate(
             vault=args.get("vault"),
             similarity_threshold=args.get("similarity_threshold", 0.80),
-            dry_run=args.get("dry_run", False),
+            dry_run=args.get("dry_run", True),
         )
         return {
             "clusters_found": result.clusters_found,
