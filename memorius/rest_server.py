@@ -165,6 +165,9 @@ class MemoriusAPI:
                 "MEMORIUS_API_KEY is shorter than 16 characters — use a longer, randomly generated key."
             )
 
+        # Mutating methods that require auth even when no API key is configured.
+        _MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
         @app.middleware("http")
         async def auth_middleware(request: Request, call_next):
             if request.url.path == "/health":
@@ -175,6 +178,13 @@ class MemoriusAPI:
                 # Use compare_digest to prevent timing-based key enumeration
                 if not hmac.compare_digest(token.encode(), api_key.encode()):
                     return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key"})
+            elif request.method in _MUTATING_METHODS:
+                # No API key configured: read-only GET/HEAD/OPTIONS allowed,
+                # but mutating endpoints fail fast to prevent silent data mutation.
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "API key required (set MEMORIUS_API_KEY)"},
+                )
             return await call_next(request)
 
         @app.middleware("http")
@@ -791,9 +801,9 @@ def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912,
     api_key = os.environ.get("MEMORIUS_API_KEY")
     print(f"Memorius REST API running on http://{host}:{port}")
     if api_key:
-        print("  API key authentication: enabled")
+        print("  API key authentication: enabled (all endpoints)")
     else:
-        print("  API key authentication: disabled (set MEMORIUS_API_KEY to enable)")
+        print("  API key authentication: partial (read-only GET allowed; POST/PUT/PATCH/DELETE require MEMORIUS_API_KEY)")
         if host not in ("127.0.0.1", "localhost", "::1"):
             logger.warning(
                 "REST server bound to %s without API key auth — "

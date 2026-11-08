@@ -170,6 +170,62 @@ def test_rest_wrong_api_key_returns_401_not_500():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def _rest_client_no_api_key():
+    """Build a TestClient against a fresh isolated engine with NO MEMORIUS_API_KEY set."""
+    os.environ.pop("MEMORIUS_API_KEY", None)
+    tmp = tempfile.mkdtemp()
+    os.environ["MEMORIUS_STORAGE_PATH"] = tmp
+    from memorius.config import _default_config
+    from memorius.vault import VaultEngine
+    from memorius.rest_server import MemoriusAPI
+
+    cfg = _default_config()
+    cfg["storage"]["path"] = tmp
+    eng = VaultEngine(cfg)
+    api = MemoriusAPI(eng)
+    app = api.create_app()
+    from fastapi.testclient import TestClient
+
+    client = TestClient(app, raise_server_exceptions=False)
+    return client, eng, tmp
+
+
+def test_rest_no_api_key_get_allowed():
+    """Without MEMORIUS_API_KEY, read-only GET endpoints still work."""
+    client, eng, tmp = _rest_client_no_api_key()
+    try:
+        r = client.get("/health")
+        assert r.status_code == 200, f"expected 200 for /health, got {r.status_code}"
+        # /store is POST (mutating) → should be 401 without API key
+        r = client.post("/store", json={"content": "x"})
+        assert r.status_code == 401, f"expected 401 for POST /store without key, got {r.status_code}"
+    finally:
+        eng.close()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_rest_no_api_key_mutating_returns_401():
+    """Without MEMORIUS_API_KEY, all mutating endpoints return 401."""
+    client, eng, tmp = _rest_client_no_api_key()
+    try:
+        for method, path, body in [
+            ("POST", "/store", {"content": "x"}),
+            ("PUT", "/memory/00000000-0000-0000-0000-000000000001", {"content": "x"}),
+            ("PATCH", "/memory/00000000-0000-0000-0000-000000000001", {"content": "x"}),
+            ("DELETE", "/memory/00000000-0000-0000-0000-000000000001", None),
+        ]:
+            if body is not None:
+                r = getattr(client, method.lower())(path, json=body)
+            else:
+                r = getattr(client, method.lower())(path)
+            assert r.status_code == 401, (
+                f"expected 401 for {method} {path} without key, got {r.status_code}"
+            )
+    finally:
+        eng.close()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_rest_rate_limit_returns_429_not_500():
     """Hammer /search until the per-IP rate limit trips; expect 429 (not 500)."""
     # Use an api key so we pass auth. Lower the per-IP cap to a tiny number so
