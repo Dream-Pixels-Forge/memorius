@@ -780,7 +780,18 @@ def cmd_bookcase(engine, args, config):
         print(f"Static port {static_port} is in use — pass --static-port <other>.")
         sys.exit(1)
     static_dir = Path(bookcase_pkg.__file__).resolve().parent
-    handler = partial(http.server.SimpleHTTPRequestHandler, directory=str(static_dir))
+
+    class _NoDirectoryListingHandler(http.server.SimpleHTTPRequestHandler):
+        """SimpleHTTPRequestHandler that disables directory listing."""
+
+        def list_directory(self, path):
+            """Override to return 403 instead of a directory listing."""
+            self.send_error(403, "Directory listing disabled")
+            return None
+
+    handler = partial(
+        _NoDirectoryListingHandler, directory=str(static_dir)
+    )
     httpd = http.server.ThreadingHTTPServer(("127.0.0.1", static_port), handler)
     threading.Thread(
         target=httpd.serve_forever, daemon=True, name="memorius-bookcase-static"

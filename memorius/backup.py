@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,40 @@ from memorius.validation import validate_name as _validate_name
 logger = logging.getLogger("memorius.backup")
 
 SCHEMA_VERSION = 1
+
+# Allowed base directories for export/import paths. A path is accepted if it
+# resolves to a location under any of these bases. This blocks path-traversal
+# attempts (e.g. ``../../../etc/passwd``) while still allowing normal usage
+# under the home directory, current working directory, or /tmp.
+# Override with MEMORIUS_BACKUP_BASE_DIR for deployments that need a
+# different base.
+_BASE_DIRS = [
+    Path.home().resolve(),
+    Path.cwd().resolve(),
+    Path("/tmp").resolve(),
+]
+if os.environ.get("MEMORIUS_BACKUP_BASE_DIR"):
+    _BASE_DIRS.insert(0, Path(os.environ["MEMORIUS_BACKUP_BASE_DIR"]).resolve())
+_BACKUP_BASE_DIRS = list(dict.fromkeys(_BASE_DIRS))
+
+
+def _validate_backup_path(path: str | Path, purpose: str = "path") -> Path:
+    """Resolve and validate a backup file/directory path.
+
+    Ensures the resolved path stays inside one of _BACKUP_BASE_DIRS,
+    blocking path-traversal attempts (e.g. ``../../../etc/passwd``).
+    """
+    p = Path(path).expanduser().resolve()
+    for base in _BACKUP_BASE_DIRS:
+        try:
+            p.relative_to(base)
+            return p
+        except ValueError:
+            continue
+    raise ValueError(
+        f"{purpose} must be inside one of {_BACKUP_BASE_DIRS}, "
+        f"got {path} (resolves to {p})"
+    )
 
 
 def _validate_hierarchy_names(vaults, shelves, folders, notes):
@@ -43,7 +78,7 @@ def export_json(engine, dest: str | Path) -> Path:
 
     Returns the path written.
     """
-    dest = Path(dest)
+    dest = _validate_backup_path(dest, "export dest")
 
     # ── hierarchy ──
     hierarchy = engine._meta.export_hierarchy()
@@ -87,7 +122,7 @@ def import_json(engine, src: str | Path, *, merge: bool = True) -> dict[str, Any
 
     Returns a summary dict with counts of items imported/skipped.
     """
-    src = Path(src)
+    src = _validate_backup_path(src, "import src")
     with open(src, "r", encoding="utf-8") as fh:
         payload = json.load(fh)
 
@@ -183,7 +218,7 @@ def export_markdown(engine, dest: str | Path) -> Path:
 
     Graph edges are included as ``links`` in frontmatter.
     """
-    dest = Path(dest)
+    dest = _validate_backup_path(dest, "markdown export dest")
 
     memories = engine._meta.export_memories_meta()
 
