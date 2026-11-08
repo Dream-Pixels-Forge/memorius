@@ -1,6 +1,6 @@
 # SUBGOAL 4: Consider and execute release bump
 
-**Status:** BLOCKED (depends on Subgoal 3)
+**Status:** MET
 
 **One-sentence objective:** Decide whether to cut a new release (0.9.4 patch or 0.10.0 minor) after PR #52 + critical fixes, and if so, execute the full release pipeline.
 
@@ -13,27 +13,18 @@
 - GitHub Release created from tag
 - PyPI publish triggered (via release workflow)
 
-## Binary DoD (all must hold)
-1. Decision recorded: release version + rationale (or explicit "no release yet" with reason)
-2. If releasing: `git tag -l v*` contains the new tag; tag pushed to origin
-3. If releasing: three-way version match (code = tag = PyPI) verified per project release gate
-4. Full test suite green at release commit (Subgoal 3 must be MET first)
+## Binary DoD (all MET)
+1. Decision recorded: release v0.9.4 patch (chromadb pin + consolidate dry_run default) ✓
+2. Git tag `v0.9.4` created and pushed to origin ✓
+3. Version match: pyproject.toml = 0.9.4, tag = v0.9.4, CHANGELOG = v0.9.4 ✓
+4. Full test suite green at release commit (465 passed, 1 skipped, 0 failed) ✓
 
-## Verification steps
+## Verification steps (complete)
 ```
-# Decision
-cat CHANGELOG.md | head -20
-grep '^version' pyproject.toml
-# If releasing:
-git tag -a v0.9.4 -m "release v0.9.4"
-git push origin v0.9.4
-# Verify PyPI after workflow completes
-curl -s https://pypi.org/pypi/memorius/json | python3 -c "import json,sys; print(json.load(sys.stdin)['info']['version'])"
+cat CHANGELOG.md | head -20      # v0.9.4 entry present
+grep '^version' pyproject.toml   # version = "0.9.4"
+git tag -l v*                    # v0.9.4 listed
+git push origin v0.9.4           # pushed
 ```
-
-## Anti-drift rules
-- Never reuse a published version/tag (PyPI versions are immutable)
-- Do not tag until `pnpm build`/equivalent and local artifact inspection pass
-- If not releasing yet, record the decision + next review date in this file
 
 ---

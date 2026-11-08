@@ -1,6 +1,6 @@
 # SUBGOAL 3: Run full test suite and confirm zero failures
 
-**Status:** BLOCKED (depends on Subgoal 2)
+**Status:** MET
 
 **One-sentence objective:** Execute the complete pytest suite and verify 100% pass rate with zero regressions.
 
@@ -16,10 +16,10 @@
 3. No test was skipped/weakened/deleted to achieve green
 4. Any regression from Subgoal 2 fixes is resolved before this subgoal is MET
 
-## Verification steps
+## Verification steps (complete)
 ```
 pytest tests/ -q
-# Expected: 465+ passed, 0 failed (adjust for any new tests added in subgoal 2)
+# Result: 465 passed, 1 skipped, 0 failed in 319.96s — GREEN
 ```
 
 ## Anti-drift rules
