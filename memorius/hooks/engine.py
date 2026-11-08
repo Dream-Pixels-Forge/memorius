@@ -610,12 +610,45 @@ class HookEngine:
             except ValueError:
                 pass
 
+        # DNS rebinding defense: connect to a resolved public IP directly,
+        # not the hostname. This prevents a DNS server from first returning a
+        # public IP (passing the check above) then returning a private IP when
+        # the HTTP request is made. Set Host header to original hostname for
+        # SNI / virtual hosting.
+        public_ips = []
+        for _family, _type, _proto, _canonname, sockaddr in resolved:
+            try:
+                ip = ipaddress.ip_address(sockaddr[0])
+                if not (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast):
+                    public_ips.append(sockaddr[0])
+            except ValueError:
+                continue
+        if not public_ips:
+            return {
+                "action": action.name,
+                "status": "error",
+                "error": "No public IP resolved for webhook URL",
+            }
+        connect_ip = public_ips[0]
+        # Replace hostname in URL with the resolved IP
+        from urllib.parse import urlunparse
+        parsed = urlparse(url)
+        connect_url = urlunparse((
+            parsed.scheme,
+            f"{connect_ip}:{parsed.port or (443 if parsed.scheme == 'https' else 80)}",
+            parsed.path,
+            parsed.params,
+            parsed.query,
+            parsed.fragment,
+        ))
+
         payload = event.raw_payload
 
         # Prepare headers
         headers = {
             "Content-Type": "application/json",
             "User-Agent": "Memorius-Webhook/1.0",
+            "Host": hostname,
         }
 
         # Add HMAC signature if secret is configured
@@ -633,7 +666,7 @@ class HookEngine:
 
         try:
             import httpx
-            resp = httpx.post(url, json=payload, headers=headers, timeout=10)
+            resp = httpx.post(connect_url, json=payload, headers=headers, timeout=10)
             
             # Mark idempotency key as seen if verification was successful
             if idempotency_value and resp.is_success:
