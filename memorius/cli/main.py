@@ -125,6 +125,11 @@ def main():
 
     serve_p = subparsers.add_parser("serve", help="Start MCP server (stdio)")
     serve_p.add_argument("--port", type=int, default=8911, help="Not used for stdio")
+    serve_p.add_argument(
+        "--reclaim",
+        action="store_true",
+        help="Reclaim the lock from an orphaned memorius serve instance",
+    )
 
     serve_rest_p = subparsers.add_parser("serve-rest", help="Start REST API server")
     serve_rest_p.add_argument("--port", type=int, default=None, help="Port")
@@ -347,7 +352,7 @@ def main():
         )
 
         try:
-            _serve_lock = acquire_serve_lock(config)
+            _serve_lock = acquire_serve_lock(config, reclaim=getattr(args, "reclaim", False))
         except ServeAlreadyRunningError as exc:
             print(
                 f"memorius: {exc}",
@@ -355,6 +360,7 @@ def main():
             )
             print(
                 f"   Stop that instance (kill {exc.pid} or stop its MCP host) and retry,\n"
+                f"   or rerun with `memorius serve --reclaim` to take over an orphaned instance,\n"
                 f"   or point this instance at a different storage path via MEMORIUS_STORAGE_PATH.",
                 file=sys.stderr,
             )

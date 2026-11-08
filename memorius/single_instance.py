@@ -106,10 +106,12 @@ def _pid_alive(pid: int) -> bool:
     return True
 
 
-def acquire_serve_lock(config: dict[str, Any]) -> ServeLock:
+def acquire_serve_lock(config: dict[str, Any], reclaim: bool = False) -> ServeLock:
     """Acquire the single-instance guard lock for the configured storage dir.
 
-    Raises ``ServeAlreadyRunningError`` when a live incumbent holds it.
+    Raises ``ServeAlreadyRunningError`` when a live incumbent holds it and
+    ``reclaim`` is false. When ``reclaim`` is true, an orphaned live holder
+    is terminated and the lock is taken over.
     On platforms without ``fcntl`` returns an unlocked no-op handle after
     logging a warning (the guard is unavailable, but serve still works).
     """
@@ -132,10 +134,15 @@ def acquire_serve_lock(config: dict[str, Any]) -> ServeLock:
             os.close(fd)
             last_pid = _read_lock_pid(lock_path)
             # A dead holder's flock was already released by the kernel:
-            # retry and steal. A live holder: fail with its PID.
-            if last_pid is not None and _pid_alive(last_pid):
-                raise ServeAlreadyRunningError(last_pid, lock_path) from None
-            continue
+            # retry and steal.
+            if last_pid is None or not _pid_alive(last_pid):
+                continue
+            # Live holder: reclaim if requested (orphaned memorius serve),
+            # otherwise fail.
+            if reclaim and _is_memorius_serve(last_pid):
+                _reclaim_lock(last_pid)
+                continue
+            raise ServeAlreadyRunningError(last_pid, lock_path) from None
         except OSError:
             os.close(fd)
             raise
@@ -151,3 +158,37 @@ def acquire_serve_lock(config: dict[str, Any]) -> ServeLock:
     raise ServeAlreadyRunningError(
         last_pid if last_pid is not None else os.getpid(), lock_path
     )
+
+
+def _is_memorius_serve(pid: int) -> bool:
+    """True when /proc/<pid>/cmdline indicates a `memorius serve` process."""
+    try:
+        cmdline = Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\x00", b" ")
+    except OSError:
+        return False
+    return b"memorius" in cmdline and b"serve" in cmdline
+
+
+def _reclaim_lock(pid: int) -> None:
+    """Terminate an orphaned `memorius serve` holder so the lock can be taken."""
+    import signal
+    import time
+
+    logger.warning(
+        "reclaiming serve lock held by orphaned memorius serve (PID %d)", pid
+    )
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except OSError:
+        return  # already gone
+    # Wait up to ~3s for the kernel to release the flock on exit.
+    for _ in range(30):
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return  # gone
+        time.sleep(0.1)
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except OSError:
+        pass

@@ -1,0 +1,159 @@
+{
+  "summary": "Comprehensive multi-domain audit of memorius v0.9.3 (Python memory vault: FastAPI REST API + MCP stdio server + CLI + 3D bookcase UI). Ten domain analysts (security, backend, api, db, dependencies, frontend, infra, testing, design, ui-ux) produced independent markdown reports in dev-notes/teammate-analysis/, cross-referenced in INDEX.md. Total 217 findings: 11 Critical, 50 High, 99 Medium, 45 Low, 2 Info. Dominant cross-cutting risk: weak/absent authentication (REST opt-in API key, MCP zero auth), compounded by path traversal, injection surface, SSRF, XSS, loose dependency pinning with no lockfile, destructive ops without confirmation, no cross-store transactions, and major test/auth/accessibility gaps.",
+  "reportDir": "dev-notes/teammate-analysis/",
+  "filesWritten": [
+    "dev-notes/teammate-analysis/security.md",
+    "dev-notes/teammate-analysis/backend.md",
+    "dev-notes/teammate-analysis/api.md",
+    "dev-notes/teammate-analysis/db.md",
+    "dev-notes/teammate-analysis/dependencies.md",
+    "dev-notes/teammate-analysis/frontend.md",
+    "dev-notes/teammate-analysis/infra.md",
+    "dev-notes/teammate-analysis/testing.md",
+    "dev-notes/teammate-analysis/design.md",
+    "dev-notes/teammate-analysis/ui-ux.md",
+    "dev-notes/teammate-analysis/INDEX.md"
+  ],
+  "criticalFindings": [
+    {
+      "id": "C-01",
+      "title": "REST server unauthenticated when MEMORIUS_API_KEY unset — all write/delete endpoints open",
+      "severity": "Critical",
+      "location": "memorius/rest_server.py:162-176, 791-801",
+      "description": "auth_middleware only enforces the API key when MEMORIUS_API_KEY is set. When unset (the local default), every endpoint including /store, /delete, /prune, /consolidate, /obsidian/export and /obsidian/import is unauthenticated. run_rest_server() warns but starts without auth.",
+      "fix": "Require API key by default (fail closed); refuse non-loopback binds without auth; do not treat auth-disabled as informational."
+    },
+    {
+      "id": "C-02",
+      "title": "MCP server has zero authentication — any stdio client can invoke delete/prune/consolidate/graph_export",
+      "severity": "Critical",
+      "location": "memorius/mcp_server.py (entire file)",
+      "description": "The MCP stdio JSON-RPC server implements no authentication at all; any process that can spawn the CLI gains full vault read/write access across 35+ tools.",
+      "fix": "Add authentication to the MCP server (token validation on initialize) or restrict it to trusted local processes at the spawn boundary."
+    },
+    {
+      "id": "C-03",
+      "title": "REST endpoints unauthenticated when API key unset; no read/write key distinction",
+      "severity": "Critical",
+      "location": "memorius/rest_server.py (auth_middleware)",
+      "description": "A single key (if set) grants full access to read and mutate operations. There is no read/write scoped key and no authorization layer (no RBAC, no vault-scoped permissions).",
+      "fix": "Introduce read/write scoped keys and enforce auth on all mutating endpoints by default; add vault-scoped permissions."
+    },
+    {
+      "id": "C-04",
+      "title": "Consolidation mutates memories destructively with no snapshot and dry_run defaults to False",
+      "severity": "Critical",
+      "location": "memorius/vault.py:551-556, memorius/mcp_server.py:619-623",
+      "description": "consolidate() merges memories destructively with no snapshot/undo. tool_memorius_consolidate passes dry_run=args.get(\"dry_run\", False), so consolidation mutates data by default; a bad similarity threshold can merge distinct memories irreversibly.",
+      "fix": "Make dry_run=True the default for the MCP tool; add a pre-consolidation snapshot (export JSON + vector IDs) restorable on failure; surface a preview of candidate merge pairs before any write."
+    },
+    {
+      "id": "C-05",
+      "title": "chromadb loose-pinned >=0.4.22 admits versions with pre-auth RCE / cross-tenant CVEs",
+      "severity": "Critical",
+      "location": "pyproject.toml:24 (chromadb>=0.4.22)",
+      "description": "ChromaDB has published CVEs (CVE-2026-45829 pre-auth code injection via trust_remote_code; CVE-2026-45831 cross-tenant RBAC bypass). The >=0.4.22 constraint admits vulnerable versions; no lockfile is committed, so reproducible builds are not guaranteed.",
+      "fix": "Pin chromadb below the vulnerable range; commit a lockfile; add pip-audit/safety to CI."
+    },
+    {
+      "id": "C-06",
+      "title": "No REST authentication bypass tests",
+      "severity": "Critical",
+      "location": "memorius/rest_server.py:162-176",
+      "description": "No test verifies 401 on missing/invalid Bearer token, or that endpoints are open when the key is unset.",
+      "fix": "Add tests that set MEMORIUS_API_KEY and verify /store / /delete / /prune return 401 without a valid Bearer token and 200 with it."
+    },
+    {
+      "id": "C-07",
+      "title": "No tests that REST rejects unauthenticated requests when API key is set",
+      "severity": "Critical",
+      "location": "memorius/rest_server.py:190-208",
+      "description": "The auth middleware exists but is untested for rejection behavior.",
+      "fix": "Test that all mutating endpoints return 401 without a valid key when MEMORIUS_API_KEY is set."
+    },
+    {
+      "id": "C-08",
+      "title": "No MCP authorization tests — all 35+ tools callable with zero authN/authZ",
+      "severity": "Critical",
+      "location": "memorius/mcp_server.py",
+      "description": "No tests cover MCP authentication or authorization; every tool is callable by any stdio client.",
+      "fix": "Document that MCP requires trusted local processes, or add authentication and test it."
+    },
+    {
+      "id": "C-09",
+      "title": "Bookcase usage docs hidden by default; no onboarding CTA for first-time users",
+      "severity": "Critical",
+      "location": "memorius/bookcase/bookcase.html:87-105, memorius/bookcase/bookcase.js:96-103",
+      "description": "The only usage documentation (#bc-usage) is hidden by default with no visible trigger. On an empty vault there is no call-to-action, no link to `memorius store`, and no guided first-memory flow — a first-time user sees an empty library with no indication of how to add anything.",
+      "fix": "Reveal an onboarding card on first empty-vault load; add a prominent copyable 'memorius store ...' CTA plus a link to docs/README."
+    },
+    {
+      "id": "C-10",
+      "title": "3D canvas has no ARIA labels / screen-reader support",
+      "severity": "Critical",
+      "location": "memorius/bookcase/bookcase.html:39",
+      "description": "The 3D library (books, shelves, case labels, tooltip) is rendered entirely into WebGL. Screen readers receive nothing from the canvas — no book labels, shelf names, or position cues — and the visual-only #bc-tooltip is not announced.",
+      "fix": "Add aria-label on the canvas plus a visually-hidden aria-live region summarizing current vault/book count and hovered book."
+    },
+    {
+      "id": "C-11",
+      "title": "Bookcase API-down error offers no in-UI recovery",
+      "severity": "Critical",
+      "location": "memorius/bookcase/bookcase.js:126-130",
+      "description": "The bookcase detects the API is down but offers no Retry, no 'Start REST server' button, and no link to the terminal command — the user is stranded in the 3D view.",
+      "fix": "Add Retry plus a copyable 'memorius serve-rest' hint to the error pill."
+    }
+  ],
+  "domainSummaries": [
+    {
+      "domain": "Security",
+      "findingsCount": 33,
+      "highlights": "2 Critical / 12 High / 13 Medium / 6 Low. Weak authN by default (REST opt-in key, MCP zero auth), path traversal in backup/obsidian, injection surface, webhook SSRF (DNS-rebind), secret log leakage, XSS (Three.js no SRI, graph_visualizer raw JSON), loose dependency pinning, unbounded rate_limit dict."
+    },
+    {
+      "domain": "Backend",
+      "findingsCount": 25,
+      "highlights": "0 Critical / 6 High / 13 Medium / 6 Low. No RBAC/idempotency keys on mutations, in-memory rate limiting, CORS permissive to all localhost ports, TLS opt-in plaintext default, destructive prune/consolidate without confirmation, single-instance lock reclaim kills orphan mid-write, daemon PID-file arbitrary-process risk."
+    },
+    {
+      "domain": "API",
+      "findingsCount": 12,
+      "highlights": "1 Critical / 4 High / 4 Medium / 3 Low. AuthN gap (REST opt-in; MCP zero auth), authorization gap (no RBAC/idempotency), overly permissive CORS, inconsistent input validation (dict[str, Any]), weak rate limiting (REST in-memory/per-worker; MCP none), inconsistent error handling/info leakage, no versioning/deprecation, missing security headers, MCP framing/error-shutdown bypass, sensitive data without redaction."
+    },
+    {
+      "domain": "Database",
+      "findingsCount": 14,
+      "highlights": "1 Critical / 5 High / 6 Medium / 2 Low. SQL injection surface safe but fragile (f-string WHERE allowlist), WAL contention/no batching, idle connections never closed (unbounded FDs), no cross-store transaction boundary (vector+meta drift), import silently drops vectors on re-embed, hard-delete prune no confirmation/undo, no enforced foreign keys/orphaned edges, missing indexes on shelf/folder/note, no CHECK/JSON constraints, consolidation mutates by default no snapshot."
+    },
+    {
+      "domain": "Dependencies",
+      "findingsCount": 19,
+      "highlights": "1 Critical / 5 High / 8 Medium / 4 Low / 1 Info. All deps loose-pinned >= with no upper bounds, no lockfile, no vuln scanning in CI. chromadb CRITICAL (pre-auth RCE/cross-tenant CVEs). sentence-transformers pulls huge torch footprint. prometheus_client imported but undeclared; sse-starlette and pydantic declared but unused."
+    },
+    {
+      "domain": "Frontend",
+      "findingsCount": 10,
+      "highlights": "0 Critical / 2 High / 4 Medium / 3 Low / 1 Info. Single-page bookcase.html, no build step, raw HTML/JS/CSS served as package data. Three.js from unpkg CDN without SRI (XSS), no ARIA/keyboard on canvas, no responsive layout, no reduced-motion, no bundle/tree-shaking (no build tooling)."
+    },
+    {
+      "domain": "Infra",
+      "findingsCount": 18,
+      "highlights": "0 Critical / 3 High / 9 Medium / 6 Low. Setuptools build, pip install deploy, no Dockerfile/K8s/cloud config, .github CI exists but runs only 7/47 test files, no secret injection in CI, doctor.py health/logging, hooks engine with pi/codex/claude_code adapters, no staging/prod environments."
+    },
+    {
+      "domain": "Testing",
+      "findingsCount": 24,
+      "highlights": "3 Critical / 6 High / 13 Medium / 2 Low. No REST auth bypass/rejection tests, no MCP auth tests, no path-traversal tests for backup/obsidian, no malicious payload fixtures, CI runs only 7/47 test files, no coverage threshold, frontend/bookcase untested, network/timing-dependent flakiness risk."
+    },
+    {
+      "domain": "Design",
+      "findingsCount": 36,
+      "highlights": "0 Critical / 6 High / 19 Medium / 11 Low. No defined design tokens/CSS custom properties, single bookcase screen, 3D spatial metaphor, canvas lacks ARIA/keyboard/responsive/reduced-motion, no design-to-code handoff spec/tokens file, inconsistent component patterns."
+    },
+    {
+      "domain": "UI/UX",
+      "findingsCount": 24,
+      "highlights": "3 Critical / 10 High / 16 Medium / 5 Low. Hidden usage docs/empty-vault dead end, 3D canvas inaccessible to screen readers, API-down error with no recovery, search requires knowing vault exists, no loading/empty/error state consistency, keyboard nav gaps, no focus management, CLI/MCP feedback inconsistent."
+    }
+  ]
+}
