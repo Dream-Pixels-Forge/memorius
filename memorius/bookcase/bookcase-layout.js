@@ -142,3 +142,23 @@ export function planSections(rows) {
   const spawn = { x: 0, y: EYE_Y, z: SPAWN_BACK };
   return { cases, spawn };
 }
+
+/* Turn a book's offset from the visitor (dx, dz in metres, yaw of the
+ * view) into words a librarian would say: "about 6 metres ahead, bearing
+ * left, on the middle shelf". */
+export function describePlace(dx, dz, yaw, shelfIdx, caseLabel) {
+  const ahead = dx * -Math.sin(yaw) + dz * -Math.cos(yaw);
+  const side = dx * Math.cos(yaw) + dz * -Math.sin(yaw);
+  const metres = Math.max(1, Math.round(Math.hypot(dx, dz)));
+  const lr = side > 0 ? "right" : "left";
+  let where;
+  if (metres <= 1) where = "right in front of you";
+  else if (ahead > Math.abs(side) * 1.5) {
+    where = `about ${metres} metres ahead${Math.abs(side) > 1.5 ? `, bearing ${lr}` : ""}`;
+  } else if (ahead < -Math.abs(side)) where = `about ${metres} metres behind you`;
+  else where = `about ${metres} metres to your ${lr}`;
+  const levels = ["bottom shelf", "second shelf from the bottom",
+    "middle shelf, at chest height", "second shelf from the top"];
+  const level = shelfIdx >= SHELVES_PER_CASE - 1 ? "top shelf" : levels[shelfIdx] || "middle shelf";
+  return { case: caseLabel, level, where, text: `in the ${caseLabel} case, ${where}, on the ${level}` };
+}

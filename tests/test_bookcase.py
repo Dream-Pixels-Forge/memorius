@@ -38,6 +38,8 @@ REQUIRED_JS_ENDPOINT_REFS = ["/vault", "/memories", "/search", "/memory/"]
 REQUIRED_ASSETS = [
     "bookcase.html", "bookcase.css", "bookcase.js",
     "bookcase-scene.js", "bookcase-walk.js", "bookcase-layout.js",
+    "bookcase-atmosphere.js", "bookcase-guide.js", "bookcase-textures.js",
+    "bookcase-minimap.js",
 ]
 MAX_LINES_PER_FILE = 500
 
@@ -333,4 +335,55 @@ class TestBookcaseWalkable:
     def test_main_page_imports_scene(self):
         js = self._asset("bookcase.js")
         assert "./bookcase-scene.js" in js
+
+
+class TestBookcaseNextLevel:
+    """Lantern librarian, cinematic guidance, reading panel, minimap."""
+
+    def _asset(self, name: str) -> str:
+        import memorius.bookcase as bookcase_pkg
+
+        return (Path(bookcase_pkg.__file__).parent / name).read_text(
+            encoding="utf-8"
+        )
+
+    def test_scene_uses_atmosphere_guide_and_textures(self):
+        scene = self._asset("bookcase-scene.js")
+        for mod in ("./bookcase-atmosphere.js", "./bookcase-guide.js",
+                    "./bookcase-textures.js"):
+            assert mod in scene, f"scene does not import {mod}"
+        # accessibility: honour reduced-motion
+        assert "prefers-reduced-motion" in scene
+        # search hits slide out of the shelf; opened book drawn out
+        assert "PULL_TOP" in scene and "bc:open" in scene
+
+    def test_guide_lantern_choreography(self):
+        guide = self._asset("bookcase-guide.js")
+        assert "lanternRun" in guide, "no lantern-led camera move"
+        assert "establishing" in guide, "no opening establishing shot"
+        assert "reducedMotion" in guide, "camera moves ignore reduced motion"
+        assert "cancel()" in guide, "camera moves cannot be skipped"
+
+    def test_atmosphere_bounded_light_pool(self):
+        atmo = self._asset("bookcase-atmosphere.js")
+        assert "LIGHT_POOL" in atmo, "lamps must share a fixed light pool"
+        assert "PointLight" in atmo
+
+    def test_librarian_speaks_directions(self):
+        layout = self._asset("bookcase-layout.js")
+        assert "export function describePlace" in layout
+        lib = self._asset("bookcase-librarian.js")
+        assert "announceSearch(query, results, directions" in lib
+        assert "readAloud" in lib and "speechSynthesis.cancel" in lib
+
+    def test_page_controls_minimap_and_shortcuts(self):
+        html = self._asset("bookcase.html")
+        for element_id in ("bc-map", "bc-help", "bc-hint", "bc-cross", "bc-usage"):
+            assert f'id="{element_id}"' in html, f"missing #{element_id}"
+        main = self._asset("bookcase.js")
+        assert "./bookcase-minimap.js" in main
+        assert "stepResult" in main, "no N/P result cycling"
+        assert "onShortcut" in main, "no keyboard shortcuts"
+        minimap = self._asset("bookcase-minimap.js")
+        assert "bc:goto" in minimap, "minimap click does not walk the visitor"
 
