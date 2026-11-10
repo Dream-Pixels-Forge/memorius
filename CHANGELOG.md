@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.9.5 (2026-11-10)
 
 ### New Features
 - **Bookcase: the vault as a building.** The floor plan now mirrors the
@@ -32,10 +32,6 @@
   `librarian-hippo.webp` in the package. He's purely decorative: no collider,
   never blocks book picking, and still with `prefers-reduced-motion`. The
   entrance spot moves back 1.2 m so he's framed full-length.
-
-## Unreleased
-
-### New Features
 - **Bookcase: the lantern librarian.** The librarian is now a visible
   lantern-light that floats at your shoulder. On a search it takes off and
   the camera follows it in one unbroken crane move: up out of the aisle,
