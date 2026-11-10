@@ -90,9 +90,14 @@ Once the page is open:
 - **Read:** click a book. It's drawn out of the row and opens in a reading panel with tags,
   age, "beside it on the shelf" neighbours, *Walk me there* and *Read aloud*.
 - **Map:** **M** toggles the floor plan (you, the lantern, the hits); click it to be walked there.
-- **Vault / layout:** dropdowns switch vault (from `GET /vaults`) or order by shelf / recency.
+- **Vault / layout:** dropdowns switch vault (from `GET /vaults`) or light the newest books.
 - **Reset / skip:** **R** resets the view; **Space** or **Esc** skips a camera move. **?** shows all controls.
 - **Colour:** every folder has its own cloth binding; fresher memories are brighter with shinier gilt.
+- **Floor plan:** the vault is a building. Each shelf is a bay off the central aisle (alternating
+  left and right, with a sign over its opening), each folder is a case inside its bay, read
+  clockwise, and books run left to right from eye level down. Positions never move, so you
+  can learn where things live. "Light newest" makes the newest books glow and lean out, and
+  the newest also stand on the new-arrivals table by the doors.
 
 Camera moves, dust and head-bob respect `prefers-reduced-motion`.
 

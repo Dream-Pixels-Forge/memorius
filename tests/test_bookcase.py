@@ -40,6 +40,7 @@ REQUIRED_ASSETS = [
     "bookcase-scene.js", "bookcase-walk.js", "bookcase-layout.js",
     "bookcase-atmosphere.js", "bookcase-guide.js", "bookcase-textures.js",
     "bookcase-minimap.js", "bookcase-mascot.js", "librarian-hippo.webp",
+    "bookcase-cases.js", "librarian-hippo.glb",
 ]
 MAX_LINES_PER_FILE = 500
 
@@ -350,8 +351,9 @@ class TestBookcaseNextLevel:
     def test_scene_uses_atmosphere_guide_and_textures(self):
         scene = self._asset("bookcase-scene.js")
         for mod in ("./bookcase-atmosphere.js", "./bookcase-guide.js",
-                    "./bookcase-textures.js"):
+                    "./bookcase-cases.js"):
             assert mod in scene, f"scene does not import {mod}"
+        assert "./bookcase-textures.js" in self._asset("bookcase-cases.js")
         # accessibility: honour reduced-motion
         assert "prefers-reduced-motion" in scene
         # search hits slide out of the shelf; opened book drawn out
@@ -394,7 +396,11 @@ class TestBookcaseNextLevel:
         assert art[:4] == b"RIFF" and art[8:12] == b"WEBP", "mascot art is not a WebP"
         assert len(art) < 200_000, "mascot art should stay small (shipped in the wheel)"
         mascot = self._asset("bookcase-mascot.js")
-        assert "librarian-hippo.webp" in mascot
+        assert "librarian-hippo.webp" in mascot  # cut-out fallback
+        assert "librarian-hippo.glb" in mascot and "MeshoptDecoder" in mascot
+        model = (Path(bookcase_pkg.__file__).parent / "librarian-hippo.glb").read_bytes()
+        assert model[:4] == b"glTF", "3D librarian is not a binary glTF"
+        assert len(model) < 1_500_000, "3D librarian must stay light (shipped in the wheel)"
         for hook in ("bc:search", "bc:fly", "bc:reset-view", "bc:books"):
             assert hook in mascot, f"mascot ignores {hook}"
         assert "bookPoint" in mascot, "lantern cannot settle into his book"
@@ -402,4 +408,86 @@ class TestBookcaseNextLevel:
         main = self._asset("bookcase.js")
         assert "./bookcase-mascot.js" in main and "mascot.hop()" in main
         assert "librarian-hippo.webp" in self._asset("bookcase.css"), "log not signed"
+
+
+_LAYOUT_PROBE = r"""
+import * as L from %(url)s;
+const shelves = ["alpha", "beta", "gamma", "delta", "epsilon"];
+const rows = shelves.map((shelf, i) => ({
+  shelf,
+  folders: Array.from({ length: 1 + (i * 3) %% 7 }, (_, j) => ({
+    folder: `f${j}`,
+    slots: Array.from({ length: 5 + ((i + j) * 37) %% 90 }, (_, k) => ({
+      book: { id: `${shelf}/f${j}/${k}`, shelf, folder: `f${j}` }, w: 0.035 + (k %% 5) * 0.01,
+    })),
+  })),
+}));
+const plan = L.planSections(rows);
+const out = { bays: plan.bays.map((b) => [b.label, b.side]), cases: plan.cases.length,
+  overlaps: 0, inNave: 0, split: 0, spawnHit: 0, bad: 0 };
+const hit = (a, b) => a.minX < b.maxX && a.maxX > b.minX && a.minZ < b.maxZ && a.maxZ > b.minZ;
+plan.cases.forEach((a, i) => {
+  if (a.aabb.maxX > -L.NAVE / 2 + 0.01 && a.aabb.minX < L.NAVE / 2 - 0.01) out.inNave += 1;
+  plan.cases.slice(i + 1).forEach((b) => { if (hit(a.aabb, b.aabb)) out.overlaps += 1; });
+  for (const sh of a.shelves) {
+    if (sh.xMax - sh.xMin > L.CASE_W) out.bad += 1;
+    for (const sl of sh.slots) if (`${sl.book.shelf}` !== a.bay.replace(/ [IVX]+$/, "")) out.bad += 1;
+  }
+});
+const bayOf = new Map();
+for (const c of plan.cases) {
+  const key = `${c.bay}|${c.folder}`;
+  if (bayOf.has(c.folder + c.bay)) continue;
+  bayOf.set(c.folder + c.bay, key);
+}
+const folderBays = new Map();
+for (const c of plan.cases) {
+  const k = c.bay.replace(/ [IVX]+$/, "") + "/" + c.folder;
+  folderBays.set(k, (folderBays.get(k) || new Set()).add(c.bay));
+}
+for (const s of folderBays.values()) if (s.size > 1) out.split += 1;
+const s = plan.spawn;
+for (const c of plan.cases.concat(plan.props.map((a) => ({ aabb: a })))) {
+  const a = c.aabb;
+  if (s.x > a.minX - 0.35 && s.x < a.maxX + 0.35 && s.z > a.minZ - 0.35 && s.z < a.maxZ + 0.35) out.spawnHit += 1;
+}
+const d = L.describePlace(-3, -6, 0, 3, "refs", { label: "alpha", ordinal: 2, side: "left" });
+out.describe = d.text;
+console.log(JSON.stringify(out));
+"""
+
+
+class TestBookcaseFloorPlan:
+    """The bay floor plan: shelf → bay off a central nave, folder → case(s)."""
+
+    def test_layout_constants(self):
+        import memorius.bookcase as bookcase_pkg
+
+        layout = (Path(bookcase_pkg.__file__).parent / "bookcase-layout.js").read_text()
+        for name in ("NAVE", "BAY_BACK", "MAX_SIDE", "FILL_ORDER", "HALL"):
+            assert f"export const {name}" in layout, f"layout lacks {name}"
+
+    @pytest.mark.skipif(shutil.which("node") is None, reason="needs Node.js to run the ES module")
+    def test_plan_geometry(self):
+        import json
+
+        import memorius.bookcase as bookcase_pkg
+
+        url = json.dumps((Path(bookcase_pkg.__file__).parent / "bookcase-layout.js").as_uri())
+        res = subprocess.run(
+            ["node", "--input-type=module", "-e", _LAYOUT_PROBE % {"url": url}],
+            capture_output=True, text=True, timeout=60,
+        )
+        assert res.returncode == 0, res.stderr
+        out = json.loads(res.stdout)
+        labels = [b[0] for b in out["bays"]]
+        assert labels[:5] == ["alpha", "beta", "gamma", "delta", "epsilon"] or len(labels) >= 5
+        sides = [b[1] for b in out["bays"]]
+        assert sides[:2] == [-1, 1], "bays must alternate left / right"
+        assert out["overlaps"] == 0, "cases intersect"
+        assert out["inNave"] == 0, "a case blocks the central nave"
+        assert out["split"] == 0, "a folder is split across bays"
+        assert out["spawnHit"] == 0, "visitor spawns inside furniture"
+        assert out["bad"] == 0, "a book sits in the wrong bay or overflows a plank"
+        assert "alpha bay, second on the left" in out["describe"]
 

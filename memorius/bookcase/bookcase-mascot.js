@@ -1,81 +1,114 @@
 /* bookcase-mascot.js — the Memorius hippo, the library's librarian.
  *
  * He waits by the entrance when you arrive. Ask for something and the
- * lantern (the light from his glowing book) leads the camera through the
- * stacks; by the time you land in the aisle he is already standing beside
- * the right book, and the lantern settles back into the book in his hand.
- * He gives a small hop whenever he speaks. Reset the view and he goes
- * back to the entrance.
+ * lantern (the light from his book) leads the camera through the stacks;
+ * by the time you land he is already standing beside the right book,
+ * holding his book toward it, and the lantern settles back into it. He
+ * hops whenever he speaks and turns to face you as you move. Reset the
+ * view and he goes back to his spot by the doors.
  *
- * Rendering: an upright paper-theatre cut-out from librarian-hippo.webp
- * that turns (yaw only) to face the visitor — it never tilts into the
- * shelves when the camera looks down — mirrored when needed so his book
- * points where he is pointing, with a contact shadow.
+ * Rendering: the 3D model librarian-hippo.glb (meshopt + WebP, ~0.6 MB),
+ * shown as soon as it loads; until then — or if it cannot load — an
+ * upright paper cut-out (librarian-hippo.webp) stands in. Both are
+ * mirrored so the book is in the hand nearest the shelf he points at.
  * Purely decorative: no collider, never intercepts book picking.
  * prefers-reduced-motion: no pop/hop/breathing, instant moves.
  */
 import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { shadowTexture } from "./bookcase-textures.js";
-import { BOOK_D } from "./bookcase-layout.js";
 
 export const MASCOT_URL = "./librarian-hippo.webp";
-const HEIGHT = 1.0; // metres — a small, friendly librarian
-const ASPECT = 695 / 768; // cropped image width / height
-// where his glowing book sits inside the image (fractions of the sprite)
-const BOOK_U = 0.17; // from the left edge
-const BOOK_V = 0.56; // from the bottom edge
-const SIDE = 0.6; // how far beside the found book he stands (frame left, clear of the panel)
+export const MASCOT_MODEL_URL = "./librarian-hippo.glb";
+const HEIGHT = 1.05; // metres — a small, friendly librarian
+const ASPECT = 695 / 768; // cut-out image width / height
+const CUTOUT_BOOK = [0.17 - 0.5, 0.56]; // book in the image (u from centre, v from feet)
+const MODEL_H = 1.9; // model's native height (bbox y -0.95 … 0.95), facing +Z
+const MODEL_BOOK = [-0.62, 0.05, 0.25]; // book in model space (his right hand)
+const SIDE = 0.6; // how far beside the found book he stands (frame left)
 const FRONT = 0.3; // how far out from the shelf face (stays in the aisle)
 
 export class Mascot {
   constructor(scene, { reducedMotion = false } = {}) {
     this.reducedMotion = reducedMotion;
-    this.group = new THREE.Group();
-    const loader = new THREE.TextureLoader();
-    const tex = loader.load(MASCOT_URL, () => { this.ready = true; });
+    this.group = new THREE.Group(); // position + yaw
+    this.figure = new THREE.Group(); // pop / breathe / hop / mirror
+    this.anchor = new THREE.Object3D(); // where his book is
+    this.group.add(this.figure);
+
+    // paper cut-out first (instant), replaced by the 3D model when ready
+    const tex = new THREE.TextureLoader().load(MASCOT_URL);
     tex.colorSpace = THREE.SRGBColorSpace;
-    // a touch warmer/darker than white so the unlit cut-out sits in lamplight
     const geo = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0); // feet on the floor
-    this.sprite = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+    this.cutout = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
       map: tex, transparent: true, alphaTest: 0.08, color: 0xe6d8c6, side: THREE.DoubleSide,
     }));
-    this.sprite.scale.set(HEIGHT * ASPECT, HEIGHT, 1);
+    this.cutout.scale.set(HEIGHT * ASPECT, HEIGHT, 1);
+    this.figure.add(this.cutout);
+    this.anchor.position.set(CUTOUT_BOOK[0] * HEIGHT * ASPECT, CUTOUT_BOOK[1] * HEIGHT, 0.05);
+    this.figure.add(this.anchor);
+    this.model = null;
+    this._loadModel();
+
     const shadow = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.9, 0.45),
+      new THREE.PlaneGeometry(0.9, 0.55),
       new THREE.MeshBasicMaterial({ map: shadowTexture(), transparent: true, depthWrite: false })
     );
     shadow.rotation.x = -Math.PI / 2;
     shadow.position.y = 0.004;
-    this.group.add(shadow, this.sprite);
+    this.group.add(shadow);
     scene.add(this.group);
 
-    this.flipped = false;
+    this.flipped = true;
     this.at = "home";
     this._pop = 1; // 0 → hidden, 1 → fully shown
     this._pending = null; // {pos, flip, delay, at}
     this._hop = 0;
-    this.home = new THREE.Vector3(-1.4, 0, 1.6);
+    this._yaw = 0;
+    this.home = new THREE.Vector3(-1.3, 0, 3.0);
     this.group.position.copy(this.home);
   }
 
-  /* Entrance spot for a fresh floor plan: off to the left of the spawn,
-   * in front of the first row, so the opening shot frames him. */
-  setHome(spawn) {
-    this.home.set(spawn.x - 1.3, 0, spawn.z - 3.4);
+  _loadModel() {
+    const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
+    loader.load(MASCOT_MODEL_URL, (gltf) => {
+      const model = gltf.scene;
+      const s = HEIGHT / MODEL_H;
+      model.scale.setScalar(s);
+      model.position.y = (MODEL_H / 2) * s; // feet on the floor
+      model.traverse((o) => {
+        if (!o.isMesh) return;
+        const m = o.material;
+        m.metalness = 0; // no env map in the hall: metal would read black
+        // a little self-light so he stays readable in the dim reading room
+        m.emissive = new THREE.Color(0x2a221c);
+        m.emissiveMap = m.map;
+      });
+      this.figure.remove(this.cutout);
+      this.figure.add(model);
+      this.anchor.position.set(MODEL_BOOK[0] * s, MODEL_BOOK[1] * s + (MODEL_H / 2) * s,
+        MODEL_BOOK[2] * s);
+      this.model = model;
+    }, undefined, () => {
+      /* stay a paper cut-out — the page keeps working */
+    });
+  }
+
+  /* His spot by the doors (from the floor plan), facing into the hall. */
+  setHome(desk) {
+    this.home.set(desk.x, 0, desk.z);
     this.goHome(0);
   }
 
-  /* At the entrance he is mirrored so his book points into the room. */
   goHome(delay = 0.2) {
     this._schedule(this.home.clone(), true, delay, "home");
   }
 
-  /* Stand beside a book (its world position + shelf-face z), holding the
-   * glowing book toward it. Appears after `delay` seconds (camera flight). */
-  standBeside(bookPos, shelfZ, delay = 0) {
-    // left of the book, mirrored so his glowing book points at it
-    const pos = new THREE.Vector3(bookPos.x - SIDE, 0, shelfZ + FRONT);
-    this._schedule(pos, true, delay, "book");
+  /* Stand at a world point beside a book; appears after `delay` seconds. */
+  standAt(pos, delay = 0) {
+    this._schedule(pos.clone().setY(0), true, delay, "book");
   }
 
   _schedule(pos, flip, delay, at) {
@@ -83,27 +116,31 @@ export class Mascot {
     this._pending = { pos, flip, delay, at };
   }
 
-  /* World point of the glowing book in his hand (lantern's resting place). */
+  /* World point of the book in his hand (the lantern's resting place). */
   bookPoint(out = new THREE.Vector3()) {
-    const w = HEIGHT * ASPECT * (this.flipped ? -1 : 1);
-    this.group.updateMatrixWorld();
-    return this.group.localToWorld(out.set((BOOK_U - 0.5) * w, HEIGHT * BOOK_V, 0.04));
+    this.group.updateMatrixWorld(true);
+    return this.anchor.getWorldPosition(out);
+  }
+
+  hop() {
+    if (!this.reducedMotion) this._hop = 1;
   }
 
   /* Wire him to a BookcaseScene: follow its events, return a per-frame
-   * function. Scene listeners are registered first, so the case is rebuilt
+   * function. Scene listeners are registered first, so the hall is rebuilt
    * (bc:books) and the camera flight has started (bc:search / bc:fly) by
    * the time these run. */
   attach(scene) {
     // arrival becomes a two-shot: aim between the found book and his book
-    scene.frameBias.set(-SIDE * 0.5, -0.32, 0);
+    scene.frameBias.set(-SIDE * 0.5, 0, 0);
+    scene.framePartnerY = this.anchor.position.y + 0.1;
     const toBook = (id) => {
-      const mesh = id && scene.byBook.get(id);
-      if (!mesh) return;
+      const pos = id && scene.besidePoint(id, -SIDE, FRONT);
+      if (!pos) return;
       const f = scene.guide.flight; // arrive as the camera lands
-      this.standBeside(mesh.position, mesh.userData.homeZ + BOOK_D / 2, f ? f.dur * 0.7 : 0);
+      this.standAt(pos, f ? f.dur * 0.7 : 0);
     };
-    window.addEventListener("bc:books", () => this.setHome(scene._spawn));
+    window.addEventListener("bc:books", () => scene._plan && this.setHome(scene._plan.desk));
     window.addEventListener("bc:search", (e) => toBook(e.detail.topId));
     window.addEventListener("bc:fly", (e) => toBook(e.detail.id));
     window.addEventListener("bc:reset-view", () => this.goHome());
@@ -119,15 +156,15 @@ export class Mascot {
     };
   }
 
-  hop() {
-    if (!this.reducedMotion) this._hop = 1;
-  }
-
   update(dt, t, camera = null) {
     if (camera) {
-      // yaw-only billboard: always upright, always facing the visitor
+      // turn (yaw only) to face the visitor, with a little lag like a person
       const g = this.group.position;
-      this.group.rotation.y = Math.atan2(camera.position.x - g.x, camera.position.z - g.z);
+      const want = Math.atan2(camera.position.x - g.x, camera.position.z - g.z);
+      let d = want - this._yaw;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      this._yaw += this.reducedMotion ? d : d * Math.min(1, dt * 4);
+      this.group.rotation.y = this._yaw;
     }
     const p = this._pending;
     if (p) {
@@ -140,6 +177,9 @@ export class Mascot {
         this.at = p.at;
         this._pending = null;
         this._pop = this.reducedMotion ? 1 : 0.001;
+        if (camera) {
+          this._yaw = Math.atan2(camera.position.x - p.pos.x, camera.position.z - p.pos.z);
+        }
       }
     } else if (this._pop < 1) {
       this._pop = Math.min(1, this._pop + dt * 3.2);
@@ -150,10 +190,9 @@ export class Mascot {
     const pop = k <= 0 ? 0 : 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2);
     const breathe = this.reducedMotion ? 0 : 0.012 * Math.sin(t * 2.2);
     this._hop = Math.max(0, this._hop - dt * 2.5);
-    const hopY = Math.sin(this._hop * Math.PI) * 0.12;
-    this.sprite.position.y = hopY;
-    const flip = this.flipped ? -1 : 1;
-    this.sprite.scale.set(flip * HEIGHT * ASPECT * pop * (1 - breathe * 0.5), HEIGHT * pop * (1 + breathe), 1);
+    this.figure.position.y = Math.sin(this._hop * Math.PI) * 0.12;
+    const mirror = this.flipped ? -1 : 1;
+    this.figure.scale.set(mirror * pop * (1 - breathe * 0.5), pop * (1 + breathe), pop);
     this.group.visible = pop > 0.01;
   }
 }

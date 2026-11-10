@@ -29,6 +29,8 @@ const scene = new BookcaseScene($("bc-scene"));
 const librarian = new Librarian({ onLog: logGuidance });
 const minimap = new Minimap($("bc-map"), {
   plan: () => scene._cases,
+  bounds: () => scene._plan && scene._plan.bounds,
+  bays: () => (scene._plan ? scene._plan.bays : []),
   cam: () => scene.camera.position,
   yaw: () => scene.walk.yaw,
   hits: () => scene.hits(),
@@ -380,7 +382,7 @@ function wire() {
       detail: { layout: state.layout },
     }));
     setStatus(
-      state.layout === "recency" ? "recency layout (newest left)" : "shelf layout"
+      state.layout === "recency" ? "newest books lit — nothing moves" : "shelf layout"
     );
   });
 
