@@ -15,18 +15,16 @@ import * as THREE from "three";
 import { WalkControls } from "./bookcase-walk.js";
 import { Atmosphere } from "./bookcase-atmosphere.js";
 import { Guide } from "./bookcase-guide.js";
+import { CaseBuilder } from "./bookcase-cases.js";
 import {
-  planSections, caseHeight, EYE_Y, BOOK_H, BOOK_D, MIN_W, MAX_W,
-  SHELF_T, SHELF_SPACING, CASE_W, CASE_D, AISLE, describePlace,
+  planSections, caseHeight, EYE_Y, BOOK_H, BOOK_D, MIN_W, MAX_W, SHELF_SPACING, describePlace,
 } from "./bookcase-layout.js";
-import {
-  bindingColor, spineTexture, pagesTexture, woodTexture, plaqueTexture, rand01,
-} from "./bookcase-textures.js";
 
 const PULL_HIT = 0.05; // how far search hits slide out (m)
 const PULL_TOP = 0.11;
 const PULL_OPEN = 0.15;
 const ACCENT = new THREE.Color("#f97316");
+const FRESH = new THREE.Color("#ffb46a").multiplyScalar(0.07); // recency glow
 
 export class BookcaseScene {
   constructor(canvas) {
@@ -40,15 +38,14 @@ export class BookcaseScene {
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(52, 1, 0.05, 400);
-    this.camera.position.set(0, EYE_Y, 3.2);
+    this.camera.position.set(0, EYE_Y, 6.4);
     this.atmosphere = new Atmosphere(this.scene, { reducedMotion: this.reducedMotion });
 
     this.bookGroup = new THREE.Group();
     this.furniture = new THREE.Group();
     this.scene.add(this.bookGroup, this.furniture);
-    this._bookGeo = new THREE.BoxGeometry(1, BOOK_H, BOOK_D);
-    this._pagesMat = new THREE.MeshStandardMaterial({ map: pagesTexture(), roughness: 0.95 });
-    this._woodMat = new THREE.MeshStandardMaterial({ map: woodTexture(), roughness: 0.68 });
+    this.builder = new CaseBuilder();
+    this._meshes = []; // every pickable book (shelves + new-arrivals table)
     this._halo = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({
       color: ACCENT, transparent: true, opacity: 0.0, side: THREE.BackSide,
       blending: THREE.AdditiveBlending, depthWrite: false,
@@ -74,9 +71,13 @@ export class BookcaseScene {
     this._pull = new Map(); // mesh → current pull-out
     this._cases = [];
     this._audit = [];
-    this._spawn = { x: 0, y: EYE_Y, z: 3.2 };
+    this._spawn = { x: 0, y: EYE_Y, z: 6.4 };
+    this._plan = null;
+    this._recent = new Set(); // newest books, lit when layout = "recency"
     this._built = false;
     this.onFrame = null;
+    this.frameBias = new THREE.Vector3(); // shifts arrival framing (two-shot with the librarian)
+    this.framePartnerY = null; // height of whoever shares the shot (his book)
 
     this.raycaster = new THREE.Raycaster();
     this._ndc = new THREE.Vector2();
@@ -112,6 +113,8 @@ export class BookcaseScene {
     window.__bookcase = {
       sections: () => this._cases.length,
       cases: () => this._cases.map((c) => c.label),
+      bays: () => (this._plan ? this._plan.bays.map((b) => b.label) : []),
+      plan: () => this._plan,
       auditBooks: () => this.auditBooks(),
       collides: (x, z) => this.walk.collides(x, z),
       describe: (id) => this.describe(id),
@@ -155,9 +158,11 @@ export class BookcaseScene {
     this._rebuild();
   }
 
+  /* Positions are stable: switching layout never moves a book. "recency"
+   * lights the newest books and leans them forward instead. */
   relayout(layout) {
     if (layout) this.layout = layout;
-    this._rebuild();
+    this.markResults([...this.marked], this.topId);
   }
 
   _bookWidth(book) {
@@ -180,12 +185,39 @@ export class BookcaseScene {
       min: times.length ? Math.min(...times) : 0,
       max: times.length ? Math.max(...times) : 1,
     };
-    const plan = planSections(this._groupRows(this._sortForLayout(this.books)));
+    this.builder.recencyT = (b) => this._recencyT(b);
+    const plan = planSections(this._groupRows(this.books));
+    this._plan = plan;
     this._spawn = plan.spawn;
     this._cases = plan.cases;
-    plan.cases.forEach((c) => this._buildCase(c));
-    this.atmosphere.build(plan.cases, { caseW: CASE_W, caseD: CASE_D, aisle: AISLE, caseH: caseHeight() });
-    this.walk.setColliders(plan.cases.map((c) => c.aabb));
+    for (const c of plan.cases) {
+      const { group, books } = this.builder.buildCase(c);
+      this.furniture.add(group);
+      for (const { mesh, book, shelf, homeZ } of books) {
+        mesh.userData = {
+          id: book.id, label: book.path || book.note || book.id, book, homeZ,
+          level: shelf.level, caseLabel: c.label,
+          bay: { label: c.bay, ordinal: c.bayOrdinal, side: c.baySide },
+        };
+        this.byBook.set(book.id, mesh);
+        this._meshes.push(mesh);
+        this._audit.push({ mesh, y: shelf.y, xMin: shelf.xMin, xMax: shelf.xMax, z: homeZ });
+      }
+    }
+    for (const geo of plan.bays) this.furniture.add(this.builder.baySign(geo));
+    const newest = this.books.slice()
+      .sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0));
+    this._recent = new Set(newest.slice(0, Math.max(1, Math.ceil(newest.length * 0.08))).map((b) => b.id));
+    const table = this.builder.arrivals(plan.table, newest.slice(0, 12));
+    this.furniture.add(table.group);
+    for (const m of table.meshes) {
+      const book = newest[table.meshes.indexOf(m)];
+      m.userData = { id: book.id, label: `new · ${book.path || book.note}`, book, arrival: true };
+      this._meshes.push(m);
+    }
+    this.atmosphere.build(plan, caseHeight());
+    this.walk.setColliders(plan.cases.map((c) => c.aabb).concat(plan.props));
+    this.relayout();
     if (!this._built || this.walk.collides(this.camera.position.x, this.camera.position.z)) {
       // first build, or the rebuild left the camera inside a case → respawn
       const first = !this._built;
@@ -197,8 +229,8 @@ export class BookcaseScene {
   }
 
   _center() {
-    const n = this._cases.length || 1;
-    return this._cases.reduce((a, c) => ({ x: a.x + c.x / n, z: a.z + c.z / n }), { x: 0, z: 0 });
+    const b = this._plan && this._plan.bounds;
+    return b ? { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2 } : { x: 0, z: 0 };
   }
 
   _clear() {
@@ -211,16 +243,18 @@ export class BookcaseScene {
     this.openId = null;
     this._halo.visible = false;
     this._audit = [];
+    this._meshes = [];
   }
 
   _disposeGroup(group) {
     for (const child of [...group.children]) {
       child.traverse((o) => {
-        if (o.geometry && o.geometry !== this._bookGeo) o.geometry.dispose();
+        const shared = (x) => this.builder.isShared(x);
+        if (o.geometry && !shared(o.geometry)) o.geometry.dispose();
         const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
         for (const m of mats) {
-          if (m === this._pagesMat || m === this._woodMat) continue;
-          if (m.map && m.map !== this._woodMat.map) m.map.dispose();
+          if (shared(m)) continue;
+          if (m.map && !shared(m.map)) m.map.dispose();
           m.dispose();
         }
       });
@@ -228,90 +262,21 @@ export class BookcaseScene {
     }
   }
 
-  _sortForLayout(books) {
-    const list = books.slice();
-    if (this.layout === "recency") {
-      // newest first within each shelf
-      list.sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0));
-    } else {
-      list.sort((a, b) => (a.path || "").localeCompare(b.path || ""));
-    }
-    return list;
-  }
-
+  /* shelf → folder → books, all by name (stable, date-independent). */
   _groupRows(books) {
-    const byShelf = new Map();
-    for (const book of books) {
-      const key = book.shelf || "default";
-      if (!byShelf.has(key)) byShelf.set(key, []);
-      byShelf.get(key).push(book);
+    const list = books.slice().sort((a, b) => (a.path || "").localeCompare(b.path || ""));
+    const shelves = new Map();
+    for (const book of list) {
+      const sh = book.shelf || "default";
+      const fo = book.folder || "default";
+      if (!shelves.has(sh)) shelves.set(sh, new Map());
+      const folders = shelves.get(sh);
+      if (!folders.has(fo)) folders.set(fo, []);
+      folders.get(fo).push({ book, w: this._bookWidth(book) });
     }
-    return [...byShelf].map(([shelf, list]) => ({
-      shelf,
-      slots: list.map((book) => ({ book, w: this._bookWidth(book) })),
+    return [...shelves].map(([shelf, folders]) => ({
+      shelf, folders: [...folders].map(([folder, slots]) => ({ folder, slots })),
     }));
-  }
-
-  /* One walnut bookcase: plinth, sides, cornice, backboard, planks,
-   * books and a brass plaque naming the section. */
-  _buildCase(c) {
-    const caseH = caseHeight();
-    const wood = this._woodMat;
-    const add = (w, h, d, x, y, z) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wood);
-      m.position.set(x, y, z);
-      this.furniture.add(m);
-      return m;
-    };
-    add(CASE_W + 0.1, 0.15, CASE_D, c.x, 0.075, c.z); // plinth
-    add(0.05, caseH, CASE_D, c.x - (CASE_W / 2 + 0.025), caseH / 2, c.z);
-    add(0.05, caseH, CASE_D, c.x + (CASE_W / 2 + 0.025), caseH / 2, c.z);
-    add(CASE_W + 0.1, 0.05, CASE_D, c.x, caseH + 0.025, c.z);
-    add(CASE_W + 0.2, 0.07, CASE_D + 0.06, c.x, caseH + 0.085, c.z); // cornice
-    add(CASE_W + 0.1, caseH, 0.02, c.x, caseH / 2, c.z - CASE_D / 2 + 0.01);
-
-    c.shelves.forEach((shelf, k) => {
-      add(CASE_W, SHELF_T, CASE_D - 0.04, c.x, shelf.y - SHELF_T / 2, c.z);
-      for (const slot of shelf.slots) {
-        const mesh = this._makeBookMesh(slot.book, slot.w);
-        const bz = c.z + CASE_D / 2 - BOOK_D / 2 - 0.02;
-        const by = shelf.y + (BOOK_H * mesh.scale.y) / 2;
-        mesh.position.set(c.x + slot.dx + slot.w / 2, by, bz);
-        mesh.userData = {
-          id: slot.book.id,
-          label: slot.book.path || slot.book.note || slot.book.id,
-          book: slot.book,
-          homeZ: bz,
-          shelfIdx: k,
-          caseLabel: c.label,
-        };
-        this.bookGroup.add(mesh);
-        this.byBook.set(slot.book.id, mesh);
-        this._audit.push({ mesh, y: shelf.y, xMin: shelf.xMin, xMax: shelf.xMax, z: bz });
-      }
-    });
-
-    const map = plaqueTexture(c.label);
-    const plaque = new THREE.Mesh(new THREE.PlaneGeometry(1.25, 0.31),
-      new THREE.MeshStandardMaterial({
-        map, emissiveMap: map, emissive: 0xffffff, emissiveIntensity: 0.4, roughness: 0.5,
-      }));
-    plaque.position.set(c.x, caseH + 0.32, c.z + CASE_D / 2 - 0.02);
-    this.furniture.add(plaque);
-  }
-
-  _makeBookMesh(book, w) {
-    const t = this._recencyT(book);
-    const color = bindingColor(book, t);
-    const cover = new THREE.MeshStandardMaterial({ color, roughness: 0.82 });
-    const spine = new THREE.MeshStandardMaterial({ map: spineTexture(book, color, t), roughness: 0.7 });
-    const p = this._pagesMat;
-    // box faces: +x, -x (covers) · +y, -y (page block) · +z spine · -z fore-edge
-    const mesh = new THREE.Mesh(this._bookGeo, [cover, cover, p, p, spine, p]);
-    mesh.scale.x = w;
-    // deterministic height variety (octavo → quarto) so rows look real
-    mesh.scale.y = 0.84 + 0.22 * rand01(book.id, 7);
-    return mesh;
   }
 
   /* ── book-arrangement audit (headless verification) ────────── */
@@ -336,12 +301,15 @@ export class BookcaseScene {
   markResults(ids, topId) {
     this.marked = new Set(ids || []);
     this.topId = topId || null;
+    const recency = this.layout === "recency";
     for (const [id, mesh] of this.byBook) {
       const on = this.marked.has(id);
-      const glow = on ? ACCENT.clone().multiplyScalar(id === topId ? 0.12 : 0.06) : new THREE.Color(0);
+      const fresh = recency && this._recent.has(id);
+      const glow = on ? ACCENT.clone().multiplyScalar(id === topId ? 0.12 : 0.06)
+        : fresh ? FRESH.clone() : new THREE.Color(0);
       mesh.material[0].emissive.copy(glow);
       mesh.material[4].emissive.copy(glow);
-      if (on || this._pull.has(mesh)) this._pull.set(mesh, this._pull.get(mesh) || 0);
+      if (on || fresh || this._pull.has(mesh)) this._pull.set(mesh, this._pull.get(mesh) || 0);
     }
     this._halo.visible = !!(topId && this.byBook.has(topId));
     if (!this.marked.size) this.guide.release();
@@ -350,7 +318,8 @@ export class BookcaseScene {
   _pullTarget(id) {
     if (id === this.openId) return PULL_OPEN;
     if (id === this.topId) return PULL_TOP;
-    return this.marked.has(id) ? PULL_HIT : 0;
+    if (this.marked.has(id)) return PULL_HIT;
+    return this.layout === "recency" && this._recent.has(id) ? PULL_HIT * 0.6 : 0;
   }
 
   open(id) {
@@ -365,29 +334,44 @@ export class BookcaseScene {
   describe(id) {
     const mesh = this.byBook.get(id);
     if (!mesh) return null;
+    const w = mesh.getWorldPosition(new THREE.Vector3());
     const p = this.camera.position;
-    return describePlace(mesh.position.x - p.x, mesh.position.z - p.z, this.walk.yaw,
-      mesh.userData.shelfIdx, mesh.userData.caseLabel);
+    const u = mesh.userData;
+    return describePlace(w.x - p.x, w.z - p.z, this.walk.yaw, u.level, u.caseLabel, u.bay);
   }
 
   hits() {
     return [this.topId, ...[...this.marked].filter((id) => id !== this.topId)]
       .map((id) => id && this.byBook.get(id)).filter(Boolean)
-      .map((m) => ({ x: m.position.x, z: m.position.z }));
+      .map((m) => m.getWorldPosition(new THREE.Vector3()));
+  }
+
+  /* World point in a book's case frame: dx along the shelf, y up, dz out
+   * from the book's home slot toward the aisle. */
+  caseToWorld(mesh, dx, y, dz) {
+    const u = mesh.userData;
+    mesh.parent.updateMatrixWorld();
+    return mesh.parent.localToWorld(new THREE.Vector3(mesh.position.x + dx, y, u.homeZ + dz));
+  }
+
+  /* Where the librarian stands beside a book (side metres along the shelf). */
+  besidePoint(id, side, front) {
+    const mesh = this.byBook.get(id);
+    return mesh ? this.caseToWorld(mesh, side, 0, BOOK_D / 2 + front) : null;
   }
 
   /* ── camera moves ──────────────────────────────────────────── */
-  _standFor(mesh) {
-    return new THREE.Vector3(mesh.position.x, EYE_Y, mesh.userData.homeZ + 1.3);
-  }
-
   flyTo(id) {
     const mesh = this.byBook.get(id);
     if (!mesh) return;
     const c = this._center();
-    this.guide.lanternRun(mesh.position.clone(), this._standFor(mesh), {
-      overview: { x: c.x, z: c.z }, caseH: caseHeight(),
-    });
+    const b = this.frameBias;
+    const stand = this.caseToWorld(mesh, b.x, EYE_Y, 2.0);
+    // two-shot: aim between the book's height and the partner's, whatever the shelf
+    const y = this.framePartnerY == null ? mesh.position.y + b.y
+      : mesh.position.y + (this.framePartnerY - mesh.position.y) * 0.5;
+    const look = this.caseToWorld(mesh, b.x, y, 0);
+    this.guide.lanternRun(look, stand, { overview: { x: c.x, z: c.z }, caseH: caseHeight() });
   }
 
   resetView() {
@@ -416,7 +400,7 @@ export class BookcaseScene {
     else this._ndc.set(((clientX - rect.left) / rect.width) * 2 - 1,
       -((clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(this._ndc, this.camera);
-    const hit = this.raycaster.intersectObjects(this.bookGroup.children, false)[0];
+    const hit = this.raycaster.intersectObjects(this._meshes, false)[0];
     return hit && hit.distance < 9 ? hit.object : null;
   }
 
@@ -467,7 +451,8 @@ export class BookcaseScene {
 
     const top = this.topId && this.byBook.get(this.topId);
     if (top && this._halo.visible) {
-      this._halo.position.copy(top.position);
+      top.getWorldPosition(this._halo.position);
+      top.getWorldQuaternion(this._halo.quaternion);
       this._halo.scale.set(top.scale.x + 0.025, BOOK_H * top.scale.y + 0.025, BOOK_D + 0.02);
       this._halo.material.opacity = 0.14 + (this.reducedMotion ? 0 : 0.08 * Math.sin(t * 3));
     }

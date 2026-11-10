@@ -15,8 +15,8 @@ export class Minimap {
   }
 
   _fit(cases) {
-    const W = this.canvas.width;
-    const H = this.canvas.height;
+    const b = this.source.bounds && this.source.bounds();
+    if (b) return this._fitBox(b.minX, b.maxX, b.minZ, b.maxZ);
     let minX = Infinity;
     let maxX = -Infinity;
     let minZ = Infinity;
@@ -31,6 +31,12 @@ export class Minimap {
       minX = -4; maxX = 4; minZ = -4; maxZ = 4;
     }
     maxZ += 4; // include the entrance / spawn
+    return this._fitBox(minX, maxX, minZ, maxZ);
+  }
+
+  _fitBox(minX, maxX, minZ, maxZ) {
+    const W = this.canvas.width;
+    const H = this.canvas.height;
     const pad = 12;
     const s = Math.min((W - pad * 2) / (maxX - minX || 1), (H - pad * 2) / (maxZ - minZ || 1));
     const ox = (W - (maxX - minX) * s) / 2 - minX * s;
@@ -56,6 +62,14 @@ export class Minimap {
       const [x1, z1] = this._px(c.aabb.maxX, c.aabb.maxZ);
       ctx.fillStyle = "rgba(122, 82, 44, 0.85)";
       ctx.fillRect(x0, z0, Math.max(2, x1 - x0), Math.max(2, z1 - z0));
+    }
+    // bay names, faint, so the plan reads like a library map
+    ctx.fillStyle = "rgba(241, 215, 150, 0.55)";
+    ctx.font = "9px Georgia, serif";
+    ctx.textAlign = "center";
+    for (const bay of (this.source.bays && this.source.bays()) || []) {
+      const [bx, bz] = this._px(bay.center.x, bay.center.z);
+      ctx.fillText(String(bay.label).slice(0, 10), bx, bz + 3);
     }
     const hits = this.source.hits();
     hits.forEach((h, i) => {

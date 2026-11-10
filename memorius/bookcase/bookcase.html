@@ -7,13 +7,14 @@
     #bc-scene    WebGL canvas (viewport, fixed full-screen behind the UI)
     #bc-status   status pill (loading / N books / errors)
     #bc-vault    vault selector (options from GET /vaults)
-    #bc-layout   layout selector ("shelf" default | "recency" newest left)
+    #bc-layout   layout selector ("shelf" default | "recency": newest books lit, nothing moves)
     #bc-voice    TTS voice picker (populated from speechSynthesis.getVoices)
     #bc-search   search input (Enter submits; hold #bc-mic to talk)
     #bc-mic      hold-to-talk button (Chromium only; disabled elsewhere)
     #bc-librarian librarian toggle (on = speak, off = text-only guidance)
     #bc-detail   side panel (book detail / search results)
     #bc-guidance text log — every librarian utterance is rendered here
+                 (signed with the hippo librarian, librarian-hippo.webp)
     #bc-tooltip  hover tooltip for books
     #bc-map      floor-plan minimap (click to be walked there; M toggles)
     #bc-help     opens #bc-usage (also "?")
@@ -73,7 +74,7 @@
     <label class="bc-select-wrap"><span>layout</span>
       <select id="bc-layout">
         <option value="shelf">by shelf</option>
-        <option value="recency">by recency</option>
+        <option value="recency">light newest</option>
       </select>
     </label>
     <label class="bc-select-wrap"><span>voice</span>
@@ -108,7 +109,8 @@
     <li><b>Results:</b> <kbd>N</kbd> / <kbd>P</kbd> walk you to the next / previous match, <kbd>F</kbd> flies back to the current one.</li>
     <li><b>Read:</b> click a book — it is drawn out and opened; "Read aloud" lets the librarian read it.</li>
     <li><b>Map:</b> <kbd>M</kbd> toggles the floor plan; click it to be walked there.</li>
-    <li><b>Vault / layout:</b> dropdowns switch vault (from <code>GET /vaults</code>) or order by shelf / recency.</li>
+    <li><b>Floor plan:</b> each shelf is a bay off the main aisle (alternating left / right, signs hang at each opening); each folder is a case inside its bay, read clockwise; books run left → right from eye level down. Positions never move.</li>
+    <li><b>Vault / layout:</b> switch vault (from <code>GET /vaults</code>); "light newest" makes the newest books glow and lean out — the newest also stand on the table by the doors.</li>
     <li><b>Reset:</b> <kbd>R</kbd> or ⟲ view. <kbd>Space</kbd>/<kbd>Esc</kbd> skips a camera move.</li>
     <li><b>Colour:</b> each folder has its own binding colour; fresher memories are brighter with shinier gilt.</li>
   </ul>

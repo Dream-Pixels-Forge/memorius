@@ -3,6 +3,39 @@
 ## Unreleased
 
 ### New Features
+- **Bookcase: the vault as a building.** The floor plan now mirrors the
+  hierarchy. Each *shelf* is a named bay (a U-shaped alcove) off a straight
+  central nave, alternating left and right, with a double-sided blade sign
+  hanging over its opening. Each *folder* is a case (or a run of cases)
+  inside its bay, labelled on its cornice and never split across bays; cases
+  run clockwise as you enter. *Books* read left to right starting at eye
+  level and flowing down, with the top shelf as overflow. Positions depend
+  only on names, never on dates, so a book keeps its place. "By recency" is
+  now "light newest": the newest books glow and lean out instead of
+  reshuffling the library, and the 12 newest stand on a new-arrivals table by
+  the doors. The librarian's directions name the bay and its position ("the
+  research bay, third on the left from the doors — refs case, eye-level
+  shelf — about 23 metres ahead"). Shelves too big for one bay continue in
+  a "II" bay. The minimap labels the bays.
+- **3D librarian.** The hippo is now the real 3D model
+  (`librarian-hippo.glb`, compressed from 15.4 MB to 0.58 MB with meshopt
+  and WebP textures, 57k triangles) and turns to face you. The 2D cut-out
+  remains as an instant placeholder and fallback.
+- **Bookcase: the Memorius hippo is the librarian.** He waits by the
+  entrance, holding his glowing book toward you. Ask for something and the
+  lantern (the light from his book) leads the camera through the stacks; when
+  you land he is already standing beside the found book, the lantern settles
+  back into his book, and the arrival is framed as a two-shot (him and the
+  book). He hops whenever he speaks, signs the librarian's text log, and goes
+  back to the entrance on reset. He's an upright cut-out that turns to face
+  you (never tilting into the shelves), shipped as a 56 KB
+  `librarian-hippo.webp` in the package. He's purely decorative: no collider,
+  never blocks book picking, and still with `prefers-reduced-motion`. The
+  entrance spot moves back 1.2 m so he's framed full-length.
+
+## Unreleased
+
+### New Features
 - **Bookcase: the lantern librarian.** The librarian is now a visible
   lantern-light that floats at your shoulder. On a search it takes off and
   the camera follows it in one unbroken crane move: up out of the aisle,

@@ -1,6 +1,6 @@
 /* bookcase-atmosphere.js — the light and air of the vault library.
- * Night-time reading-room look: warm brass pendant lamps hang over every
- * aisle, each throwing a faint visible cone of light; cool moonlight rakes
+ * Night-time reading-room look: warm brass pendant lamps hang down the
+ * nave and over every bay, each throwing a faint visible cone of light; cool moonlight rakes
  * in from one side (warm/cool contrast); dust motes drift through the
  * beams; contact shadows ground each case on a parquet floor.
  * Performance: lamps are visual-only meshes; a fixed pool of real point
@@ -76,33 +76,21 @@ export class Atmosphere {
     this._near = new THREE.Vector3();
   }
 
-  /* Dress the hall for a fresh floor plan: lamps over every aisle,
-   * contact shadows under every case, dust volume around the stacks. */
-  build(cases, { caseW, caseD, aisle, caseH }) {
+  /* Dress the hall for a fresh floor plan: lamps down the nave and over
+   * every bay, contact shadows under every case, dust through the stacks. */
+  build(plan, caseH) {
     this.clear();
     const s = this._shared;
-    const rows = new Map();
-    for (const c of cases) {
-      if (!rows.has(c.z)) rows.set(c.z, []);
-      rows.get(c.z).push(c);
-      const blob = new THREE.Mesh(new THREE.PlaneGeometry(caseW + 0.9, caseD + 0.9), s.shadow);
+    for (const c of plan.cases) {
+      const a = c.aabb;
+      const blob = new THREE.Mesh(
+        new THREE.PlaneGeometry(a.maxX - a.minX + 0.8, a.maxZ - a.minZ + 0.8), s.shadow);
       blob.rotation.x = -Math.PI / 2;
-      blob.position.set(c.x, 0.003, c.z);
+      blob.position.set((a.minX + a.maxX) / 2, 0.003, (a.minZ + a.maxZ) / 2);
       this.group.add(blob);
     }
-    const bounds = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
-    for (const [z, row] of rows) {
-      const aisleZ = z + caseD / 2 + aisle / 2;
-      for (const c of row) {
-        bounds.minX = Math.min(bounds.minX, c.x - caseW);
-        bounds.maxX = Math.max(bounds.maxX, c.x + caseW);
-        bounds.minZ = Math.min(bounds.minZ, z - 1);
-        bounds.maxZ = Math.max(bounds.maxZ, aisleZ + 2);
-        this._addLamp(c.x, aisleZ);
-      }
-    }
-    if (!cases.length) return;
-    this._addDust(bounds, caseH);
+    for (const l of plan.lamps) this._addLamp(l.x, l.z);
+    this._addDust(plan.bounds, caseH);
   }
 
   _addLamp(x, z) {
