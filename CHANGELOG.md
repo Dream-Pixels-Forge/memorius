@@ -1,5 +1,55 @@
 # Changelog
 
+## v0.9.7 (2026-11-10)
+
+### Fixed
+- **CLI never ends in a raw traceback** (#59, #91). Building on #71:
+  unexpected errors (including ones raised while the vault engine starts)
+  print one line, `Error: <Type>: <message>`, plus a suggested next step
+  (`memorius doctor` / `repair` for vault drift or database errors,
+  `memorius init` for missing paths, storage permissions,
+  `pip install -U memorius` for missing modules), then exit 1. `--debug`
+  keeps the full traceback; Ctrl-C exits 130 with "Aborted.". With piped
+  or closed stdin, `diary` / `profile` / `recall` say which argument to
+  pass, and `diary` no longer aborts just because the optional title or
+  summary is missing.
+
+### Changed
+- Docs site redesign with a scroll-driven 3D hero featuring the librarian
+  hippo (WebP fallback, meshopt/DRACO decoders), a badge carousel, a new
+  README, and community health files (CONTRIBUTING, SECURITY, CODEOWNERS,
+  PR template).
+
+## v0.9.6 (2026-11-10)
+
+### Security
+- Path-traversal guards for backup source/destination, the Obsidian vault
+  path and the bookcase directory listing (#60).
+- Injection hardening: shell metacharacters, JSON-in-script XSS (#61).
+- SSRF / DNS-rebinding defence in webhook hooks (#62).
+- CORS port restriction; TLS required by default (#63).
+- Daemon PID safety: verify the process is memorius before killing (#64).
+- Idempotency keys for REST and MCP mutating endpoints (#65, #80).
+- Destructive-op safety: `prune` confirmation, snapshot before
+  `consolidate` (#67, #81).
+- Resource-exhaustion limits: rate-limit IP cap, bounded thread pool
+  (#70, #84).
+- Validation gaps closed: REST extract backend, MCP argument access
+  (#69, #83).
+
+### Fixed
+- `diary` / `profile` / `recall` handle `EOFError` on piped stdin; first
+  top-level CLI error handler (#59, #71).
+- Missing `fastapi` is handled gracefully in `bookcase` and the REST
+  server, with a clear `memorius[rest]` hint.
+- `posthog<4` pinned to fix chromadb's telemetry `capture()` mismatch.
+
+### Changed
+- Dependency pinning, lockfile and `pip-audit` in CI (#58, #68, #82);
+  uvicorn, openai and sse-starlette requirement updates.
+- Ruff and pyright clean-ups; `sqlite_vec_store` metadata-allowlist tests
+  (#57, #72).
+
 ## v0.9.5 (2026-11-10)
 
 ### New Features
