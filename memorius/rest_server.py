@@ -123,7 +123,8 @@ class MemoriusAPI:
             from fastapi.responses import JSONResponse
         except ImportError:
             raise ImportError(
-                "REST server requires extra dependencies. Install: pip install memorius"
+                "REST server requires extra dependencies. "
+                "Install: pip install 'memorius[rest]'"
             )
 
         app = FastAPI(title="Memorius API", version=_memorius_version, debug=False)
@@ -883,7 +884,7 @@ def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912,
     except ImportError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         print(
-            "Install the REST dependencies: pip install memorius",
+            "Install the REST dependencies: pip install 'memorius[rest]'",
             file=sys.stderr,
         )
         return
