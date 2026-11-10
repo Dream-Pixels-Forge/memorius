@@ -153,10 +153,6 @@
     transform: translateY(-3px);
     text-decoration: none;
   }
-  .hero-badges {
-    display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 52px;
-    position: relative; z-index: 1;
-  }
   .badge {
     display: inline-flex; align-items: center; gap: 8px;
     padding: 8px 18px; border-radius: 999px;
@@ -171,7 +167,27 @@
   .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
   .badge .accent { color: var(--accent-hi); font-weight: 700; }
 
-  /* ── Hero 3D (librarian hippo mascot) ── */
+  /* ── Infinity Carousel ── */
+  .badge-carousel {
+    overflow: hidden;
+    margin-top: 32px;
+    position: relative;
+    z-index: 1;
+  }
+  .carousel-track {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    animation: scroll 20s linear infinite;
+    will-change: transform;
+  }
+  @keyframes scroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(calc(-50% - 16px * 4)); }
+  }
+  .badge-carousel:hover .carousel-track {
+    animation-play-state: paused;
+  }
   .hero-wrap {
     display: grid;
     grid-template-columns: 1.15fr 1fr;
@@ -278,11 +294,17 @@
         </a>
       </div>
 
-      <div class="hero-badges">
-        <span class="badge"><span class="dot"></span> <span class="accent">v0.9.6</span> MIT licensed</span>
-        <span class="badge">Python 3.11+</span>
-        <span class="badge">7 agent integrations</span>
-        <span class="badge">MCP + REST + Hooks</span>
+      <div class="badge-carousel" aria-label="Project badges">
+        <div class="carousel-track">
+          <span class="badge"><span class="dot"></span> <span class="accent">v0.9.6</span> MIT licensed</span>
+          <span class="badge">Python 3.11+</span>
+          <span class="badge">7 agent integrations</span>
+          <span class="badge">MCP + REST + Hooks</span>
+          <span class="badge"><span class="dot"></span> <span class="accent">v0.9.6</span> MIT licensed</span>
+          <span class="badge">Python 3.11+</span>
+          <span class="badge">7 agent integrations</span>
+          <span class="badge">MCP + REST + Hooks</span>
+        </div>
       </div>
     </div>
 
