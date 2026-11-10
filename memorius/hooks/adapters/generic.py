@@ -44,7 +44,7 @@ class GenericAgentAdapter(BaseAgentAdapter):
         )
         project_dir = data.get("project_dir") or data.get("context_dir") or data.get("workspace")
 
-        keys_lower = {k.lower() for k in data.keys()}
+        keys_lower = {k.lower() for k in data}
         if keys_lower & {"precompact", "precompress", "compact"}:
             event_type = HookEventType.PRE_COMPACT
         elif keys_lower & {"stop", "shutdown", "exit", "close"}:

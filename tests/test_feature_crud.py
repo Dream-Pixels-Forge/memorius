@@ -6,7 +6,6 @@ Phase 2.1 completes the basic CRUD surface:
 - delete(id)       → hard-deletes from both stores (already existed)
 """
 
-import json
 import os
 import shutil
 import tempfile
@@ -30,7 +29,7 @@ def engine():
     if hasattr(eng, "_vector") and hasattr(eng._vector, "_client"):
         try:
             eng._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
 

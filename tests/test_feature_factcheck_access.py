@@ -39,7 +39,7 @@ def engine():
     if hasattr(eng, "_vector") and hasattr(eng._vector, "_client"):
         try:
             eng._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
 
@@ -149,7 +149,6 @@ def test_search_does_not_increment_access_count(engine):
 def test_touch_increments_access_count(engine):
     """engine.touch(id) is the explicit reinforcement primitive: it must
     bump access_count and set last_accessed."""
-    import uuid as _uuid
     m = engine.store("touch test memory content here for access count", vault="b")
 
     engine.touch(m.id)

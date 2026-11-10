@@ -13,25 +13,25 @@ This module re-exports everything for backwards compatibility.
 
 from __future__ import annotations
 
-# Re-export models
-from memorius.hooks.models import (  # noqa: F401
-    HookEventType,
-    HookEvent,
-    HookResult,
-    BaseAgentAdapter,
-    AgentAdapterError,
-)
-
 # Re-export adapters and registry
 from memorius.hooks.adapters import (  # noqa: F401
     AGENT_ADAPTERS,
-    detect_agent,
     ClaudeCodeAdapter,
     CodexAdapter,
     GeminiCliAdapter,
+    GenericAgentAdapter,
+    OpenClaudeAdapter,
     OpenClawAdapter,
     OpenCodeAdapter,
     PiAdapter,
-    OpenClaudeAdapter,
-    GenericAgentAdapter,
+    detect_agent,
+)
+
+# Re-export models
+from memorius.hooks.models import (  # noqa: F401
+    AgentAdapterError,
+    BaseAgentAdapter,
+    HookEvent,
+    HookEventType,
+    HookResult,
 )

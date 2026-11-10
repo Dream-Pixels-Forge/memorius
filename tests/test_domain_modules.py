@@ -11,7 +11,6 @@ import pytest
 
 from memorius.models import Memory
 
-
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
 
@@ -20,8 +19,8 @@ def engine():
     """Create a VaultEngine with isolated temp storage per test."""
     tmp = Path(tempfile.mkdtemp())
     os.environ["MEMORIUS_STORAGE_PATH"] = str(tmp)
-    from memorius.vault import VaultEngine
     from memorius.config import load_config
+    from memorius.vault import VaultEngine
 
     config = load_config()
     eng = VaultEngine(config)
@@ -87,7 +86,7 @@ class TestSearchModule:
         results = search.search("memory", vault="tf", tags=["python", "tdd"])
         assert len(results) >= 1
         assert all(
-            set(["python", "tdd"]).issubset(
+            {"python", "tdd"}.issubset(
                 set(m.metadata.get("tags", []))
             )
             for m in results

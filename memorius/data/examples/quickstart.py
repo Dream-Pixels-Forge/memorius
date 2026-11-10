@@ -2,6 +2,7 @@
 
 import tempfile
 from pathlib import Path
+
 from memorius.config import load_config
 from memorius.vault import VaultEngine
 

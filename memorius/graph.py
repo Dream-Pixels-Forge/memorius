@@ -14,11 +14,10 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from .utils import cosine_similarity
-
 
 # Relation type constants for temporal and causal reasoning
 RELATED = "related"
@@ -108,7 +107,7 @@ def link_memories(
     relation: str = RELATED,
 ):
     """Create a bidirectional link between two memories."""
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     try:
         existing = conn.execute(
             "SELECT relation FROM memory_graph WHERE source_id=? AND target_id=? AND tinvalid IS NULL",
@@ -136,7 +135,7 @@ def link_memories(
 
 def invalidate_edge(conn: sqlite3.Connection, source_id: str, target_id: str,
                     relation: str | None = None) -> None:
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     if relation:
         conn.execute(
             "UPDATE memory_graph SET tinvalid=? WHERE source_id=? AND target_id=? AND relation=?",
@@ -226,7 +225,7 @@ def get_edges_at_time(conn: sqlite3.Connection, memory_id: str,
                       at_time: str | None = None) -> list[dict]:
     """Return edges involving memory_id that were valid at at_time."""
     if at_time is None:
-        at_time = datetime.now(timezone.utc).isoformat()
+        at_time = datetime.now(UTC).isoformat()
     rows = conn.execute(
         "SELECT source_id, target_id, weight, relation, created_at, tvalid, tinvalid "
         "FROM memory_graph "
@@ -370,7 +369,7 @@ def get_graph_data(
         meta_str = row_dict.get("metadata") or "{}"
         try:
             meta = json.loads(meta_str) if isinstance(meta_str, str) else meta_str
-        except Exception:
+        except Exception:  # noqa: BLE001
             meta = {}
         
         content = row_dict.get("content") or ""

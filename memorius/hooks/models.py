@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+from typing import ClassVar
 
 
 class HookEventType(str, Enum):
@@ -22,19 +22,19 @@ class HookEvent:
     """Normalised hook event, regardless of which agent produced it."""
     event_type: HookEventType
     session_id: str
-    transcript_path: Optional[str] = None
-    project_dir: Optional[str] = None
+    transcript_path: str | None = None
+    project_dir: str | None = None
     agent_name: str = "unknown"
     raw_payload: dict = field(default_factory=dict)
     can_block: bool = False
-    block_message: Optional[str] = None
+    block_message: str | None = None
 
 
 @dataclass
 class HookResult:
     """Result of processing a hook event, returned to the agent."""
     action: str = "allow"
-    reason: Optional[str] = None
+    reason: str | None = None
     exit_code: int = 0
     metadata: dict = field(default_factory=dict)
 
@@ -47,7 +47,7 @@ class BaseAgentAdapter:
     """Base class for agent-specific hook input parsers."""
 
     agent_name: str = "unknown"
-    event_type_map: dict[str, HookEventType] = {}
+    event_type_map: ClassVar[dict[str, HookEventType]] = {}
 
     @classmethod
     def can_parse(cls, data: dict) -> bool:

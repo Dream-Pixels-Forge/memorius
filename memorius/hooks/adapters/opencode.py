@@ -1,5 +1,7 @@
 """OpenCode adapter."""
 
+from typing import ClassVar
+
 from memorius.hooks.models import BaseAgentAdapter, HookEvent, HookEventType
 
 
@@ -7,7 +9,7 @@ class OpenCodeAdapter(BaseAgentAdapter):
     """Parses OpenCode's hook-style event payload."""
 
     agent_name = "opencode"
-    event_type_map = {
+    event_type_map: ClassVar[dict[str, HookEventType]] = {
         "stop": HookEventType.SESSION_STOP,
         "session_stop": HookEventType.SESSION_STOP,
         "session_start": HookEventType.SESSION_START,

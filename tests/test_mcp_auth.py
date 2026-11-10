@@ -9,9 +9,6 @@ _handle_call_tool with JSON-RPC-style params (name + arguments).
 """
 
 import os
-from pathlib import Path
-
-import pytest
 
 
 def _make_engine(tmp_path):

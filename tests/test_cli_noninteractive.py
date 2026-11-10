@@ -73,7 +73,7 @@ def test_unexpected_error_is_one_clean_line_and_nonzero(cli, capsys, monkeypatch
 
     monkeypatch.setattr(cli_main, "cmd_status", boom)
     code = cli(["status"])
-    out, err = capsys.readouterr()
+    _, err = capsys.readouterr()
     assert code == 1
     assert "Traceback" not in err
     assert "Error: RuntimeError: index went sideways" in err

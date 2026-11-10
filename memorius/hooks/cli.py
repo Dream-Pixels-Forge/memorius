@@ -18,12 +18,13 @@ import logging
 import sys
 from pathlib import Path
 
+from memorius import __version__ as _MEMORIUS_VERSION
+
 from . import (
     HookEventType,
     detect_agent,
 )
 from .engine import HookConfig, HookEngine
-from memorius import __version__ as _MEMORIUS_VERSION
 
 logger = logging.getLogger("memorius.hooks.cli")
 

@@ -13,16 +13,17 @@ from __future__ import annotations
 import json
 import logging
 import math
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
-from memorius.embeddings import EmbeddingFactory, EmbeddingProvider
 from memorius.config import load_config
+from memorius.embeddings import EmbeddingFactory, EmbeddingProvider
+from memorius.meta_store import SQLiteStore
+from memorius.models import Memory
 from memorius.validation import validate_memory_id
-from memorius.models import Memory  # noqa: F401
 from memorius.vector_store import ChromaStore
 from memorius.vector_store_base import VectorStore
-from memorius.meta_store import SQLiteStore
 
 logger = logging.getLogger("memorius")
 
@@ -117,11 +118,11 @@ class VaultEngine:
             self._consolidation_daemon = None
         try:
             self._meta.close_connection(self._meta._db_path)
-        except Exception:  # best-effort: prevent cleanup errors from propagating
+        except Exception:  # best-effort: prevent cleanup errors from propagating  # noqa: BLE001, S110
             pass
         try:
             self._meta_episodic.close_connection(self._meta_episodic._db_path)
-        except Exception:  # best-effort: prevent cleanup errors from propagating
+        except Exception:  # best-effort: prevent cleanup errors from propagating  # noqa: BLE001, S110
             pass
         self._vector = None  # pyright: ignore[reportAttributeAccessIssue]
         self._vector_episodic = None  # pyright: ignore[reportAttributeAccessIssue]
@@ -272,7 +273,7 @@ class VaultEngine:
                 graph_min_weight=graph_min_weight, folder=folder, note=note,
                 tags=tags, rerank=rerank,
             )
-        except Exception:  # best-effort: episodic search failure must not break search
+        except Exception:  # best-effort: episodic search failure must not break search  # noqa: BLE001
             logger.debug("Episodic search failed (best-effort)")
             episodic_results = []
 
@@ -348,7 +349,7 @@ class VaultEngine:
             validate_memory_id(memory_id)
             self._meta.init_graph()
             edges = self._meta.get_linked(memory_id, relation="contradicts")
-        except Exception:  # best-effort: graph/meta failure should not break contradiction lookup
+        except Exception:  # best-effort: graph/meta failure should not break contradiction lookup  # noqa: BLE001
             logger.debug("get_contradictions(%s) failed (best-effort)", memory_id)
             return []
         contra_ids = [e["target_id"] for e in edges]
@@ -542,7 +543,7 @@ class VaultEngine:
         """Get hierarchy for a vault, checking semantic store first then episodic."""
         try:
             return self._meta_semantic.get_hierarchy(vault)
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Fall back to episodic store
             return self._meta_episodic.get_hierarchy(vault)
 
@@ -558,7 +559,8 @@ class VaultEngine:
     def extract_memories(self, conversation: str, backend: str = "auto",
                          vault: str = "main", shelf: str = "extracted"):
         """Extract structured memories from a conversation using LLM."""
-        from memorius.llm_extract import extract_memories as _extract, format_for_storage
+        from memorius.llm_extract import extract_memories as _extract
+        from memorius.llm_extract import format_for_storage
         extracted = _extract(conversation, backend=backend)
         stored = []
         for item in format_for_storage(extracted):
@@ -618,6 +620,7 @@ class VaultEngine:
             The HTML content string.
         """
         from pathlib import Path
+
         from memorius.graph_visualizer import render_graph_html
 
         graph_data = self.get_graph_data(
@@ -645,13 +648,15 @@ class VaultEngine:
         return self._meta.get_memory_stats()
 
     def prune(self, threshold: float = 0.1, dry_run: bool = False,
-              archive: bool = True) -> dict[str, Any]:
+              archive: bool = True, confirm: bool = False) -> dict[str, Any]:
         """Find stale memories and optionally soft-archive them.
 
         Args:
             threshold: decay-score threshold below which memories are stale.
             dry_run: list candidates without touching them.
             archive: if True (default) soft-archives; if False hard-deletes.
+            confirm: required for hard-delete (archive=False) to acknowledge
+              data loss.
 
         Returns:
             dict with keys: stale (list of candidates), count,
@@ -670,6 +675,9 @@ class VaultEngine:
             "archived_count": 0,
         }
         if dry_run or not stale:
+            return result
+        if not archive and not confirm:
+            result["error"] = "hard-delete requires confirm=True"
             return result
         ids = [s["id"] for s in stale]
         if archive:
@@ -726,7 +734,7 @@ class VaultEngine:
         for col in client.list_collections():
             try:
                 ids = col.get(include=[])["ids"] or []
-            except Exception:  # best-effort: unreadable collection — skip
+            except Exception:  # best-effort: unreadable collection — skip  # noqa: BLE001
                 logger.debug("repair: could not read collection %s", col.name)
                 ids = []
             all_vector_ids.extend(ids)
@@ -743,7 +751,7 @@ class VaultEngine:
             for col in self._vector._lazy_client().list_collections():  # pyright: ignore[reportAttributeAccessIssue]
                 try:
                     col_ids = col.get(include=[])["ids"] or []
-                except Exception:  # best-effort: unreadable collection — skip
+                except Exception:  # best-effort: unreadable collection — skip  # noqa: BLE001, S112
                     continue
                 col_orphans = [vid for vid in col_ids if vid in orphan_set]
                 if col_orphans:
@@ -773,7 +781,7 @@ class VaultEngine:
                 try:
                     self._vector.add(memory)
                     missing_reindexed += 1
-                except Exception:  # best-effort: reindex failure is logged, not fatal
+                except Exception:  # best-effort: reindex failure is logged, not fatal  # noqa: BLE001
                     logger.warning("repair: reindex failed for %s", mid)
 
         # Re-count after mutations to report the resulting state.
@@ -784,7 +792,7 @@ class VaultEngine:
             for col in client.list_collections():
                 try:
                     vector_count += col.count()
-                except Exception:
+                except Exception:  # noqa: BLE001, S110
                     pass
         else:
             vector_count = len(all_vector_ids)
@@ -844,7 +852,7 @@ class VaultEngine:
         Returns:
             The stored Memory object.
         """
-        from memorius.learning import validate_category, LEARNINGS_SHELF
+        from memorius.learning import LEARNINGS_SHELF, validate_category
 
         category = validate_category(category)
         folder = category
@@ -974,7 +982,7 @@ class VaultEngine:
         Returns:
             Updated Memory or None if not found.
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         mem = self.get_memory(learning_id)
         if mem is None:
@@ -985,7 +993,7 @@ class VaultEngine:
             learning_id,
             metadata={
                 "applied_count": current_count + 1,
-                "last_applied": datetime.now(timezone.utc).isoformat(),
+                "last_applied": datetime.now(UTC).isoformat(),
             },
         )
 
@@ -998,7 +1006,6 @@ class VaultEngine:
         Returns:
             Dict with learning statistics.
         """
-        from memorius.learning import LEARNINGS_SHELF
 
         result = self.list_learnings(vault=vault, limit=1000)
         summary = result["summary"]

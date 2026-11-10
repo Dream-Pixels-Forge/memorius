@@ -9,7 +9,7 @@ import hashlib
 import logging
 import re
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -30,9 +30,7 @@ def _is_new_scheme(name: str) -> bool:
     i = 0
     while i < len(rest) and rest[i].isdigit():
         i += 1
-    if i == 0 or i >= len(rest) or rest[i] != "_":
-        return False
-    return True
+    return not (i == 0 or i >= len(rest) or rest[i] != "_")
 
 
 # ── Retry helpers ────────────────────────────────────────────────────────────
@@ -73,7 +71,7 @@ class ChromaStore(VectorStore):
         )
         try:
             self._migrate_legacy_collections(self._client)
-        except Exception:  # best-effort: legacy migration failure should not block client init
+        except Exception:  # best-effort: legacy migration failure should not block client init  # noqa: BLE001
             logger.debug("Legacy collection migration failed (best-effort)")
         return self._client
 
@@ -93,7 +91,7 @@ class ChromaStore(VectorStore):
         client = self._lazy_client()
         try:
             col = client.get_collection(name)
-        except Exception:  # best-effort: collection doesn't exist — will create below
+        except Exception:  # best-effort: collection doesn't exist — will create below  # noqa: BLE001
             if not create:
                 return None
             # Base metadata — identical to the pre-optimization format so
@@ -125,7 +123,7 @@ class ChromaStore(VectorStore):
     def add(self, memory):
         """Add or update a memory in vector storage."""
         collection: Any = self._collection(memory.vault, memory.shelf)
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         if not memory.created_at:
             memory.created_at = now
         memory.updated_at = now
@@ -185,13 +183,13 @@ class ChromaStore(VectorStore):
             col_q = col
             try:
                 where = filter_metadata or None
-                res = _retry(lambda: col_q.query(
+                res = _retry(lambda col_q=col_q, where=where: col_q.query(
                     query_embeddings=[query_vector],
                     n_results=n_results,
                     where=where,
                     include=["embeddings", "documents", "metadatas", "distances"],
                 ))
-            except Exception:  # best-effort: ChromaDB query failure after retries — skip this collection
+            except Exception:  # best-effort: ChromaDB query failure after retries — skip this collection  # noqa: BLE001
                 logger.debug("ChromaDB query failed for collection %s after retries, skipping", col_name)
                 continue
 
@@ -242,7 +240,7 @@ class ChromaStore(VectorStore):
                 client = self._lazy_client()
                 client.get_collection(name)
                 return [name]
-            except Exception:  # best-effort: collection not found in ChromaDB
+            except Exception:  # best-effort: collection not found in ChromaDB  # noqa: BLE001
                 return []
         if vault:
             prefix = f"v{len(vault):03d}_{vault}_s"
@@ -256,7 +254,7 @@ class ChromaStore(VectorStore):
             for col in client.list_collections():
                 if col.name not in self._collections:
                     self._collections[col.name] = col
-        except Exception:  # best-effort: collection listing failure — search will lazy-load
+        except Exception:  # best-effort: collection listing failure — search will lazy-load  # noqa: BLE001
             logger.debug("Failed to load collections from ChromaDB")
 
     def get_collections(self) -> list[dict[str, str]]:
@@ -309,7 +307,7 @@ class ChromaStore(VectorStore):
             include.append("embeddings")
         try:
             res = _retry(lambda: col.get(ids=ids, include=cast(Any, include)))
-        except Exception:  # best-effort: ChromaDB get failure — return empty list
+        except Exception:  # best-effort: ChromaDB get failure — return empty list  # noqa: BLE001
             logger.debug("ChromaDB get_by_ids failed for (%s,%s)", vault, shelf)
             return []
         out: list[Memory] = []
@@ -358,7 +356,7 @@ class ChromaStore(VectorStore):
                 continue
             try:
                 count = col.count()
-            except Exception:  # best-effort: collection count unreadable — skip
+            except Exception:  # best-effort: collection count unreadable — skip  # noqa: BLE001
                 skipped += 1
                 continue
             probe = self._probe_collection_meta(col)
@@ -373,7 +371,7 @@ class ChromaStore(VectorStore):
                 client.get_collection(new_name)
                 skipped += 1
                 continue
-            except Exception:  # best-effort: target collection already exists — skip this one
+            except Exception:  # best-effort: target collection already exists — skip this one  # noqa: BLE001, S110
                 pass
             if self._migrate_single_collection(client, col, new_name, vault, shelf, count):
                 self._try_delete_old_collection(client, name)
@@ -403,7 +401,7 @@ class ChromaStore(VectorStore):
             if not vault or not shelf:
                 return None
             return vault, shelf
-        except Exception:  # best-effort: metadata probe failed — cannot recover vault/shelf
+        except Exception:  # best-effort: metadata probe failed — cannot recover vault/shelf  # noqa: BLE001
             return None
 
     def _migrate_single_collection(
@@ -440,7 +438,7 @@ class ChromaStore(VectorStore):
                 metadatas=metas_in,
             )
             return True
-        except Exception as e:  # best-effort: single collection migration failure — skip, continue
+        except Exception as e:  # best-effort: single collection migration failure — skip, continue  # noqa: BLE001
             logger.debug("Legacy collection migration failed for %s: %s", col.name, e)
             return False
 
@@ -448,5 +446,5 @@ class ChromaStore(VectorStore):
         """Best-effort deletion of a legacy collection after migration."""
         try:
             client.delete_collection(name)
-        except Exception:  # best-effort: old collection deletion failure — non-critical
+        except Exception:  # best-effort: old collection deletion failure — non-critical  # noqa: BLE001, S110
             pass

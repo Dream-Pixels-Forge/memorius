@@ -40,9 +40,9 @@ import sys
 from pathlib import Path
 
 from memorius import __version__
-from memorius.config import load_config, DEFAULT_CONFIG_DIR, DEFAULT_CONFIG_PATH
+from memorius.config import DEFAULT_CONFIG_DIR, DEFAULT_CONFIG_PATH, load_config
 from memorius.vault import VaultEngine
-from memorius.web_search import web_fallback_enabled, should_fallback
+from memorius.web_search import should_fallback, web_fallback_enabled
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -77,7 +77,7 @@ def main():
     except KeyboardInterrupt:
         print("\nAborted.", file=sys.stderr)
         raise SystemExit(130)
-    except Exception as exc:  # SystemExit is not an Exception: it passes through
+    except Exception as exc:  # top-level CLI safety net (SystemExit passes through)
         if debug:
             raise
         print(f"Error: {type(exc).__name__}: {exc}", file=sys.stderr)
@@ -122,7 +122,7 @@ def _prompt(label: str, usage: str, *, required: bool = True) -> str | None:
     except EOFError:
         if not required:
             return ""
-        print(f"\nAborted: no input on stdin. Pass it as an argument: {usage}")
+        print(f"\nAborted. No input on stdin; pass it as an argument: {usage}")
         return None
 
 
@@ -201,6 +201,7 @@ def _main():
     serve_rest_p.add_argument("--pid-file", default=None, help="PID file path")
     serve_rest_p.add_argument("--tls-cert", default=None, help="Path to TLS certificate file (PEM)")
     serve_rest_p.add_argument("--tls-key", default=None, help="Path to TLS private key file (PEM)")
+    serve_rest_p.add_argument("--insecure", action="store_true", help="Run without TLS (plaintext HTTP). Not recommended for production.")
 
     bookcase_p = subparsers.add_parser("bookcase", help="Launch the 3D vault bookcase (browser, loopback)")
     bookcase_p.add_argument("--port", type=int, default=None, help="REST API port (default: 8912)")
@@ -218,6 +219,7 @@ def _main():
     consolidate_p.add_argument("--vault", default=None, help="Filter by vault")
     consolidate_p.add_argument("--threshold", type=float, default=0.80, help="Similarity threshold (0-1)")
     consolidate_p.add_argument("--dry-run", action="store_true", help="Preview without changes")
+    consolidate_p.add_argument("--snapshot-dir", default=None, help="Directory to save consolidation snapshot before archiving")
 
     extract_p = subparsers.add_parser("extract", help="Extract memories from conversation")
     extract_p.add_argument("file", nargs="?", default=None, help="Conversation file path")
@@ -270,6 +272,7 @@ def _main():
     prune_p.add_argument("--threshold", type=float, default=0.1, help="Decay score threshold (default: 0.1)")
     prune_p.add_argument("--dry-run", action="store_true", help="Preview without touching memories")
     prune_p.add_argument("--delete", dest="hard_delete", action="store_true", help="Hard-delete instead of soft-archive")
+    prune_p.add_argument("--confirm", action="store_true", help="Confirm hard-delete (required with --delete)")
     prune_p.add_argument("--json", dest="output_json", action="store_true", help="Output as JSON")
 
     export_p = subparsers.add_parser("export", help="Export vault to JSON or Markdown")
@@ -471,7 +474,7 @@ def _main():
     }
     handler = commands.get(args.command)
     if handler:
-        handler(engine, args, config)
+        handler(engine, args, config)  # errors reach main()'s handler (#59)
     else:
         print(f"Unknown command: {args.command}")
 
@@ -494,7 +497,7 @@ def cmd_init(engine, args, config):
 
 def cmd_setup(engine, args, config):
     """Download ONNX model and initialize vault."""
-    from memorius.model_download import is_model_downloaded, setup_model, get_model_path
+    from memorius.model_download import get_model_path, is_model_downloaded, setup_model
     
     print("memorius setup")
     print("=" * 50)
@@ -745,6 +748,18 @@ def cmd_serve_rest(engine, args, config):
     host = args.host or config_server.get("host", "127.0.0.1")
     port = args.port or config_server.get("rest_port", 8912)
     pid_file = Path(args.pid_file or (DEFAULT_CONFIG_DIR / "serve.pid"))
+    insecure = getattr(args, "insecure", False)
+    tls_cert = getattr(args, "tls_cert", None)
+    tls_key = getattr(args, "tls_key", None)
+
+    # TLS required unless --insecure is explicitly passed
+    if not insecure and not (tls_cert and tls_key):
+        print(
+            "Error: TLS is required for memorius serve-rest. "
+            "Provide --tls-cert and --tls-key, or use --insecure for plaintext HTTP.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     if getattr(args, "stop", False):
         _stop_daemon(pid_file)
@@ -753,15 +768,17 @@ def cmd_serve_rest(engine, args, config):
     if getattr(args, "daemon", False):
         _start_daemon(
             engine, host, port, pid_file,
-            tls_cert=getattr(args, "tls_cert", None),
-            tls_key=getattr(args, "tls_key", None),
+            tls_cert=tls_cert,
+            tls_key=tls_key,
+            insecure=insecure,
         )
     else:
         from memorius.rest_server import run_rest_server
         run_rest_server(
             engine, host=host, port=port,
-            tls_cert=getattr(args, "tls_cert", None),
-            tls_key=getattr(args, "tls_key", None),
+            tls_cert=tls_cert,
+            tls_key=tls_key,
+            insecure=insecure,
         )
 
 
@@ -786,7 +803,7 @@ def _bc_health_check(base: str, timeout: float) -> bool:
             with urllib.request.urlopen(f"{base}/health", timeout=2) as resp:
                 if resp.status == 200:
                     return True
-        except Exception:
+        except Exception:  # noqa: BLE001
             _time.sleep(0.5)
     return False
 
@@ -828,7 +845,15 @@ def cmd_bookcase(engine, args, config):
             print("Error: REST server requires uvicorn. Install: pip install memorius")
             sys.exit(1)
         from memorius.rest_server import MemoriusAPI
-        app = MemoriusAPI(engine).create_app()
+        try:
+            app = MemoriusAPI(engine).create_app()
+        except ImportError as exc:
+            print(f"Error: {exc}")
+            print(
+                "Install the REST dependencies: pip install 'memorius[rest]'"
+                " or start a REST server first (memorius serve-rest)."
+            )
+            sys.exit(1)
         uvicorn_server = uvicorn.Server(
             uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning")
         )
@@ -845,7 +870,12 @@ def cmd_bookcase(engine, args, config):
         print(f"Static port {static_port} is in use — pass --static-port <other>.")
         sys.exit(1)
     static_dir = Path(bookcase_pkg.__file__).resolve().parent
-    handler = partial(http.server.SimpleHTTPRequestHandler, directory=str(static_dir))
+    class _NoDirectoryListingHandler(http.server.SimpleHTTPRequestHandler):
+        """SimpleHTTPRequestHandler that disables directory listing."""
+
+        def list_directory(self, path):
+            """Override to return 403 instead of a directory listing."""
+            self.send_error(403, "Directory listing disabled")
 
     # Bounded thread pool to prevent thread-per-connection exhaustion (H-24)
     class _BoundedThreadingHTTPServer(http.server.ThreadingHTTPServer):
@@ -866,6 +896,9 @@ def cmd_bookcase(engine, args, config):
             self._thread_pool.shutdown(wait=False)
             super().server_close()
 
+    handler = partial(
+        _NoDirectoryListingHandler, directory=str(static_dir)
+    )
     httpd = _BoundedThreadingHTTPServer(("127.0.0.1", static_port), handler)
     threading.Thread(
         target=httpd.serve_forever, daemon=True, name="memorius-bookcase-static"
@@ -902,8 +935,22 @@ def cmd_bookcase(engine, args, config):
         print("Bookcase stopped.")
 
 
+def _is_memorius_process(pid: int) -> bool:
+    """Return True if /proc/<pid>/cmdline indicates a memorius process."""
+    try:
+        cmdline = Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\x00", b" ")
+    except OSError:
+        return False
+    return b"memorius" in cmdline
+
+
 def _stop_daemon(pid_file: Path):
-    """Stop a running daemon by PID file."""
+    """Stop a running daemon by PID file.
+
+    Only terminates processes that appear to be memorius daemons
+    (checked via /proc/<pid>/cmdline on Linux) to avoid killing
+    arbitrary processes if the PID file is tampered with.
+    """
     import os
     import signal
     import time
@@ -931,10 +978,17 @@ def _stop_daemon(pid_file: Path):
         pid_file.unlink(missing_ok=True)
         return
 
+    # Verify this is actually a memorius process before killing it.
+    # Prevents killing an arbitrary process if the PID file was tampered with.
+    if not _is_memorius_process(pid):
+        print(f"PID {pid} is not a memorius process — refusing to kill")
+        pid_file.unlink(missing_ok=True)
+        return
+
     # Send termination signal
     if os.name == "nt":
         import subprocess
-        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, check=False)
     else:
         os.kill(pid, signal.SIGTERM)
 
@@ -954,7 +1008,8 @@ def _stop_daemon(pid_file: Path):
 
 
 def _start_daemon(engine, host: str, port: int, pid_file: Path,
-                   tls_cert: str | None = None, tls_key: str | None = None):
+                   tls_cert: str | None = None, tls_key: str | None = None,
+                   insecure: bool = False):
     """Start REST server as a background daemon.
 
     Launches a detached subprocess that writes its own PID file and serves
@@ -967,8 +1022,8 @@ def _start_daemon(engine, host: str, port: int, pid_file: Path,
     proc.pid, so the file exists before this returns.
     """
     import os
-    import sys
     import subprocess
+    import sys
 
     # Pass configuration via environment variables to avoid shell injection
     # through string interpolation in python -c commands.
@@ -987,6 +1042,7 @@ def _start_daemon(engine, host: str, port: int, pid_file: Path,
     env["MEMORIUS_HOST"] = host
     env["MEMORIUS_PORT"] = str(port)
     env["MEMORIUS_PID_FILE"] = str(pid_file)
+    env["MEMORIUS_INSECURE"] = "1" if insecure else "0"
     if tls_cert and tls_key:
         env["MEMORIUS_TLS_CERT"] = tls_cert
         env["MEMORIUS_TLS_KEY"] = tls_key
@@ -997,6 +1053,25 @@ def _start_daemon(engine, host: str, port: int, pid_file: Path,
             "port=int(os.environ['MEMORIUS_PORT']), "
             "tls_cert=os.environ.get('MEMORIUS_TLS_CERT'), "
             "tls_key=os.environ.get('MEMORIUS_TLS_KEY'))",
+        )
+        daemon_script = daemon_script.replace(
+            "run_rest_server(e, host=os.environ['MEMORIUS_HOST'], "
+            "port=int(os.environ['MEMORIUS_PORT']), "
+            "tls_cert=os.environ.get('MEMORIUS_TLS_CERT'), "
+            "tls_key=os.environ.get('MEMORIUS_TLS_KEY'))",
+            "run_rest_server(e, host=os.environ['MEMORIUS_HOST'], "
+            "port=int(os.environ['MEMORIUS_PORT']), "
+            "tls_cert=os.environ.get('MEMORIUS_TLS_CERT'), "
+            "tls_key=os.environ.get('MEMORIUS_TLS_KEY'), "
+            "insecure=os.environ.get('MEMORIUS_INSECURE') == '1')",
+        )
+    else:
+        daemon_script = daemon_script.replace(
+            "run_rest_server(e, host=os.environ['MEMORIUS_HOST'], "
+            "port=int(os.environ['MEMORIUS_PORT']))",
+            "run_rest_server(e, host=os.environ['MEMORIUS_HOST'], "
+            "port=int(os.environ['MEMORIUS_PORT']), "
+            "insecure=os.environ.get('MEMORIUS_INSECURE') == '1')",
         )
     cmd = [sys.executable, "-c", daemon_script]
     if os.name == "nt":
@@ -1046,10 +1121,13 @@ def cmd_consolidate(engine, args, config):
         vault=args.vault,
         similarity_threshold=args.threshold,
         dry_run=args.dry_run,
+        snapshot_dir=args.snapshot_dir,
     )
     print(f"  Clusters found:    {result.clusters_found}")
     print(f"  Memories merged:   {result.memories_merged}")
     print(f"  Memories archived: {result.memories_archived}")
+    if result.snapshot_path:
+        print(f"  Snapshot saved:    {result.snapshot_path} ({result.snapshot_memory_count} memories)")
     if result.details:
         print("\n  Details:")
         for d in result.details[:5]:
@@ -1377,10 +1455,15 @@ def cmd_update(engine, args, config):
 
 def cmd_prune(engine, args, config):
     """Find and archive stale memories."""
+    # Hard-delete requires explicit confirmation
+    if args.hard_delete and not args.confirm:
+        print("Error: --delete requires --confirm to acknowledge data loss.")
+        return
     result = engine.prune(
         threshold=args.threshold,
         dry_run=args.dry_run,
         archive=not args.hard_delete,
+        confirm=args.confirm,
     )
     if getattr(args, "output_json", False):
         print(json.dumps(result, indent=2))
@@ -1694,7 +1777,7 @@ def cmd_learning_stats(engine, args, config):
 
     if stats["most_applied"]:
         ma = stats["most_applied"]
-        print(f"\nMost applied learning:")
+        print("\nMost applied learning:")
         print(f"  {ma['id'][:8]} [{ma['category']}]")
         print(f"  {ma['content'][:80]}...")
         print(f"  Applied {ma['applied_count']} times")

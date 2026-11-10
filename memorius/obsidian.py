@@ -14,19 +14,40 @@ from typing import Any
 FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 
-def resolve_vault_path(vault_arg: str | None = None) -> Path:
+def resolve_vault_path(
+    vault_arg: str | None = None,
+    *,
+    restrict_to_home: bool = False,
+) -> Path:
     """Resolve the Obsidian vault path from arg, env var, or default.
 
-    Security note: This resolves the path but does NOT restrict it.
-    Callers (REST API, CLI) should add their own path validation as needed.
-    For example, the REST API checks that the path is within the home directory.
+    Args:
+        vault_arg: Explicit vault path argument (takes precedence).
+        restrict_to_home: If True, the resolved path must be inside the
+            user's home directory; raises ValueError otherwise. Use this
+            for CLI entry points where the path comes from untrusted input.
+
+    Security note: When restrict_to_home is False, this resolves the path
+    but does NOT restrict it. Callers (REST API, CLI) should add their own
+    path validation as needed. For example, the REST API checks that the
+    path is within the home directory.
     """
     raw = (
         vault_arg
         or os.environ.get("OBSIDIAN_VAULT_PATH")
         or Path.home().as_posix() + "/Documents/Obsidian Vault"
     )
-    return Path(raw).expanduser().resolve()
+    resolved = Path(raw).expanduser().resolve()
+    if restrict_to_home:
+        home = Path.home().resolve()
+        try:
+            resolved.relative_to(home)
+        except ValueError:
+            raise ValueError(
+                f"Obsidian vault path must be inside {home}, got {vault_arg or raw} "
+                f"(resolves to {resolved})"
+            )
+    return resolved
 
 
 def parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:

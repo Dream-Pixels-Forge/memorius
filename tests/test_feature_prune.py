@@ -29,7 +29,7 @@ def engine():
     if hasattr(eng, "_vector") and hasattr(eng._vector, "_client"):
         try:
             eng._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
 
@@ -72,7 +72,7 @@ def test_prune_hard_delete(engine):
 
 def test_prune_no_stale_memories(engine):
     """When all memories are above threshold, prune returns count=0."""
-    m = engine.store("healthy memory content here", vault="p")
+    engine.store("healthy memory content here", vault="p")
     with patch("memorius.temporal.calculate_decay_score", return_value=1.0):
         result = engine.prune(threshold=0.5, dry_run=True)
     assert result["count"] == 0

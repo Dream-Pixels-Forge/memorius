@@ -13,8 +13,8 @@ def engine():
     """Create a VaultEngine with isolated temp storage per test."""
     tmp = Path(tempfile.mkdtemp())
     os.environ["MEMORIUS_STORAGE_PATH"] = str(tmp)
-    from memorius.vault import VaultEngine
     from memorius.config import load_config
+    from memorius.vault import VaultEngine
     config = load_config()
     eng = VaultEngine(config)
     yield eng
@@ -23,7 +23,7 @@ def engine():
     if hasattr(eng, "_vector") and hasattr(eng._vector, "_client"):
         try:
             eng._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
 
@@ -129,8 +129,10 @@ def test_mcp_server_exists():
 
 def test_cli_help():
     """CLI parses help and version."""
+    import io
+    import sys
+
     from memorius.cli.main import main
-    import sys, io
     
     sys.argv = ["memorius", "--version"]
     out = io.StringIO()
@@ -160,7 +162,7 @@ def test_normalizers_imports():
 
 def test_hooks_imports():
     """Hooks module loads with agent adapters."""
-    from memorius.hooks import detect_agent, ClaudeCodeAdapter, HookEventType
+    from memorius.hooks import HookEventType, detect_agent
     assert callable(detect_agent)
     assert hasattr(HookEventType, "SESSION_STOP")
 

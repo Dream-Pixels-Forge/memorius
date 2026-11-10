@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Memorius — Universal memory vault for any AI agent</title>
 <meta name="description" content="Memorius is a self-contained, agent-agnostic memory system that gives LLMs and AI agents persistent, searchable memory with hierarchical knowledge organization. MCP, REST, hooks for 7 agents." />
-<meta name="theme-color" content="#F97316" />
+<meta name="theme-color" content="#050509" />
 <meta property="og:title" content="Memorius — Universal memory vault for any AI agent" />
 <meta property="og:description" content="Drop-in persistent memory for any AI agent. MCP + REST + hooks for 7 agents. Pluggable embeddings, multi-backend vector storage." />
 <meta property="og:type" content="website" />
@@ -13,135 +13,135 @@
 <meta name="twitter:card" content="summary_large_image" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23F97316'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='ui-monospace,SFMono-Regular,monospace' font-size='34' font-weight='700' fill='white'%3EM%3C/text%3E%3C/svg%3E" />
 <link rel="stylesheet" href="assets/site.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+    "meshopt_decoder": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/libs/meshopt_decoder.js"
+  }
+}
+</script>
 <style>
-  /* Landing-only styles not in site.css */
-  .hero {
-    padding: 120px 0 80px;
-    text-align: center;
+  /* Landing hero only */
+  .landing-hero {
+    padding: 130px 0 100px;
     position: relative;
     overflow: hidden;
+    text-align: center;
   }
-  .hero::before {
+  .landing-hero::before {
     content: "";
     position: absolute; inset: 0;
     background:
-      radial-gradient(900px 420px at 50% -12%, var(--accent-glow), transparent 70%),
-      radial-gradient(500px 300px at 30% 20%, var(--accent-soft), transparent 60%),
-      radial-gradient(500px 300px at 70% 20%, var(--accent-soft), transparent 60%);
+      radial-gradient(1100px 500px at 40% -20%, color-mix(in srgb, var(--accent) 20%, var(--bg-elev)), transparent 60%),
+      radial-gradient(600px 350px at 80% 10%, color-mix(in srgb, var(--accent) 12%, var(--bg-elev)), transparent 55%);
     pointer-events: none;
   }
   .hero-orb {
     position: absolute;
-    width: 680px; height: 680px;
-    left: 50%; top: 48%;
+    width: 720px; height: 720px;
+    left: 50%; top: 46%;
     transform: translate(-50%, -50%);
-    background: radial-gradient(circle, rgba(249,115,22,0.07) 0%, transparent 62%);
+    background: radial-gradient(circle, color-mix(in srgb, var(--accent) 8%, transparent), transparent 64%);
     pointer-events: none;
-    animation: orb-pulse 7s ease-in-out infinite;
+    animation: orb-pulse 8s ease-in-out infinite;
   }
   @keyframes orb-pulse {
-    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-    50% { transform: translate(-50%, -50%) scale(1.18); opacity: 0.55; }
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
+    50% { transform: translate(-50%, -50%) scale(1.15); opacity: 0.35; }
   }
-  .hero-eyebrow {
+  .landing-eyebrow {
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 7px 16px; border-radius: 999px;
-    background: var(--accent-soft);
-    border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+    padding: 8px 20px; border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 12%, var(--bg-elev));
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
     color: var(--accent-hi);
-    font-size: 11.5px; font-weight: 600;
-    letter-spacing: 0.08em; text-transform: uppercase;
+    font-family: var(--mono); font-size: 11px; font-weight: 700;
+    letter-spacing: 0.14em; text-transform: uppercase;
     margin-bottom: 28px;
     position: relative; z-index: 1;
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(6px);
   }
-  .hero-eyebrow .pulse-dot {
-    width: 6px; height: 6px; border-radius: 50%;
+  .landing-eyebrow .pulse-dot {
+    width: 7px; height: 7px; border-radius: 50%;
     background: var(--accent);
     animation: dot-pulse 2s ease-in-out infinite;
   }
   @keyframes dot-pulse {
     0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(0.85); }
+    50% { opacity: 0.5; transform: scale(0.9); }
   }
-  .hero h1 {
-    font-size: clamp(42px, 7vw, 72px);
-    line-height: 1.04;
-    letter-spacing: -0.035em;
-    margin: 0 0 22px;
-    font-weight: 800;
-    position: relative;
-    z-index: 1;
+  .landing-hero h1 {
+    font-size: clamp(44px, 7vw, 80px);
+    line-height: 1.02; margin: 0 0 24px; font-weight: 800;
+    letter-spacing: -0.04em; position: relative; z-index: 1;
   }
-  .hero h1 .accent {
-    background: linear-gradient(120deg, #F97316 0%, #FDBA74 45%, #FED7AA 100%);
-    background-size: 200% 200%;
+  .landing-hero h1 .accent {
+    background: linear-gradient(135deg, #F97316 0%, #FB923C 55%, #FDBA74 100%);
     -webkit-background-clip: text; background-clip: text; color: transparent;
-    animation: shimmer 5s ease-in-out infinite;
   }
-  @keyframes shimmer {
-    0%, 100% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-  }
-  .hero p.lead {
-    font-size: clamp(15.5px, 2vw, 19px);
+  .landing-hero p.lead {
+    font-size: clamp(17px, 2.4vw, 22px);
     color: var(--fg-dim);
-    max-width: 660px; margin: 0 auto 40px;
-    line-height: 1.7;
+    max-width: 640px; margin: 0 auto 40px; line-height: 1.9;
     position: relative; z-index: 1;
   }
-  .install {
+  .hero-install {
     display: inline-flex; align-items: stretch;
-    background: color-mix(in srgb, var(--code-bg) 85%, transparent);
-    border: 1px solid var(--code-border);
-    border-radius: 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
     overflow: hidden;
     max-width: 100%;
-    transition: border-color 0.3s, box-shadow 0.3s;
+    transition: all 0.35s ease;
     position: relative; z-index: 1;
-    backdrop-filter: blur(4px);
-    box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+    box-shadow: var(--shadow-sm);
+    backdrop-filter: blur(8px);
   }
-  .install:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
-  .install-prompt {
-    padding: 14px 12px 14px 20px;
+  .hero-install:hover {
+    border-color: var(--border-hi);
+    box-shadow: var(--shadow-md);
+  }
+  .hero-install-prompt {
+    padding: 16px 18px 16px 24px;
     color: var(--accent-hi);
     font-family: var(--mono);
-    font-size: 14px;
+    font-size: 13px;
     user-select: none;
+    font-weight: 600;
   }
-  .install code { background: none; border: none; padding: 14px 12px 14px 0; color: var(--fg); font-size: 14px; }
-  .install button {
+  .hero-install code { background: none; border: none; padding: 0; color: var(--fg); font-size: 13px; font-weight: 500; }
+  .hero-install button {
     background: transparent;
-    border: none; border-left: 1px solid var(--code-border);
+    border: none; border-left: 1px solid var(--border);
     color: var(--fg-dim);
-    padding: 0 20px;
+    padding: 0 22px;
     cursor: pointer;
-    font-family: var(--sans); font-size: 12.5px; font-weight: 500;
-    transition: color 0.2s, background 0.2s;
+    font-family: var(--sans); font-size: 12px; font-weight: 600;
+    transition: all 0.25s ease;
   }
-  .install button:hover { color: var(--accent-hi); background: var(--accent-glow); }
-  .install button.copied { color: var(--green); }
-  @keyframes copy-pop { 0% { transform: scale(1); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
-  .install button.copied { animation: copy-pop 0.3s ease; }
+  .hero-install button:hover { color: var(--accent-hi); background: var(--accent-soft); }
+  .hero-install button.copied { color: var(--green); animation: copy-pop 0.3s ease; }
+  @keyframes copy-pop { 0% { transform: scale(1); } 50% { transform: scale(1.12); } 100% { transform: scale(1); } }
   .hero-actions {
-    display: flex; gap: 14px; justify-content: center; margin-top: 36px; flex-wrap: wrap;
+    display: flex; gap: 14px; justify-content: center; margin-top: 44px; flex-wrap: wrap;
     position: relative; z-index: 1;
   }
   .btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 12px 24px; border-radius: 10px;
-    font-weight: 600; font-size: 14px;
-    transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 14px 30px; border-radius: 12px;
+    font-weight: 700; font-size: 14.5px;
+    transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .btn-primary {
     background: var(--accent); color: white;
-    box-shadow: 0 4px 20px var(--accent-glow);
+    box-shadow: 0 6px 24px var(--accent-glow);
   }
   .btn-primary:hover {
-    background: var(--accent-hi); color: #1a1816;
-    transform: translateY(-2px);
-    box-shadow: 0 14px 32px rgba(249, 115, 22, 0.3);
+    background: var(--accent-hi); color: #0b0a0d;
+    transform: translateY(-3px);
+    box-shadow: 0 16px 40px rgba(249, 115, 22, 0.35);
     text-decoration: none;
   }
   .btn-ghost {
@@ -150,25 +150,95 @@
   }
   .btn-ghost:hover {
     border-color: var(--accent); color: var(--accent-hi);
-    transform: translateY(-2px);
+    transform: translateY(-3px);
     text-decoration: none;
   }
-  .hero-badges {
-    display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 40px;
-    position: relative; z-index: 1;
-  }
   .badge {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 6px 14px; border-radius: 999px;
-    background: color-mix(in srgb, var(--bg-elev) 75%, transparent);
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 18px; border-radius: 999px;
+    background: color-mix(in srgb, var(--bg-elev) 80%, transparent);
     border: 1px solid var(--border);
     font-size: 12px; color: var(--fg-dim);
-    font-weight: 500;
-    backdrop-filter: blur(4px);
+    font-weight: 600;
+    backdrop-filter: blur(6px);
+    transition: all 0.3s ease;
   }
-  .badge .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
-  .badge .accent { color: var(--accent-hi); font-weight: 600; }
-  .breathe { height: 8vh; min-height: 60px; position: relative; }
+  .badge:hover { border-color: var(--border-hi); color: var(--fg); }
+  .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+  .badge .accent { color: var(--accent-hi); font-weight: 700; }
+
+  /* ── Infinity Carousel ── */
+  .badge-carousel {
+    overflow: hidden;
+    margin-top: 32px;
+    position: relative;
+    z-index: 1;
+  }
+  .carousel-track {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    animation: scroll 20s linear infinite;
+    will-change: transform;
+  }
+  @keyframes scroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(calc(-50% - 16px * 4)); }
+  }
+  .badge-carousel:hover .carousel-track {
+    animation-play-state: paused;
+  }
+  .hero-wrap {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 70px;
+    align-items: center;
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    justify-content: space-between;
+  }
+  @media (max-width: 900px) {
+    .hero-wrap { grid-template-columns: 1fr; gap: 46px; text-align: center; }
+    .landing-hero h1, .landing-hero p.lead { text-align: center; }
+    .hero-install, .hero-actions, .hero-badges { justify-content: center; margin-left: auto; margin-right: auto; }
+  }
+  .hero-3d-wrap {
+    position: relative;
+    height: 700px;
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* frameless — model floats on hero background, no card wrapper */
+  }
+  @media (max-width: 900px) {
+    .hero-3d-wrap { height: 520px; max-width: 520px; margin: 0 auto; }
+  }
+  #hero-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    border-radius: 0;
+    box-shadow: none;
+    border: none;
+    background: transparent;
+  }
+  #hero-fallback {
+    width: 100%;
+    height: 100%;
+    display: block;
+    /* no border-radius/shadow - frameless fallback */
+  }
+  /* keep text content left-aligned on desktop when in grid */
+  @media (min-width: 901px) {
+    .hero-text { text-align: left; }
+    .hero-text .hero-install, .hero-text .hero-actions, .hero-text .hero-badges {
+      justify-content: flex-start; margin-left: 0;
+    }
+  }
 </style>
 </head>
 <body>
@@ -188,55 +258,68 @@
       <a href="architecture.html">Architecture</a>
       <a href="agents.html">Agents</a>
       <a href="consolidation.html">Memory Engine</a>
-      <a href="https://github.com/Dream-Pixels-Forge/memorius" class="btn btn-primary" style="padding:8px 18px;font-size:13px;">GitHub</a>
+      <a href="https://github.com/Dream-Pixels-Forge/memorius" class="btn btn-primary" style="padding:8px 20px;font-size:13px;">GitHub</a>
     </div>
   </div>
 </nav>
 
-<header class="hero">
-  <div class="hero-orb"></div>
-  <div class="container">
-    <span class="hero-eyebrow">
-      <span class="pulse-dot"></span>
-      <span>Universal memory for any AI agent</span>
-    </span>
-    <h1>Give your AI agent<br /><span class="accent">a memory that persists</span></h1>
-    <p class="lead">
-      Memorius is a self-contained, agent-agnostic memory system with hierarchical
-      knowledge organization, pluggable embeddings, and neuroscience-inspired
-      consolidation. Works with 7 AI coding agents out of the box.
-    </p>
+<header class="landing-hero">
+  <div class="hero-wrap">
+    <div class="hero-text fade-up">
+      <span class="landing-eyebrow">
+        <span class="pulse-dot"></span>
+        <span>Universal memory for any AI agent</span>
+      </span>
+      <h1>Give your AI agent<br /><span class="accent">a memory that persists</span></h1>
+      <p class="lead">
+        Memorius is a self-contained, agent-agnostic memory system with hierarchical
+        knowledge organization, pluggable embeddings, and neuroscience-inspired
+        consolidation. Works with 7 AI coding agents out of the box.
+      </p>
 
-    <div class="install" role="group" aria-label="Install command">
-      <span class="install-prompt">$</span>
-      <code id="install-cmd">pip install memorius</code>
-      <button id="copy-btn" type="button" aria-label="Copy install command">Copy</button>
+      <div class="hero-install" role="group" aria-label="Install command">
+        <span class="hero-install-prompt">$</span>
+        <code id="install-cmd">pip install memorius</code>
+        <button id="copy-btn" type="button" aria-label="Copy install command">Copy</button>
+      </div>
+
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="getting-started.html">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.5 4.5a2.5 2.5 0 013.5 3.5L12 13l2.5 4.5a2.5 2.5 0 01-4.5 2.5L5.5 17 4.5 13.5a2.5 2.5 0 013.5-3.5L10.5 11z"/></svg>
+          Get Started
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/Dream-Pixels-Forge/memorius">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.7 5.5.7 11.9c0 5 3.3 9.3 7.8 10.8.6.1.8-.2.8-.6v-2.1c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2 1-.3 2-.4 3-.4s2 .1 3 .4c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.8.1 3.1.7.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.2c0 .3.2.7.8.6 4.5-1.5 7.8-5.8 7.8-10.8C23.3 5.5 18.3.5 12 .5z"/></svg>
+          Star on GitHub
+        </a>
+      </div>
+
+      <div class="badge-carousel" aria-label="Project badges">
+        <div class="carousel-track">
+          <span class="badge"><span class="dot"></span> <span class="accent">v0.9.6</span> MIT licensed</span>
+          <span class="badge">Python 3.11+</span>
+          <span class="badge">7 agent integrations</span>
+          <span class="badge">MCP + REST + Hooks</span>
+          <span class="badge"><span class="dot"></span> <span class="accent">v0.9.6</span> MIT licensed</span>
+          <span class="badge">Python 3.11+</span>
+          <span class="badge">7 agent integrations</span>
+          <span class="badge">MCP + REST + Hooks</span>
+        </div>
+      </div>
     </div>
 
-    <div class="hero-actions">
-      <a class="btn btn-primary" href="getting-started.html">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.5 4.5a2.5 2.5 0 013.5 3.5L12 13l2.5 4.5a2.5 2.5 0 01-4.5 2.5L5.5 17 4.5 13.5a2.5 2.5 0 013.5-3.5L10.5 11z"/></svg>
-        Get Started
-      </a>
-      <a class="btn btn-ghost" href="https://github.com/Dream-Pixels-Forge/memorius">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.7 5.5.7 11.9c0 5 3.3 9.3 7.8 10.8.6.1.8-.2.8-.6v-2.1c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2 1-.3 2-.4 3-.4s2 .1 3 .4c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.8.1 3.1.7.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.2c0 .3.2.7.8.6 4.5-1.5 7.8-5.8 7.8-10.8C23.3 5.5 18.3.5 12 .5z"/></svg>
-        GitHub
-      </a>
-    </div>
-
-    <div class="hero-badges">
-      <span class="badge"><span class="dot"></span> <span class="accent">v0.9.3</span> MIT licensed</span>
-      <span class="badge">Python 3.11+</span>
-      <span class="badge">7 agent integrations</span>
-      <span class="badge">MCP + REST + Hooks</span>
+    <div class="hero-3d-wrap fade-up delay-2">
+      <img id="hero-fallback" src="assets/librarian-hippo.webp" alt="The Memorius librarian hippo - fallback when 3D fails to load"
+           style="width:100%;height:100%;object-fit:contain;border-radius:0;box-shadow:none;display:none;" />
+      <canvas id="hero-canvas" aria-label="The Memorius librarian hippo, rotating as you scroll"></canvas>
     </div>
   </div>
 </header>
 
-<div class="breathe"></div>
+<div style="height: 8vh; min-height: 70px;"></div>
 
-<!-- ── Features (moved in full from the old monolith) ── -->
-<section class="docs-section" style="padding-top:24px;">
+<!-- ── Features ── -->
+<section class="docs-section" style="padding-top:20px;">
   <div class="container">
     <div class="fade-up">
       <span class="act-label">Capabilities</span>
@@ -396,28 +479,7 @@
   </div>
 </footer>
 
-<style>
-  .cta-band {
-    background: linear-gradient(135deg, var(--accent-soft), var(--accent-glow));
-    border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
-    border-radius: 20px;
-    padding: 64px 48px;
-    text-align: center;
-    position: relative; overflow: hidden;
-  }
-  .cta-band::before {
-    content: '';
-    position: absolute; inset: 0;
-    background: radial-gradient(600px 200px at 50% 0%, var(--accent-glow), transparent 70%);
-    pointer-events: none;
-  }
-  .cta-band h2 { position: relative; z-index: 1; font-size: clamp(28px,4vw,38px); letter-spacing:-0.03em; font-weight:700; line-height:1.15; }
-  .cta-band p { color: var(--fg-dim); max-width: 500px; margin: 0 auto 32px; position: relative; z-index: 1; font-size: 15.5px; }
-  .cta-band .hero-actions { margin-top: 0; position: relative; z-index: 1; }
-</style>
-
 <script>
-  /* Copy install command */
   (function () {
     var btn = document.getElementById('copy-btn');
     var cmd = document.getElementById('install-cmd');
@@ -448,5 +510,134 @@
   })();
 </script>
 <script src="assets/site.js"></script>
+
+<script type="module">
+  /* ── Scroll-driven 3D hero: the Memorius librarian hippo ── */
+  import * as THREE from "three";
+  import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+  import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
+
+  (function () {
+    const canvas = document.getElementById("hero-canvas");
+    const fallbackImg = document.getElementById("hero-fallback");
+
+    let renderer, scene, camera, hippo, pointLight, clock, rafId;
+    let using3D = false;
+
+    function init3D() {
+      try {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(40, 1, 0.1, 40);
+        camera.position.set(0, 0.5, 2.7);
+
+        renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: "high-performance" });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(canvas.clientWidth || 400, canvas.clientHeight || 400);
+        renderer.toneMapping = THREE.ReinhardToneMapping;
+        renderer.toneMappingExposure = 1.1;
+
+        const amb = new THREE.AmbientLight(0xffffff, 0.45);
+        scene.add(amb);
+
+        const dir = new THREE.DirectionalLight(0xffffff, 0.7);
+        dir.position.set(2, 5, 4);
+        dir.castShadow = true;
+        scene.add(dir);
+
+        pointLight = new THREE.PointLight(0xf97316, 0, 10);
+        pointLight.position.set(0, 1.2, 1.2);
+        scene.add(pointLight);
+
+        const dracoLoader = new DRACOLoader();
+        dracoLoader.setDecoderPath("https://www.gstatic.com/draco/v1/decoders/");
+        dracoLoader.setDecoderConfig({ type: "js" });
+
+        const loader = new GLTFLoader();
+        loader.setDRACOLoader(dracoLoader);
+
+        loader.load("assets/librarian-hippo.glb", (gltf) => {
+          const model = gltf.scene;
+          const box = new THREE.Box3().setFromObject(model);
+          const size = new THREE.Vector3();
+          box.getSize(size);
+          const s = 1.35 / Math.max(size.x, size.y, size.z);
+          model.scale.setScalar(s);
+          const center = new THREE.Vector3();
+          box.getCenter(center);
+          model.position.set(-center.x * s, -center.y * s + 0.02, -center.z * s + 0.1);
+
+          model.traverse((o) => {
+            if (o.isMesh) {
+              o.material.emissive = new THREE.Color(0x4a3424);
+              o.material.emissiveMap = o.material.map;
+              o.material.metalness = 0.15;
+              o.material.roughness = 0.55;
+              o.castShadow = true;
+              o.receiveShadow = true;
+            }
+          });
+          hippo = model;
+          scene.add(model);
+          using3D = true;
+          clock = new THREE.Clock();
+          animate();
+        }, undefined, (err) => {
+          console.warn("3D model failed, showing fallback:", err.message);
+          useFallback();
+        });
+      } catch (e) {
+        console.warn("3D init error, showing fallback:", e.message);
+        useFallback();
+      }
+    }
+
+    function useFallback() {
+      if (fallbackImg) fallbackImg.style.display = "block";
+      if (canvas) canvas.style.display = "none";
+    }
+
+    function scrollProgress() {
+      const hero = document.querySelector(".landing-hero");
+      if (!hero) return 0;
+      const rect = hero.getBoundingClientRect();
+      const vh = window.innerHeight;
+      return Math.max(0, Math.min(1, (vh - rect.top) / (vh + rect.height)));
+    }
+
+    function animate() {
+      if (!using3D) return;
+      rafId = requestAnimationFrame(animate);
+      const t = clock ? clock.getElapsedTime() : 0;
+      const p = scrollProgress();
+
+      if (hippo) {
+        hippo.rotation.y = t * 0.12 + p * Math.PI * 1.4;
+        hippo.position.y = Math.sin(t * 1.6 + p * 2.5) * 0.10;
+        hippo.rotation.z = Math.sin(t * 0.6) * 0.035 + p * 0.05;
+      }
+
+      if (pointLight) {
+        pointLight.intensity = 0.6 + Math.sin(t * 2.0) * 0.15 + p * 1.6;
+        pointLight.color.setHSL(0.095, 1, 0.45 + p * 0.25);
+      }
+
+      if (renderer) renderer.render(scene, camera);
+    }
+
+    function onResize() {
+      if (!camera || !renderer) return;
+      const w = canvas.clientWidth || 400;
+      const h = canvas.clientHeight || 400;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+
+    window.addEventListener("resize", onResize);
+    init3D();
+    window.addEventListener("scroll", () => { /* progress read in animate loop */ });
+  })();
+</script>
+</script>
 </body>
 </html>

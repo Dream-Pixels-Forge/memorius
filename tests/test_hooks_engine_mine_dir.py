@@ -140,3 +140,130 @@ def test_mine_dir_directory_mode_mines_all_transcripts(tmp_path: Path):
     assert "gamma" in combined
     assert "noise" not in combined
     assert vault.mine_calls[0]["vault"] == "work"
+
+
+# ── SSRF / DNS rebinding tests (issue #62, H-13) ───────────────────────────
+
+import socket
+from unittest.mock import patch
+
+
+class TestWebhookSsrf:
+    """Webhook calls must not reach private/internal addresses (SSRF) and
+    must connect to the DNS-validated IP (no DNS rebinding)."""
+
+    def _make_webhook_action(self, url: str):
+        return HookAction(
+            type="webhook",
+            name="webhook-test",
+            config={"url": url},
+        )
+
+    def _make_event(self):
+        return HookEvent(
+            event_type=HookEventType.SESSION_STOP,
+            session_id="s-ssrf",
+            raw_payload={"test": "data"},
+        )
+
+    def test_private_ip_blocked(self, tmp_path):
+        """Webhook to a private IP address (169.254.169.254) is rejected."""
+        engine = _make_engine(tmp_path, _StubVaultEngine())
+        action = self._make_webhook_action("http://169.254.169.254/metadata")
+        event = self._make_event()
+        result = engine._execute_action(action, event, {})
+        assert result["status"] == "error"
+        assert "private" in result["error"].lower() or "internal" in result["error"].lower()
+
+    def test_loopback_blocked(self, tmp_path):
+        """Webhook to localhost is rejected."""
+        engine = _make_engine(tmp_path, _StubVaultEngine())
+        action = self._make_webhook_action("http://127.0.0.1/admin")
+        event = self._make_event()
+        result = engine._execute_action(action, event, {})
+        assert result["status"] == "error"
+        assert "private" in result["error"].lower() or "internal" in result["error"].lower()
+
+    def test_dns_rebinding_connects_to_public_ip(self, tmp_path, monkeypatch):
+        """When DNS resolves to a public IP, the HTTP request connects to that
+        IP (not the hostname), preventing DNS rebinding attacks."""
+        engine = _make_engine(tmp_path, _StubVaultEngine())
+        action = self._make_webhook_action("http://example.com/webhook")
+        event = self._make_event()
+
+        # Mock getaddrinfo to return a public IP
+        public_ip = "93.184.216.34"  # example.com
+        fake_addrinfo = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", (public_ip, 80)),
+        ]
+
+        captured_urls = []
+
+        def fake_post(url, *args, **kwargs):
+            captured_urls.append(url)
+            class _Resp:
+                is_success = True
+                status_code = 200
+            return _Resp()
+
+        with patch("socket.getaddrinfo", return_value=fake_addrinfo), \
+             patch("httpx.post", side_effect=fake_post):
+            result = engine._execute_action(action, event, {})
+
+        assert result["status"] == "done", f"Expected done, got {result!r}"
+        assert len(captured_urls) == 1
+        # The request URL should contain the resolved IP, not the hostname
+        assert public_ip in captured_urls[0], f"Expected IP {public_ip} in URL, got {captured_urls[0]}"
+        assert "example.com" not in captured_urls[0].split("//")[1].split("/")[0], (
+            f"Hostname should be replaced by IP in URL, got {captured_urls[0]}"
+        )
+
+
+# ── _sanitize_template_value injection tests (issue #61, H-10) ──────────────
+
+from memorius.hooks.engine import _sanitize_template_value
+
+
+class TestSanitizeTemplateValue:
+    """Shell metacharacters must be stripped from template values."""
+
+    def test_allows_normal_text(self):
+        assert _sanitize_template_value("hello world") == "hello world"
+
+    def test_allows_spaces_and_hyphens(self):
+        assert _sanitize_template_value("rm -rf /") == "rm -rf /"
+
+    def test_removes_semicolon(self):
+        assert _sanitize_template_value("foo;bar") == "foobar"
+
+    def test_removes_backtick(self):
+        assert "`" not in _sanitize_template_value("foo`bar")
+
+    def test_removes_dollar(self):
+        assert "$" not in _sanitize_template_value("foo$bar")
+
+    def test_removes_pipe(self):
+        assert _sanitize_template_value("foo|bar") == "foobar"
+
+    def test_removes_ampersand(self):
+        assert _sanitize_template_value("foo&bar") == "foobar"
+
+    def test_removes_angle_brackets(self):
+        assert _sanitize_template_value("foo<bar>baz") == "foobarbaz"
+
+    def test_removes_parens(self):
+        assert _sanitize_template_value("foo(bar)baz") == "foobarbaz"
+
+    def test_removes_null_bytes(self):
+        assert "\x00" not in _sanitize_template_value("foo\x00bar")
+
+    def test_removes_control_chars(self):
+        result = _sanitize_template_value("foo\x01bar\x7fbaz")
+        assert "\x01" not in result and "\x7f" not in result
+
+    def test_removes_all_metacharacters_together(self):
+        value = "foo;bar`baz$qux|quux&corge<grault>(garply)"
+        result = _sanitize_template_value(value)
+        for ch in ";`$&|<>()":
+            assert ch not in result, f"Found {ch!r} in {result!r}"
+        assert result == "foobarbazquxquuxcorgegraultgarply"

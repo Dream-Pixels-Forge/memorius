@@ -8,19 +8,69 @@ import json
 import logging
 import os
 import sys
-from typing import cast
+import threading
+import time
+from typing import ClassVar, cast
 
 from memorius import __version__ as _memorius_version
 from memorius.validation import (
-    validate_name as _validate_name,
-    validate_session_id as _validate_session_id,
-    validate_memory_id as _validate_memory_id,
     MAX_CONTENT_LENGTH,
     MAX_FIELD_LENGTH,
     MAX_SEARCH_LIMIT,
 )
+from memorius.validation import (
+    validate_memory_id as _validate_memory_id,
+)
+from memorius.validation import (
+    validate_name as _validate_name,
+)
+from memorius.validation import (
+    validate_session_id as _validate_session_id,
+)
 
 logger = logging.getLogger("memorius.mcp")
+
+
+# ── Idempotency store for MCP destructive tools (H-02) ──
+class _McpIdempotencyStore:
+    def __init__(self, ttl_seconds: int = 86400):
+        self._ttl = ttl_seconds
+        self._store: dict[str, tuple[dict, float]] = {}
+        self._lock = threading.Lock()
+        self._last_cleanup = time.monotonic()
+
+    def get(self, tool_name: str, idempotency_key: str):
+        with self._lock:
+            self._maybe_cleanup()
+            return self._store.get(f"{tool_name}:{idempotency_key}")
+
+    def set(self, tool_name: str, idempotency_key: str, result: dict):
+        with self._lock:
+            self._maybe_cleanup()
+            self._store[f"{tool_name}:{idempotency_key}"] = (result, time.monotonic())
+
+    def _maybe_cleanup(self):
+        now = time.monotonic()
+        if now - self._last_cleanup < 60:
+            return
+        self._last_cleanup = now
+        cutoff = now - self._ttl
+        expired = [k for k, v in self._store.items() if v[1] < cutoff]
+        for k in expired:
+            del self._store[k]
+
+
+_MCP_IDEMPOTENCY_STORE = _McpIdempotencyStore()
+
+# Destructive MCP tools that support idempotency keys
+_MCP_IDEMPOTENT_TOOLS = {
+    "memorius_delete",
+    "memorius_update",
+    "memorius_consolidate",
+    "memorius_prune",
+    "memorius_repair",
+    "memorius_apply_learning",
+}
 
 
 class McpServer:
@@ -35,7 +85,7 @@ class McpServer:
 
     # ── Tool definitions ──
 
-    TOOLS = [
+    TOOLS: ClassVar[list[dict]] = [
         {
             "name": "memorius_status",
             "description": "Get memory vault status: vault count, memory count, recent diaries, embedding provider info. Call at session start.",
@@ -136,6 +186,7 @@ class McpServer:
                     "vault": {"type": "string", "description": "Filter by vault (default: all)"},
                     "similarity_threshold": {"type": "number", "description": "Similarity threshold 0-1 (default: 0.80)", "default": 0.80},
                     "dry_run": {"type": "boolean", "description": "Preview without changes (default: true)", "default": True},
+                    "idempotency_key": {"type": "string", "description": "Idempotency key — repeat calls with same key return cached result"},
                 },
             },
         },
@@ -246,6 +297,7 @@ class McpServer:
                     "memory_id": {"type": "string", "description": "Memory UUID"},
                     "content": {"type": "string", "description": "New content (omit to keep existing)"},
                     "metadata": {"type": "object", "description": "Metadata to shallow-merge (omit to keep existing)"},
+                    "idempotency_key": {"type": "string", "description": "Idempotency key — repeat calls with same key return cached result"},
                 },
                 "required": ["memory_id"],
             },
@@ -257,6 +309,7 @@ class McpServer:
                 "type": "object",
                 "properties": {
                     "memory_id": {"type": "string", "description": "Memory UUID to delete"},
+                    "idempotency_key": {"type": "string", "description": "Idempotency key — repeat calls with same key return cached result"},
                 },
                 "required": ["memory_id"],
             },
@@ -270,6 +323,7 @@ class McpServer:
                     "threshold": {"type": "number", "description": "Decay score threshold below which memories are stale (default: 0.1)", "default": 0.1},
                     "dry_run": {"type": "boolean", "description": "List candidates without touching them (default: true)", "default": True},
                     "archive": {"type": "boolean", "description": "Soft-archive (true) or hard-delete (false) stale memories (default: true)", "default": True},
+                    "idempotency_key": {"type": "string", "description": "Idempotency key — repeat calls with same key return cached result"},
                 },
             },
         },
@@ -287,6 +341,7 @@ class McpServer:
                     "vault": {"type": "string", "description": "Restrict the repair to a single vault (default: all vaults)"},
                     "reindex": {"type": "boolean", "description": "Re-embed content for metadata rows whose vector is missing (default: false)", "default": False},
                     "dry_run": {"type": "boolean", "description": "Preview changes without mutating the vector store (default: false)", "default": False},
+                    "idempotency_key": {"type": "string", "description": "Idempotency key — repeat calls with same key return cached result"},
                 },
             },
         },
@@ -366,6 +421,7 @@ class McpServer:
                 "type": "object",
                 "properties": {
                     "learning_id": {"type": "string", "description": "Memory UUID of the learning to mark as applied"},
+                    "idempotency_key": {"type": "string", "description": "Idempotency key — repeat calls with same key return cached result"},
                 },
                 "required": ["learning_id"],
             },
@@ -399,8 +455,8 @@ class McpServer:
     def run(self):
         """Run the MCP server over stdio (JSON-RPC)."""
         # Configure JSON logging for memorius
-        import logging
         import json
+        import logging
 
         class JSONFormatter(logging.Formatter):
             def format(self, record):
@@ -427,11 +483,11 @@ class McpServer:
         logger.info("MCP server starting (stdio)")
         try:
             cast(io.TextIOWrapper, sys.stdout).reconfigure(encoding="utf-8")
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
         try:
             cast(io.TextIOWrapper, sys.stdin).reconfigure(encoding="utf-8")
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
         consecutive_errors = 0
@@ -459,9 +515,9 @@ class McpServer:
                 if consecutive_errors >= max_consecutive_errors:
                     logger.error("Too many consecutive parse errors, shutting down")
                     break
-            except Exception as e:
+            except Exception:
                 consecutive_errors += 1
-                memorius_logger.exception(f"MCP unexpected error (%d/%d)", consecutive_errors, max_consecutive_errors)
+                memorius_logger.exception("MCP unexpected error (%d/%d)", consecutive_errors, max_consecutive_errors)
                 if consecutive_errors >= max_consecutive_errors:
                     memorius_logger.error("Too many consecutive errors, shutting down")
                     break
@@ -493,7 +549,7 @@ class McpServer:
         return self._make_response(msg_id, {"tools": self.TOOLS})
 
     # Destructive MCP tools that require authorization when MEMORIUS_MCP_TOKEN is set.
-    _MCP_DESTRUCTIVE_TOOLS = {
+    _MCP_DESTRUCTIVE_TOOLS: ClassVar[set[str]] = {
         "memorius_delete",
         "memorius_prune",
         "memorius_consolidate",
@@ -526,11 +582,28 @@ class McpServer:
         if auth_error:
             return self._make_error(msg_id, -32603, auth_error)
 
+        # Idempotency check (H-02): if this tool was already called with the
+        # same idempotency_key, return the cached result instead of
+        # re-executing (prevents duplicate mutations on retry).
+        idempotency_key = arguments.get("idempotency_key")
+        if tool_name in _MCP_IDEMPOTENT_TOOLS and idempotency_key:
+            cached = _MCP_IDEMPOTENCY_STORE.get(tool_name, idempotency_key)
+            if cached is not None:
+                return self._make_response(msg_id, {
+                    "content": [{"type": "text", "text": json.dumps(cached, indent=2)}],
+                    "idempotent": True,
+                })
+
         handler = self._get_tool_handler(tool_name)
         if handler is None:
             return self._make_error(msg_id, -32601, f"Unknown tool: {tool_name}")
 
         result = handler(arguments)
+
+        # Cache successful result for idempotency
+        if tool_name in _MCP_IDEMPOTENT_TOOLS and idempotency_key:
+            _MCP_IDEMPOTENCY_STORE.set(tool_name, idempotency_key, result)
+
         return self._make_response(msg_id, {
             "content": [{"type": "text", "text": json.dumps(result, indent=2)}],
         })
@@ -653,11 +726,14 @@ class McpServer:
             vault=args.get("vault"),
             similarity_threshold=args.get("similarity_threshold", 0.80),
             dry_run=args.get("dry_run", True),
+            snapshot_dir=args.get("snapshot_dir"),
         )
         return {
             "clusters_found": result.clusters_found,
             "memories_merged": result.memories_merged,
             "memories_archived": result.memories_archived,
+            "snapshot_path": result.snapshot_path,
+            "snapshot_memory_count": result.snapshot_memory_count,
             "details": result.details[:10],
         }
 

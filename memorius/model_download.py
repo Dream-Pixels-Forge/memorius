@@ -9,8 +9,8 @@ import hashlib
 import os
 import sys
 import tarfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
 
 import httpx
 
@@ -57,7 +57,7 @@ def _verify_sha256(file_path: Path, expected_hash: str) -> bool:
 
 def download_model(
     force: bool = False,
-    progress_callback: Optional[Callable] = None,
+    progress_callback: Callable | None = None,
 ) -> Path:
     """Download the ONNX model if not already present.
     

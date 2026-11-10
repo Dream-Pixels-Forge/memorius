@@ -2,29 +2,42 @@
 
 from __future__ import annotations
 
-import hmac
 import logging
 import os
+import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any
 
 from memorius import __version__ as _memorius_version
 from memorius.validation import (
-    validate_name as _validate_name,
-    validate_session_id as _validate_session_id,
-    validate_content as _validate_content,
     MAX_CONTENT_LENGTH,
+    MAX_DIARY_CONTENT,
     MAX_FIELD_LENGTH,
     MAX_SEARCH_LIMIT,
-    MAX_DIARY_CONTENT,
+)
+from memorius.validation import (
+    validate_content as _validate_content,
+)
+from memorius.validation import (
+    validate_name as _validate_name,
+)
+from memorius.validation import (
+    validate_session_id as _validate_session_id,
 )
 
 # Prometheus metrics
 try:
-    from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
     from fastapi import Response
-    from fastapi.responses import PlainTextResponse, JSONResponse
+    from fastapi.responses import JSONResponse, PlainTextResponse
+    from prometheus_client import (
+        CONTENT_TYPE_LATEST,
+        Counter,
+        Gauge,
+        Histogram,
+        generate_latest,
+    )
     PROMETHEUS_AVAILABLE = True
 except ImportError:
     PROMETHEUS_AVAILABLE = False
@@ -110,14 +123,15 @@ class MemoriusAPI:
             from fastapi.responses import JSONResponse
         except ImportError:
             raise ImportError(
-                "REST server requires extra dependencies. Install: pip install memorius"
+                "REST server requires extra dependencies. "
+                "Install: pip install 'memorius[rest]'"
             )
 
         app = FastAPI(title="Memorius API", version=_memorius_version, debug=False)
 
         # Configure JSON logging for memorius
-        import logging
         import json
+        import logging
 
         class JSONFormatter(logging.Formatter):
             def format(self, record):
@@ -141,11 +155,12 @@ class MemoriusAPI:
         handler.setFormatter(JSONFormatter())
         memorius_logger.addHandler(handler)
 
-        # CORS — restrictive by default; regex covers dynamic ports
+        # CORS — restrictive by default; only allow the REST port (8912)
+        # and bookcase static port (8400) on loopback.
         app.add_middleware(
             CORSMiddleware,
             allow_origins=["app://obsidian.md"],
-            allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost)(:\d+)?$",
+            allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost):(8912|8400)$",
             allow_methods=["*"],
             allow_headers=["*"],
         )
@@ -169,26 +184,68 @@ class MemoriusAPI:
         # Mutating methods that require auth even when no API key is configured.
         _MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
+        # ── Idempotency store (H-02) ──
+        # Set of (method, path, idempotency_key) tuples for recently processed
+        # mutating requests, with TTL-based eviction. Thread-safe via a lock.
+        # Used to detect duplicate requests and return 409 Conflict.
+        class _IdempotencyStore:
+            def __init__(self, ttl_seconds: int = 86400):
+                self._ttl = ttl_seconds
+                self._store: dict[str, float] = {}
+                self._lock = threading.Lock()
+                self._last_cleanup = time.monotonic()
+
+            def _key(self, method: str, path: str, idempotency_key: str) -> str:
+                return f"{method.upper()}:{path}:{idempotency_key}"
+
+            def contains(self, method: str, path: str, idempotency_key: str) -> bool:
+                with self._lock:
+                    self._maybe_cleanup()
+                    return self._key(method, path, idempotency_key) in self._store
+
+            def record(self, method: str, path: str, idempotency_key: str):
+                with self._lock:
+                    self._maybe_cleanup()
+                    self._store[self._key(method, path, idempotency_key)] = time.monotonic()
+
+            def _maybe_cleanup(self):
+                now = time.monotonic()
+                if now - self._last_cleanup < 60:
+                    return
+                self._last_cleanup = now
+                cutoff = now - self._ttl
+                expired = [k for k, v in self._store.items() if v < cutoff]
+                for k in expired:
+                    del self._store[k]
+
+        _idempotency_store = _IdempotencyStore()
+
         @app.middleware("http")
-        async def auth_middleware(request: Request, call_next):
-            if request.url.path == "/health":
+        async def idempotency_middleware(request: Request, call_next):
+            # Only apply to mutating requests with an Idempotency-Key header
+            if request.method not in _MUTATING_METHODS:
                 return await call_next(request)
-            # Read API key dynamically per request (env var may change).
-            request_api_key = os.environ.get("MEMORIUS_API_KEY")
-            if request_api_key:
-                auth_header = request.headers.get("Authorization", "")
-                token = auth_header[7:] if auth_header.startswith("Bearer ") else ""
-                # Use compare_digest to prevent timing-based key enumeration
-                if not hmac.compare_digest(token.encode(), request_api_key.encode()):
-                    return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key"})
-            elif request.method in _MUTATING_METHODS:
-                # No API key configured: read-only GET/HEAD/OPTIONS allowed,
-                # but mutating endpoints fail fast to prevent silent data mutation.
+            idempotency_key = request.headers.get("Idempotency-Key")
+            if not idempotency_key:
+                return await call_next(request)
+
+            # Check if this key was already used for this method+path
+            if _idempotency_store.contains(request.method, request.url.path, idempotency_key):
                 return JSONResponse(
-                    status_code=401,
-                    content={"detail": "API key required (set MEMORIUS_API_KEY)"},
+                    status_code=409,
+                    content={"detail": "Request already processed (idempotency key reused)"},
                 )
-            return await call_next(request)
+
+            # Execute the request
+            response = await call_next(request)
+
+            # Record successful responses (2xx) only
+            if 200 <= response.status_code < 300:
+                _idempotency_store.record(
+                    request.method, request.url.path, idempotency_key
+                )
+
+            return response
 
         @app.middleware("http")
         async def size_limit_middleware(request: Request, call_next):
@@ -238,7 +295,7 @@ class MemoriusAPI:
                 # New IP — enforce max IP limit by evicting least recently used
                 if len(rate_store) >= max_ips:
                     # Evict the IP with the oldest last access
-                    oldest_ip = min(ip_last_access, key=ip_last_access.get)
+                    oldest_ip = min(ip_last_access, key=ip_last_access.__getitem__)
                     del rate_store[oldest_ip]
                     del ip_last_access[oldest_ip]
                 rate_store[client_ip] = []
@@ -292,7 +349,7 @@ class MemoriusAPI:
                         "vaults": status.get("vaults", 0)
                     }
                 }
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Readiness check failed: {e}")
                 return JSONResponse(  # pyright: ignore[reportPossiblyUnboundVariable]
                     status_code=503,
@@ -313,7 +370,7 @@ class MemoriusAPI:
             ttl_days = payload.get("ttl_days")
             
             # Start timing for operation
-            start_time = time.time()
+            time.time()
             try:
                 memory = engine.store(
                     content=content, vault=vault, shelf=shelf,
@@ -326,11 +383,11 @@ class MemoriusAPI:
                 d = memory.to_dict()
                 d.pop("vector", None)
                 return d
-            except Exception as e:
+            except Exception:
                 # Record failed store
                 if PROMETHEUS_AVAILABLE:
                     MEMORIUS_STORE_OPERATIONS_TOTAL.labels(result="failure").inc()
-                raise e
+                raise
             finally:
                 # For store operations, we might want to track latency too
                 # But the recall latency is specifically for recall operations
@@ -374,11 +431,11 @@ class MemoriusAPI:
                     d.pop("vector", None)
                     out.append(d)
                 return {"query": query, "count": len(results), "results": out}
-            except Exception as e:
+            except Exception:
                 # Record failed search
                 if PROMETHEUS_AVAILABLE:
                     MEMORIUS_SEARCH_OPERATIONS_TOTAL.labels(result="failure").inc()
-                raise e
+                raise
             finally:
                 # Record recall latency
                 if PROMETHEUS_AVAILABLE:
@@ -401,11 +458,11 @@ class MemoriusAPI:
                 if PROMETHEUS_AVAILABLE:
                     MEMORIUS_MINE_OPERATIONS_TOTAL.labels(result="success").inc()
                 return {"stored": len(memories), "memory_ids": [m.id for m in memories]}
-            except Exception as e:
+            except Exception:
                 # Record failed mine
                 if PROMETHEUS_AVAILABLE:
                     MEMORIUS_MINE_OPERATIONS_TOTAL.labels(result="failure").inc()
-                raise e
+                raise
             finally:
                 # Record recall latency for mine operations too (since it involves recall/search)
                 if PROMETHEUS_AVAILABLE:
@@ -427,7 +484,7 @@ class MemoriusAPI:
                 raise HTTPException(status_code=400, detail="Diary content too long")
             
             # Start timing for operation
-            start_time = time.time()
+            time.time()
             try:
                 entry = engine.write_diary(
                     session_id=session_id, vault=vault,
@@ -438,11 +495,11 @@ class MemoriusAPI:
                 if PROMETHEUS_AVAILABLE:
                     MEMORIUS_STORE_OPERATIONS_TOTAL.labels(result="success").inc()
                 return entry
-            except Exception as e:
+            except Exception:
                 # Record failed diary write
                 if PROMETHEUS_AVAILABLE:
                     MEMORIUS_STORE_OPERATIONS_TOTAL.labels(result="failure").inc()
-                raise e
+                raise
             finally:
                 pass
 
@@ -544,7 +601,7 @@ class MemoriusAPI:
         async def obsidian_import(payload: dict[str, Any]):
             if not payload.get("confirm", False) and not payload.get("dry_run", False):
                 raise HTTPException(status_code=400, detail="Import requires confirm=true or dry_run=true")
-            from memorius.obsidian import resolve_vault_path, scan_vault, parse_note
+            from memorius.obsidian import parse_note, resolve_vault_path, scan_vault
             vault_path = resolve_vault_path(payload.get("vault"))
             home = Path.home().resolve()
             if not str(vault_path).startswith(str(home)):
@@ -629,8 +686,6 @@ class MemoriusAPI:
                 d = mem.to_dict()
                 d.pop("vector", None)
                 return d
-            except Exception as e:
-                raise e
             finally:
                 # Record recall latency
                 if PROMETHEUS_AVAILABLE:
@@ -668,7 +723,7 @@ class MemoriusAPI:
                 raise HTTPException(status_code=400, detail=str(e))
             
             # Start timing for operation
-            start_time = time.time()
+            time.time()
             try:
                 result = engine.delete(memory_id)
                 if not result.get("found", False):
@@ -677,11 +732,11 @@ class MemoriusAPI:
                 if PROMETHEUS_AVAILABLE:
                     MEMORIUS_STORE_OPERATIONS_TOTAL.labels(result="success").inc()
                 return result
-            except Exception as e:
+            except Exception:
                 # Record failed delete
                 if PROMETHEUS_AVAILABLE:
                     MEMORIUS_STORE_OPERATIONS_TOTAL.labels(result="failure").inc()
-                raise e
+                raise
             finally:
                 pass
 
@@ -780,14 +835,13 @@ class MemoriusAPI:
                 consolidation_queue_size = 0  # Default
                 if hasattr(engine, 'get_consolidation_queue_size'):
                     consolidation_queue_size = engine.get_consolidation_queue_size()
-                elif hasattr(engine, 'consolidation_daemon') and engine.consolidation_daemon:
-                    # If we have access to the consolidation daemon
-                    if hasattr(engine.consolidation_daemon, 'get_queue_size'):
-                        consolidation_queue_size = engine.consolidation_daemon.get_queue_size()
+                elif (hasattr(engine, 'consolidation_daemon') and engine.consolidation_daemon
+                      and hasattr(engine.consolidation_daemon, 'get_queue_size')):
+                    consolidation_queue_size = engine.consolidation_daemon.get_queue_size()
                 
                 MEMORIUS_CONSOLIDATION_QUEUE_SIZE.set(consolidation_queue_size)
                 
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 # If we can't update metrics, still serve what we have
                 pass
             
@@ -798,7 +852,8 @@ class MemoriusAPI:
 
 
 def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912,
-                    tls_cert: str | None = None, tls_key: str | None = None):
+                    tls_cert: str | None = None, tls_key: str | None = None,
+                    insecure: bool = False):
     """Start the FastAPI REST server.
 
     Args:
@@ -806,6 +861,7 @@ def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912,
         port: Listen port (default 8912).
         tls_cert: Optional path to TLS certificate file for HTTPS.
         tls_key: Optional path to TLS private key file for HTTPS.
+        insecure: If True, run without TLS (plaintext HTTP).
     """
     try:
         import uvicorn
@@ -813,11 +869,29 @@ def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912,
         print("Error: REST server requires uvicorn. Install: pip install memorius")
         return
 
+    # TLS required unless --insecure is explicitly passed
+    if not insecure and not (tls_cert and tls_key):
+        print(
+            "Error: TLS is required for memorius serve-rest. "
+            "Provide --tls-cert and --tls-key, or use --insecure for plaintext HTTP.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     api = MemoriusAPI(engine)
-    app = api.create_app()
+    try:
+        app = api.create_app()
+    except ImportError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        print(
+            "Install the REST dependencies: pip install 'memorius[rest]'",
+            file=sys.stderr,
+        )
+        return
 
     api_key = os.environ.get("MEMORIUS_API_KEY")
-    print(f"Memorius REST API running on http://{host}:{port}")
+    scheme = "https" if (tls_cert and tls_key) else "http"
+    print(f"Memorius REST API running on {scheme}://{host}:{port}")
     if api_key:
         print("  API key authentication: enabled (all endpoints)")
     else:
@@ -835,8 +909,8 @@ def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912,
     ssl_keyfile = tls_key
     if tls_cert and tls_key:
         print("  TLS: enabled")
-    elif tls_cert or tls_key:
-        print("  WARNING: both --tls-cert and --tls-key required for TLS — running without TLS")
+    elif insecure:
+        print("  TLS: disabled (--insecure) — plaintext HTTP")
 
     try:
         uvicorn.run(

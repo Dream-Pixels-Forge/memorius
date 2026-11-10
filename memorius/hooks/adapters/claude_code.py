@@ -1,5 +1,7 @@
 """Claude Code adapter."""
 
+from typing import ClassVar
+
 from memorius.hooks.models import BaseAgentAdapter, HookEvent, HookEventType
 
 
@@ -7,7 +9,7 @@ class ClaudeCodeAdapter(BaseAgentAdapter):
     """Parses Claude Code's hook protocol v1."""
 
     agent_name = "claude-code"
-    event_type_map = {
+    event_type_map: ClassVar[dict[str, HookEventType]] = {
         "stop": HookEventType.SESSION_STOP,
         "precompact": HookEventType.PRE_COMPACT,
     }

@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 
 def _engine_with_graph() -> MagicMock:
@@ -37,7 +37,9 @@ def _engine_with_graph() -> MagicMock:
     return engine
 
 
-def _run_stats_tool(args: dict = {}) -> dict:
+def _run_stats_tool(args: dict | None = None) -> dict:
+    if args is None:
+        args = {}
     engine = _engine_with_graph()
 
     from memorius.mcp_server import McpServer

@@ -22,7 +22,7 @@ class EmbeddingProvider(ABC):
 
     @classmethod
     @abstractmethod
-    def from_config(cls, config: dict[str, Any]) -> "EmbeddingProvider":
+    def from_config(cls, config: dict[str, Any]) -> EmbeddingProvider:
         """Create provider from config dict."""
         ...
 
@@ -63,7 +63,7 @@ class SentenceTransformerProvider(EmbeddingProvider):
         return self._dim
 
     @classmethod
-    def from_config(cls, config: dict[str, Any]) -> "SentenceTransformerProvider":
+    def from_config(cls, config: dict[str, Any]) -> SentenceTransformerProvider:
         model = config.get("model", cls._model_key)
         return cls(model_name=model)
 
@@ -102,7 +102,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         return self._dim
 
     @classmethod
-    def from_config(cls, config: dict[str, Any]) -> "OpenAIEmbeddingProvider":
+    def from_config(cls, config: dict[str, Any]) -> OpenAIEmbeddingProvider:
         openai_cfg = config.get("openai", {})
         api_key = openai_cfg.get("api_key", config.get("api_key", ""))
         model = openai_cfg.get("model", config.get("model", "text-embedding-3-small"))
@@ -164,14 +164,14 @@ class ChromaDefaultProvider(EmbeddingProvider):
         return self._dim
 
     @classmethod
-    def from_config(cls, config: dict[str, Any]) -> "ChromaDefaultProvider":
+    def from_config(cls, config: dict[str, Any]) -> ChromaDefaultProvider:
         return cls()
 
 
 class EmbeddingFactory:
     """Create embedding providers from config."""
 
-    _registry: dict[str, type[EmbeddingProvider]] = {
+    _registry: ClassVar[dict[str, type[EmbeddingProvider]]] = {
         "chroma-default": ChromaDefaultProvider,
         "sentence-transformers": SentenceTransformerProvider,
         "openai": OpenAIEmbeddingProvider,

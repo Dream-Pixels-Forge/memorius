@@ -11,7 +11,6 @@ a real VaultEngine fixture so both stores (ChromaDB/SqliteVec + SQLite)
 are in sync.
 """
 
-import json
 import os
 import shutil
 import tempfile
@@ -19,7 +18,6 @@ import uuid
 from pathlib import Path
 
 import pytest
-
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -54,7 +52,6 @@ def meta_store(tmp_path: Path):
 class TestBM25Search:
     def test_exact_keyword_match_returns_hit(self, meta_store):
         """FTS5 MATCH finds memories containing the exact keyword."""
-        from memorius.meta_store import SQLiteStore
 
         mid = str(uuid.uuid4())
         meta_store.track_memory(
@@ -83,7 +80,6 @@ class TestBM25Search:
     def test_multiple_keywords_ranked_by_relevance(self, meta_store):
         """Frequencies affect BM25 ranking — a word appearing more often
         in a document ranks higher for that term."""
-        from memorius.meta_store import SQLiteStore
         now = "2026-10-01T00:00:00+00:00"
 
         m1 = str(uuid.uuid4())
@@ -109,7 +105,6 @@ class TestBM25Search:
         """Archiving a memory does NOT remove it from FTS (FTS trigger is
         on DELETE, not on archived flag) — BM25 results include it but
         the meta row carries archived=1."""
-        from memorius.meta_store import SQLiteStore
         mid = str(uuid.uuid4())
         meta_store.track_memory(
             memory_id=mid, vault="main", shelf="kw", folder="default", note="default",
@@ -122,7 +117,6 @@ class TestBM25Search:
 
     def test_delete_removes_from_fts(self, meta_store):
         """Hard-deleting a memory removes its FTS entry."""
-        from memorius.meta_store import SQLiteStore
         mid = str(uuid.uuid4())
         meta_store.ensure_note("main", "kw", "default", "default")
         meta_store.track_memory(
@@ -228,9 +222,10 @@ class TestSearchModuleHybridPath:
 
     @pytest.fixture
     def module(self):
+        from unittest.mock import MagicMock
+
         from memorius.meta_store import SQLiteStore
         from memorius.search_module import SearchModule
-        from unittest.mock import MagicMock
 
         tmp = Path(tempfile.mkdtemp())
         (tmp / "meta_test").mkdir()
@@ -245,9 +240,9 @@ class TestSearchModuleHybridPath:
         """When vector returns results and BM25 has overlapping hits,
         the fused score = 0.6*vector + 0.4*bm25 and the re-ranked list
         reflects the fusion."""
-        from memorius.models import Memory
-
         import uuid as _uuid
+
+        from memorius.models import Memory
         mid1 = str(_uuid.uuid4())
         mid2 = str(_uuid.uuid4())
 

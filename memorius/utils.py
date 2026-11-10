@@ -4,10 +4,10 @@ Re-exports from validation.py for backwards compatibility.
 """
 
 import json
-from typing import Any, List
+from typing import Any
 
 # Re-export from validation module for backwards compatibility
-from memorius.validation import validate_name, MAX_NAME_LENGTH  # noqa: F401
+from memorius.validation import MAX_NAME_LENGTH, validate_name  # noqa: F401
 
 
 def safe_parse_json(s: str) -> dict[str, Any]:
@@ -25,7 +25,7 @@ def safe_parse_json(s: str) -> dict[str, Any]:
         return {}
 
 
-def cosine_similarity(a: List[float], b: List[float]) -> float:
+def cosine_similarity(a: list[float], b: list[float]) -> float:
     """Compute cosine similarity between two vectors.
 
     Args:

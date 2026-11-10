@@ -1,5 +1,7 @@
 """Gemini CLI adapter."""
 
+from typing import ClassVar
+
 from memorius.hooks.models import BaseAgentAdapter, HookEvent, HookEventType
 
 
@@ -7,7 +9,7 @@ class GeminiCliAdapter(BaseAgentAdapter):
     """Parses Gemini CLI's PreCompress hook protocol."""
 
     agent_name = "gemini-cli"
-    event_type_map = {
+    event_type_map: ClassVar[dict[str, HookEventType]] = {
         "precompress": HookEventType.PRE_COMPACT,
     }
 

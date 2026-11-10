@@ -4,7 +4,6 @@ All web access is faked via ``MockProvider`` — no network required.
 """
 
 import argparse
-from pathlib import Path
 
 from memorius.web_search import (
     DuckDuckGoProvider,
@@ -16,7 +15,6 @@ from memorius.web_search import (
     should_fallback,
     web_fallback_enabled,
 )
-
 
 # Sample DuckDuckGo *lite* HTML (shape only) for parser coverage.
 _DDG_LITE_HTML = """
@@ -149,7 +147,7 @@ def test_web_fallback_enabled_via_config():
 
 # ── DuckDuckGo lite parser ──────────────────────────────────────────────
 def test_parse_ddg_lite_extracts_links_and_snippets():
-    provider = DuckDuckGoProvider()
+    DuckDuckGoProvider()
     results = _parse_ddg_lite(_DDG_LITE_HTML, 5)
     assert len(results) == 2
     assert results[0].title == "Example Article A"
@@ -159,7 +157,7 @@ def test_parse_ddg_lite_extracts_links_and_snippets():
 
 
 def test_parse_ddg_lite_respects_max_results():
-    provider = DuckDuckGoProvider()
+    DuckDuckGoProvider()
     results = _parse_ddg_lite(_DDG_LITE_HTML, 1)
     assert len(results) == 1
 

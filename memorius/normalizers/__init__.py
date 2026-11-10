@@ -35,7 +35,7 @@ def detect_format(content: str, filename: str = "") -> str | None:
     name_lower = filename.lower()
 
     # Discord exports
-    if "discord" in name_lower and (name_lower.endswith(".json") or name_lower.endswith(".csv")):
+    if "discord" in name_lower and (name_lower.endswith((".json", ".csv"))):
         return "discord"
 
     # Telegram exports
@@ -64,9 +64,7 @@ def detect_format(content: str, filename: str = "") -> str | None:
         if "conversations" in data or "chats" in data:
             return "generic-chat"
 
-    if isinstance(data, list):
-        # Could be a list of messages
-        if data and isinstance(data[0], dict):
+    if isinstance(data, list) and data and isinstance(data[0], dict):
             if "role" in data[0] or "author" in data[0]:
                 return "generic-messages"
             if "from" in data[0] and "text" in data[0]:
@@ -335,16 +333,14 @@ def normalize_generic_json(content: str, source_name: str = "chat-export") -> st
                     break
                 elif isinstance(val, dict):
                     # Some formats nest messages inside conversation objects
-                    for conv_key, conv_val in val.items():
+                    for conv_val in val.values():
                         if isinstance(conv_val, list):
                             messages = conv_val
                             break
                     if messages:
                         break
 
-    if not messages:
-        # Try to find any list in the data
-        if isinstance(data, dict):
+    if not messages and isinstance(data, dict):
             for key, val in data.items():
                 if isinstance(val, list) and len(val) > 1 and isinstance(val[0], dict):
                     messages = val

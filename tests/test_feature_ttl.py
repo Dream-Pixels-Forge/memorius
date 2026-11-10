@@ -9,7 +9,7 @@ import json
 import os
 import shutil
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -30,7 +30,7 @@ def engine():
     if hasattr(eng, "_vector") and hasattr(eng._vector, "_client"):
         try:
             eng._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
 
@@ -39,7 +39,7 @@ def engine():
 def _backdate_expires(engine, memory_id, days_ago: int = 1):
     """Set expires_at in metadata to *days_ago* in the past."""
     conn = engine._meta._conn()
-    past = (datetime.now(timezone.utc) - timedelta(days=days_ago)).isoformat()
+    past = (datetime.now(UTC) - timedelta(days=days_ago)).isoformat()
     row = conn.execute(
         "SELECT metadata FROM memory_meta WHERE id = ?", (memory_id,)
     ).fetchone()
@@ -67,8 +67,8 @@ class TestTTLMetadata:
             parsed = json.loads(raw)
             assert "expires_at" in parsed
             assert parsed["ttl_days"] == 7
-            exp = datetime.fromisoformat(parsed["expires_at"].replace("Z", "+00:00"))
-            now = datetime.now(timezone.utc)
+            exp = datetime.fromisoformat(parsed["expires_at"])
+            now = datetime.now(UTC)
             delta = exp - now
             assert timedelta(days=6) <= delta <= timedelta(days=7, minutes=5)
 
@@ -123,7 +123,7 @@ class TestPruneTTL:
         conn = engine._meta._conn()
         conn.execute(
             "UPDATE memory_meta SET access_count = 50, last_accessed = ? WHERE id = ?",
-            (datetime.now(timezone.utc).isoformat(), m.id),
+            (datetime.now(UTC).isoformat(), m.id),
         )
         conn.commit()
 

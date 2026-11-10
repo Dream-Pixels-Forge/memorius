@@ -4,12 +4,10 @@ Each check has a passing and failing case.  Checks are read-only.
 """
 from __future__ import annotations
 
-import json
 import os
 import shutil
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -29,7 +27,7 @@ def engine():
     if hasattr(eng, "_vector") and hasattr(eng._vector, "_client"):
         try:
             eng._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
 
@@ -98,7 +96,7 @@ class TestDoctorGraph:
         try:
             conn.execute("DELETE FROM memory_graph")
             conn.commit()
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
         result = run_checks(engine=engine)

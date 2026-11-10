@@ -1,19 +1,16 @@
 """Tests for v0.2.0 features: consolidation, temporal, graph, extraction, context, session, factcheck."""
 
-import json
+import importlib.util
 import os
 import shutil
 import tempfile
+from datetime import UTC
 from pathlib import Path
 
 import pytest
 
 # Check if chromadb is available
-try:
-    import chromadb
-    HAS_CHROMADB = True
-except ImportError:
-    HAS_CHROMADB = False
+HAS_CHROMADB = importlib.util.find_spec("chromadb") is not None
 
 requires_chromadb = pytest.mark.skipif(
     not HAS_CHROMADB,
@@ -26,8 +23,8 @@ def engine():
     """Create a VaultEngine with isolated temp storage per test."""
     tmp = Path(tempfile.mkdtemp())
     os.environ["MEMORIUS_STORAGE_PATH"] = str(tmp)
-    from memorius.vault import VaultEngine
     from memorius.config import load_config
+    from memorius.vault import VaultEngine
     config = load_config()
     eng = VaultEngine(config)
     yield eng
@@ -35,7 +32,7 @@ def engine():
     if hasattr(eng, "_vector") and hasattr(eng._vector, "_client"):
         try:
             eng._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
 
@@ -46,10 +43,11 @@ def engine():
 
 
 def test_decay_score_fresh_memory():
-    from memorius.temporal import calculate_decay_score
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    now = datetime.now(timezone.utc).isoformat()
+    from memorius.temporal import calculate_decay_score
+
+    now = datetime.now(UTC).isoformat()
     score = calculate_decay_score(created_at=now, access_count=0)
     assert score > 0.5, f"Fresh memory should have high decay score, got {score}"
 
@@ -65,10 +63,11 @@ def test_decay_score_old_memory():
 
 
 def test_decay_score_reinforced_memory():
-    from memorius.temporal import calculate_decay_score
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    now = datetime.now(timezone.utc).isoformat()
+    from memorius.temporal import calculate_decay_score
+
+    now = datetime.now(UTC).isoformat()
     score = calculate_decay_score(
         created_at="2020-01-01T00:00:00+00:00",
         last_accessed=now,
@@ -108,7 +107,7 @@ def test_consolidation_dry_run_no_changes(engine):
     engine.store("Test memory one", vault="test")
     engine.store("Test memory two", vault="test")
 
-    result = engine.consolidate(vault="test", dry_run=True)
+    engine.consolidate(vault="test", dry_run=True)
     # Dry run should not archive anything
     stats = engine.get_memory_stats()
     assert stats["archived"] == 0
@@ -119,7 +118,6 @@ def test_consolidation_dry_run_no_changes(engine):
 
 @requires_chromadb
 def test_graph_link_memories(engine):
-    from memorius.graph import link_memories, get_linked
 
     m1 = engine.store("Memory about Python", vault="g")
     m2 = engine.store("Memory about JavaScript", vault="g")
@@ -133,7 +131,7 @@ def test_graph_link_memories(engine):
 
 @requires_chromadb
 def test_graph_expand(engine):
-    from memorius.graph import link_memories, expand_graph
+    from memorius.graph import expand_graph, link_memories
 
     m1 = engine.store("A", vault="g")
     m2 = engine.store("B", vault="g")

@@ -31,7 +31,7 @@ def engine():
     if hasattr(eng, "_vector") and hasattr(eng._vector, "_client"):
         try:
             eng._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
 
@@ -128,8 +128,8 @@ def _rest_client_with_api_key():
     tmp = tempfile.mkdtemp()
     os.environ["MEMORIUS_STORAGE_PATH"] = tmp
     from memorius.config import _default_config
-    from memorius.vault import VaultEngine
     from memorius.rest_server import MemoriusAPI
+    from memorius.vault import VaultEngine
 
     cfg = _default_config()
     cfg["storage"]["path"] = tmp
@@ -176,8 +176,8 @@ def _rest_client_no_api_key():
     tmp = tempfile.mkdtemp()
     os.environ["MEMORIUS_STORAGE_PATH"] = tmp
     from memorius.config import _default_config
-    from memorius.vault import VaultEngine
     from memorius.rest_server import MemoriusAPI
+    from memorius.vault import VaultEngine
 
     cfg = _default_config()
     cfg["storage"]["path"] = tmp
@@ -234,10 +234,11 @@ def test_rest_rate_limit_returns_429_not_500():
     os.environ["MEMORIUS_API_KEY"] = "secret"
     tmp = tempfile.mkdtemp()
     os.environ["MEMORIUS_STORAGE_PATH"] = tmp
-    from memorius.config import _default_config
-    from memorius.vault import VaultEngine
-    from memorius.rest_server import MemoriusAPI
     from fastapi.testclient import TestClient
+
+    from memorius.config import _default_config
+    from memorius.rest_server import MemoriusAPI
+    from memorius.vault import VaultEngine
 
     cfg = _default_config()
     cfg["storage"]["path"] = tmp

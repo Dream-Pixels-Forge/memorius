@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 from typing import Any
 
-
 DEFAULT_CONFIG_DIR = Path.home() / ".memorius"
 DEFAULT_CONFIG_PATH = DEFAULT_CONFIG_DIR / "config.yaml"
 

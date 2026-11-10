@@ -11,7 +11,7 @@ import logging
 import struct
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -143,7 +143,7 @@ class SqliteVecStore(VectorStore):
             self._operation_counter = 0
             self._cleanup_idle_connections()
         
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         if not memory.created_at:
             memory.created_at = now
         memory.updated_at = now

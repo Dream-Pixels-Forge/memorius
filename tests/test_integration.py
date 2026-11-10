@@ -5,7 +5,6 @@ import os
 import shutil
 import site
 import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
@@ -96,6 +95,7 @@ def run_memorius(*args, env=None, input_text=None, timeout=180):
         input=input_text,
         timeout=timeout,
         env=merged_env,
+        check=False,
     )
     return proc.stdout, proc.stderr, proc.returncode
 
@@ -144,12 +144,12 @@ class TestCliE2E:
 
     def test_status(self, isolated_env):
         run_memorius("init")
-        stdout, stderr, rc = run_memorius("status")
+        _stdout, stderr, rc = run_memorius("status")
         assert rc == 0, f"status failed: {stderr}"
 
     def test_diary(self, isolated_env):
         run_memorius("init")
-        stdout, stderr, rc = run_memorius(
+        _stdout, stderr, rc = run_memorius(
             "diary", "session-1", "--title", "Test diary",
             "--summary", "Testing the diary feature"
         )
@@ -242,8 +242,8 @@ class TestHooksIntegration:
 
     def test_hook_engine_mine(self, isolated_env):
         """Hook engine can mine a transcript via VaultEngine."""
-        from memorius.hooks.engine import HookEngine, HookConfig
         from memorius.hooks import HookEvent, HookEventType
+        from memorius.hooks.engine import HookEngine
 
         run_memorius("init")
 
@@ -269,8 +269,8 @@ class TestHooksIntegration:
 
     def test_hook_engine_diary(self, isolated_env):
         """Hook engine can write a diary entry."""
-        from memorius.hooks.engine import HookEngine, HookConfig
         from memorius.hooks import HookEvent, HookEventType
+        from memorius.hooks.engine import HookConfig, HookEngine
 
         run_memorius("init")
 

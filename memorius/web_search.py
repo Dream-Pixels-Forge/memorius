@@ -22,7 +22,6 @@ import urllib.parse
 import urllib.request
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
 
 logger = logging.getLogger("memorius.web")
 
@@ -78,7 +77,7 @@ class DuckDuckGoProvider(WebSearchProvider):
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 raw = resp.read().decode("utf-8", "replace")
-        except Exception as e:  # network/timeout — never crash the CLI
+        except Exception as e:  # network/timeout — never crash the CLI  # noqa: BLE001
             logger.warning("DuckDuckGo search failed: %s", e)
             return []
         return _parse_ddg_lite(raw, max_results)
@@ -130,7 +129,7 @@ class TavilyProvider(WebSearchProvider):
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 body = json.loads(resp.read().decode("utf-8", "replace"))
-        except Exception as e:  # network/timeout/auth — never crash the CLI
+        except Exception as e:  # network/timeout/auth — never crash the CLI  # noqa: BLE001
             logger.warning("Tavily search failed: %s", e)
             return []
         out: list[WebResult] = []
@@ -150,7 +149,7 @@ class MockProvider(WebSearchProvider):
 
     name = "mock"
 
-    def __init__(self, results: Optional[dict[str, list[WebResult]]] = None):
+    def __init__(self, results: dict[str, list[WebResult]] | None = None):
         self.results = results or {}
 
     def search(self, query: str, max_results: int = 5) -> list[WebResult]:
@@ -222,8 +221,8 @@ def _parse_ddg_lite(html_text: str, max_results: int) -> list[WebResult]:
 
 
 def get_web_provider(
-    config: dict, provider: Optional[str] = None
-) -> Optional[WebSearchProvider]:
+    config: dict, provider: str | None = None
+) -> WebSearchProvider | None:
     """Build the configured web provider, or ``None`` if unavailable."""
     retrieval = config.get("retrieval", {}) if isinstance(config, dict) else {}
     name = (provider or retrieval.get("web_provider", "duckduckgo")).lower()

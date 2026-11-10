@@ -15,14 +15,14 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from memorius.models import Memory
-from memorius.vector_store_base import VectorStore
 from memorius.meta_store import SQLiteStore
-from memorius.validation import validate_name, validate_memory_id
+from memorius.models import Memory
 from memorius.utils import safe_parse_json
+from memorius.validation import validate_memory_id, validate_name
+from memorius.vector_store_base import VectorStore
 
 logger = logging.getLogger("memorius.store")
 
@@ -61,7 +61,7 @@ class StoreModule:
 
         merged_metadata = dict(metadata or {})
         if ttl_days is not None and ttl_days >= 0:
-            expires_at = (datetime.now(timezone.utc) + timedelta(days=ttl_days)).isoformat()
+            expires_at = (datetime.now(UTC) + timedelta(days=ttl_days)).isoformat()
             merged_metadata["expires_at"] = expires_at
             merged_metadata["ttl_days"] = ttl_days
 
@@ -112,14 +112,14 @@ class StoreModule:
                         memory.id, metadata={"duplicate_of": hit.id},
                     )
                     break
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.debug("Semantic dedup check failed (best-effort)")
         # Auto-link to related memories via content similarity
         try:
             self._meta.init_graph()
             recent = self._meta.list_memories_meta(vault=vault, limit=50)
             self._meta.auto_link_by_proximity(memory.id, recent)
-        except Exception:  # best-effort: graph linking failure should not prevent memory storage
+        except Exception:  # best-effort: graph linking failure should not prevent memory storage  # noqa: BLE001
             logger.debug("Graph linking failed (best-effort)")
         return memory
 
@@ -132,7 +132,7 @@ class StoreModule:
         try:
             validate_memory_id(memory_id)
             self._meta.record_access(memory_id)
-        except Exception:  # best-effort: touch failure is non-critical (reinforcement only)
+        except Exception:  # best-effort: touch failure is non-critical (reinforcement only)  # noqa: BLE001
             logger.debug("touch(%s) failed (best-effort)", memory_id)
 
     def get_by_ids(

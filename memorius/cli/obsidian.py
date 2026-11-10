@@ -16,11 +16,13 @@ import re
 from pathlib import Path
 from typing import Any
 
-from memorius.vault import VaultEngine
 from memorius.obsidian import (
-    resolve_vault_path as _resolve_vault_path,
     parse_frontmatter as _parse_frontmatter,
 )
+from memorius.obsidian import (
+    resolve_vault_path as _resolve_vault_path,
+)
+from memorius.vault import VaultEngine
 
 logger = logging.getLogger("memorius.obsidian")
 
@@ -273,7 +275,9 @@ def dispatch(engine: VaultEngine, args: Any, config: dict[str, Any]) -> int:
         print(f"  {OBSIDIAN_VAULT_HINT}")
         return 1
 
-    vault_path = _resolve_vault_path(getattr(args, 'obsidian_vault', None))
+    vault_path = _resolve_vault_path(
+        getattr(args, 'obsidian_vault', None), restrict_to_home=True
+    )
 
     if args.subcommand == "list":
         notes = list_notes(vault_path)

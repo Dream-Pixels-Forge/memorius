@@ -39,18 +39,19 @@ import socket
 import subprocess
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
+
+from memorius.config import load_config
+from memorius.vault import VaultEngine
 
 from . import (
     HookEvent,
     HookResult,
 )
-from memorius.vault import VaultEngine
-from memorius.config import load_config
 
 logger = logging.getLogger("memorius.hooks.engine")
 
@@ -88,6 +89,8 @@ def _sanitize_template_value(value: str) -> str:
     Strips shell metacharacters, null bytes, and control characters
     to prevent injection via template substitution.
     """
+    # Remove shell metacharacters that could inject commands
+    value = re.sub(r'[;`$&|<>()]', '', value)
     # Remove null bytes
     value = value.replace("\x00", "")
     # Remove control characters except newline and tab
@@ -152,7 +155,7 @@ class HookConfig:
     raw: dict = field(default_factory=dict)
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "HookConfig":
+    def from_yaml(cls, path: str | Path) -> HookConfig:
         """Load configuration from a YAML file."""
         path = Path(path).expanduser()
         if not path.exists():
@@ -165,13 +168,13 @@ class HookConfig:
         return cls.from_dict(raw)
 
     @classmethod
-    def default(cls) -> "HookConfig":
+    def default(cls) -> HookConfig:
         """Return the default configuration."""
         raw = yaml.safe_load(DEFAULT_CONFIG_YAML)
         return cls.from_dict(raw)
 
     @classmethod
-    def from_dict(cls, raw: dict) -> "HookConfig":
+    def from_dict(cls, raw: dict) -> HookConfig:
         """Build from a parsed dict (for in-memory construction)."""
         save_interval = int(raw.get("save_interval", DEFAULT_SAVE_INTERVAL))
         state_dir = raw.get("state_dir", "~/.memorius/hook_state")
@@ -298,7 +301,7 @@ class HookEngine:
     shelling out to an external CLI.
     """
 
-    def __init__(self, config: Optional[HookConfig] = None):
+    def __init__(self, config: HookConfig | None = None):
         self.config = config or HookConfig.default()
         self.state_manager = HookStateManager(self.config.state_dir)
         self.webhook_state_manager = WebhookStateManager(self.config.state_dir)
@@ -336,7 +339,7 @@ class HookEngine:
                 if result.get("block"):
                     should_block = True
                     block_reason = result.get("reason", "Save checkpoint")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Action {action.name} failed: {e}")
                 results.append({"action": action.name, "error": str(e)})
 
@@ -383,7 +386,7 @@ class HookEngine:
             "agent_name": _sanitize_template_value(event.agent_name),
             "event_type": event.event_type.value,
             "save_interval": str(self.config.save_interval),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
         if event.transcript_path:
@@ -470,7 +473,7 @@ class HookEngine:
                 "memory_count": len(memories),
                 "memory_ids": [m.id for m in memories],
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"action": action.name, "status": "error", "error": str(e)}
 
     def _action_diary(self, action: HookAction, event: HookEvent, context: dict) -> dict:
@@ -487,7 +490,7 @@ class HookEngine:
                 content=event.raw_payload.get("content", json.dumps(event.raw_payload)),
             )
             return {"action": action.name, "status": "done", "diary_id": entry.get("id")}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"action": action.name, "status": "error", "error": str(e)}
 
     def _action_conditional_diary(self, action: HookAction, event: HookEvent, context: dict) -> dict:
@@ -527,7 +530,7 @@ class HookEngine:
 
         try:
             result = subprocess.run(
-                cmd_parts, shell=False, capture_output=True, text=True, timeout=60
+                cmd_parts, shell=False, capture_output=True, text=True, timeout=60, check=False
             )
             return {
                 "action": action.name,
@@ -537,13 +540,13 @@ class HookEngine:
             }
         except subprocess.TimeoutExpired:
             return {"action": action.name, "status": "timeout"}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"action": action.name, "status": "error", "error": str(e)}
 
     def _action_webhook(self, action: HookAction, event: HookEvent, context: dict) -> dict:
-        import ipaddress
         import hashlib
         import hmac
+        import ipaddress
         from urllib.parse import urlparse
 
         url_template = action.config.get("url", "")
@@ -575,7 +578,7 @@ class HookEngine:
         # Validate URL to prevent SSRF
         try:
             parsed = urlparse(url)
-        except Exception:
+        except Exception:  # noqa: BLE001
             return {"action": action.name, "status": "error", "error": "Invalid URL"}
 
         # Only allow http/https schemes
@@ -610,12 +613,45 @@ class HookEngine:
             except ValueError:
                 pass
 
+        # DNS rebinding defense: connect to a resolved public IP directly,
+        # not the hostname. This prevents a DNS server from first returning a
+        # public IP (passing the check above) then returning a private IP when
+        # the HTTP request is made. Set Host header to original hostname for
+        # SNI / virtual hosting.
+        public_ips = []
+        for _family, _type, _proto, _canonname, sockaddr in resolved:
+            try:
+                ip = ipaddress.ip_address(sockaddr[0])
+                if not (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast):
+                    public_ips.append(sockaddr[0])
+            except ValueError:
+                continue
+        if not public_ips:
+            return {
+                "action": action.name,
+                "status": "error",
+                "error": "No public IP resolved for webhook URL",
+            }
+        connect_ip = public_ips[0]
+        # Replace hostname in URL with the resolved IP
+        from urllib.parse import urlunparse
+        parsed = urlparse(url)
+        connect_url = urlunparse((
+            parsed.scheme,
+            f"{connect_ip}:{parsed.port or (443 if parsed.scheme == 'https' else 80)}",
+            parsed.path,
+            parsed.params,
+            parsed.query,
+            parsed.fragment,
+        ))
+
         payload = event.raw_payload
 
         # Prepare headers
         headers = {
             "Content-Type": "application/json",
             "User-Agent": "Memorius-Webhook/1.0",
+            "Host": hostname,
         }
 
         # Add HMAC signature if secret is configured
@@ -633,7 +669,7 @@ class HookEngine:
 
         try:
             import httpx
-            resp = httpx.post(url, json=payload, headers=headers, timeout=10)
+            resp = httpx.post(connect_url, json=payload, headers=headers, timeout=10)
             
             # Mark idempotency key as seen if verification was successful
             if idempotency_value and resp.is_success:
@@ -647,7 +683,7 @@ class HookEngine:
             }
         except ImportError:
             return {"action": action.name, "status": "error", "error": "httpx not installed"}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"action": action.name, "status": "error", "error": str(e)}
 
     @staticmethod
@@ -675,7 +711,7 @@ class HookEngine:
                 "context_length": len(context_text),
                 "context_preview": context_text[:200] if context_text else "",
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"action": action.name, "status": "error", "error": str(e)}
 
     def _action_consolidate(self, action: HookAction, event: HookEvent, context: dict) -> dict:
@@ -695,7 +731,7 @@ class HookEngine:
                 "memories_merged": result.memories_merged,
                 "memories_archived": result.memories_archived,
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"action": action.name, "status": "error", "error": str(e)}
 
     def _action_factcheck(self, action: HookAction, event: HookEvent, context: dict) -> dict:
@@ -719,5 +755,5 @@ class HookEngine:
                 "confidence": result.confidence,
                 "explanation": result.explanation,
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"action": action.name, "status": "error", "error": str(e)}

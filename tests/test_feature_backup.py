@@ -29,7 +29,7 @@ def engine():
     if hasattr(eng, "_vector") and hasattr(eng._vector, "_client"):
         try:
             eng._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
 
@@ -100,14 +100,14 @@ class TestExportImportJSON:
         if hasattr(engine2, "_vector") and hasattr(engine2._vector, "_client"):
             try:
                 engine2._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 pass
 
     def test_import_skip_existing(self, engine):
         """merge=True skips memories already present."""
         from memorius.backup import export_json, import_json
 
-        m = engine.store("existing mem")
+        engine.store("existing mem")
         export_path = Path(tempfile.mkdtemp()) / "skip.json"
         export_json(engine, export_path)
 
@@ -120,7 +120,7 @@ class TestExportImportJSON:
         """merge=False overwrites existing memories."""
         from memorius.backup import export_json, import_json
 
-        m = engine.store("original content")
+        engine.store("original content")
         export_path = Path(tempfile.mkdtemp()) / "replace.json"
         export_json(engine, export_path)
 
@@ -142,7 +142,7 @@ class TestExportImportJSON:
     def test_graph_edges_round_trip(self, engine):
         """Graph edges survive export → import."""
         from memorius.backup import export_json, import_json
-        from memorius.graph import link_memories, init_graph_schema
+        from memorius.graph import init_graph_schema, link_memories
 
         m1 = engine.store("node one")
         m2 = engine.store("node two")
@@ -172,14 +172,14 @@ class TestExportImportJSON:
                 (m1.id, m2.id),
             ).fetchone()
             assert row[0] >= 1
-        except Exception:
+        except Exception:  # noqa: BLE001
             pytest.fail("Graph edge not found after import")
 
         shutil.rmtree(tmp3, ignore_errors=True)
         if hasattr(engine3, "_vector") and hasattr(engine3._vector, "_client"):
             try:
                 engine3._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 pass
 
     def test_schema_version_rejects_future(self, engine):
@@ -231,3 +231,66 @@ class TestExportMarkdown:
         assert len(md_files) == 1
         text = md_files[0].read_text(encoding="utf-8")
         assert "tags" in text
+
+
+# ── Path traversal guards (issue #60, H-07) ──────────────────────────────────
+
+class TestPathTraversal:
+    """Backup dest/src paths must not escape allowed base directories."""
+
+    def test_export_json_blocks_traversal(self, engine):
+        from memorius.backup import export_json
+
+        dest = Path(tempfile.gettempdir()) / "../../../etc/memorius_hack.json"
+        with pytest.raises(ValueError, match="must be inside one of"):
+            export_json(engine, dest)
+
+    def test_import_json_blocks_traversal(self, engine):
+        from memorius.backup import import_json
+
+        src = Path(tempfile.gettempdir()) / "../../../etc/memorius_hack.json"
+        with pytest.raises(ValueError, match="must be inside one of"):
+            import_json(engine, src)
+
+    def test_export_markdown_blocks_traversal(self, engine):
+        from memorius.backup import export_markdown
+
+        dest = Path(tempfile.gettempdir()) / "../../../etc/md_out"
+        with pytest.raises(ValueError, match="must be inside one of"):
+            export_markdown(engine, dest)
+
+    def test_export_json_under_tmp_allowed(self, engine):
+        """Export under /tmp should work (it's an allowed base)."""
+        from memorius.backup import export_json
+
+        dest = Path(tempfile.mkdtemp()) / "backup.json"
+        path = export_json(engine, dest)
+        assert path.exists()
+
+
+# ── Obsidian path confinement (issue #60, H-08) ──────────────────────────────
+
+class TestObsidianPathConfinement:
+    """resolve_vault_path with restrict_to_home=True blocks paths outside home."""
+
+    def test_obsidian_allows_home_path(self, tmp_path, monkeypatch):
+        from memorius.obsidian import resolve_vault_path
+
+        home = Path.home().resolve()
+        # Use a path under home
+        vault = home / "Documents" / "Obsidian Vault"
+        result = resolve_vault_path(str(vault), restrict_to_home=True)
+        assert result == vault.resolve()
+
+    def test_obsidian_blocks_outside_home(self, monkeypatch):
+        from memorius.obsidian import resolve_vault_path
+
+        with pytest.raises(ValueError, match="must be inside"):
+            resolve_vault_path("/etc/passwd", restrict_to_home=True)
+
+    def test_obsidian_no_restrict_allows_any(self, monkeypatch):
+        """Without restrict_to_home, any path is allowed (backward compat)."""
+        from memorius.obsidian import resolve_vault_path
+
+        result = resolve_vault_path("/tmp/some/vault")
+        assert result == Path("/tmp/some/vault").resolve()

@@ -60,7 +60,7 @@ def _sanitize_memory_content(content: str) -> str:
         sanitized = pattern.sub("[redacted]", sanitized)
 
     # Remove XML/HTML-like tags that could be interpreted as instructions
-    sanitized = re.sub(r'<\s*/?\s*(?:system|instruction|prompt|override)\s*>', '[tag]', sanitized, flags=re.I)
+    sanitized = re.sub(r'<\s*/?\s*(?:system|instruction|prompt|override)\s*>', '[tag]', sanitized, flags=re.IGNORECASE)
 
     # Limit control characters
     sanitized = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', sanitized)
@@ -207,7 +207,7 @@ class ContextInjector:
                 # set that search returned and the injector never used.
                 try:
                     self._engine.touch(mem.id)
-                except Exception:  # best-effort: touch failure is non-critical — continue injection
+                except Exception:  # best-effort: touch failure is non-critical — continue injection  # noqa: BLE001, S110
                     pass
             if len(filtered) >= limit:
                 break

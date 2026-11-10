@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import time
 
-import pytest
-
 from memorius.consolidation import (
     _find_clusters_in_memory,
 )

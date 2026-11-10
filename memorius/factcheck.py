@@ -50,10 +50,10 @@ class Contradiction:
 
 # Patterns that indicate factual claims
 FACTUAL_PATTERNS = [
-    re.compile(r"(?:the|this|our|my|that)\s+\w+\s+(?:is|are|was|were|uses?|has|have|does)\s+(.+)", re.I),
-    re.compile(r"(?:we|i)\s+(?:use|prefer|chose|selected|decided)\s+(.+)", re.I),
-    re.compile(r"(?:it|this)\s+(?:works?|runs?|functions?)\s+(?:by|with|using)\s+(.+)", re.I),
-    re.compile(r"(?:the|a|an)\s+(\w+)\s+(?:version|release|update)\s+(?:is|was)\s+(.+)", re.I),
+    re.compile(r"(?:the|this|our|my|that)\s+\w+\s+(?:is|are|was|were|uses?|has|have|does)\s+(.+)", re.IGNORECASE),
+    re.compile(r"(?:we|i)\s+(?:use|prefer|chose|selected|decided)\s+(.+)", re.IGNORECASE),
+    re.compile(r"(?:it|this)\s+(?:works?|runs?|functions?)\s+(?:by|with|using)\s+(.+)", re.IGNORECASE),
+    re.compile(r"(?:the|a|an)\s+(\w+)\s+(?:version|release|update)\s+(?:is|was)\s+(.+)", re.IGNORECASE),
 ]
 
 
@@ -181,7 +181,7 @@ def check_statement(
                             m_match["id"], m_contra["id"],
                             weight=edge_weight, relation="contradicts",
                         )
-        except Exception:  # best-effort: graph edge persistence failure — fact-check result is still valid
+        except Exception:  # best-effort: graph edge persistence failure — fact-check result is still valid  # noqa: BLE001
             logger.debug("Contradiction-edge persistence failed (best-effort)")
 
     return FactCheckResult(

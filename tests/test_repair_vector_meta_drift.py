@@ -50,7 +50,7 @@ def _vector_ids(engine, collection_names=None) -> list[str]:
     for name in cols:
         try:
             col = client.get_collection(name)
-        except Exception:
+        except Exception:  # noqa: BLE001, S112
             continue
         ids.extend(col.get(include=[])["ids"] or [])
     return ids
@@ -199,7 +199,6 @@ def test_cli_repair_subparser_is_registered():
     module-level parser builder. If the parser isn't factored out, we fall
     back to confirming the dispatch table contains the command name.
     """
-    from memorius.cli import main as cli_main
 
     # Confirm the dispatch table registers "repair".
     # We can't easily call main() without an engine, so instead we verify the
@@ -211,7 +210,7 @@ def test_cli_repair_subparser_is_registered():
 
     result = subprocess.run(
         [sys.executable, "-m", "memorius.cli.main", "repair", "--help"],
-        capture_output=True, text=True, cwd="/home/dimona/Dream-Pixels-Forge/Dev/cli/memorius",
+        capture_output=True, text=True, cwd="/home/dimona/Dream-Pixels-Forge/Dev/cli/memorius", check=False,
     )
     # The repair subparser should be reachable (exit 0 from --help), and the
     # flags should be listed.

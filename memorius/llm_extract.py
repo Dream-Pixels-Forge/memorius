@@ -162,7 +162,7 @@ def _extract_with_openai(conversation: str, model: str = "gpt-4o-mini") -> list[
                 if validated_mem:
                     validated.append(validated_mem)
         return validated
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning(f"OpenAI extraction failed: {e}")
         return []
 
@@ -198,7 +198,7 @@ def _extract_with_ollama(conversation: str, model: str = "llama3.2") -> list[Ext
                     if validated_mem:
                         validated.append(validated_mem)
             return validated
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning(f"Ollama extraction failed: {e}")
     return []
 
@@ -323,7 +323,7 @@ def extract_memories(
                 if resp.status_code == 200:
                     ollama_available = True
                     break
-            except Exception:
+            except Exception:  # noqa: BLE001
                 if attempt < 2:
                     import time
                     time.sleep(0.5 * (attempt + 1))
@@ -331,7 +331,7 @@ def extract_memories(
             results = _extract_with_ollama(conversation, model or "llama3.2")
             if results:
                 return results
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass
 
     # 3. Fallback to regex

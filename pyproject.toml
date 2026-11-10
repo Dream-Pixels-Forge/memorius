@@ -1,6 +1,6 @@
 [project]
 name = "memorius"
-version = "0.9.5"
+version = "0.9.6"
 description = "Self-contained memory vault for any AI agent — vector search, session diaries, and agent-agnostic hooks."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -24,13 +24,14 @@ dependencies = [
     "chromadb>=0.4.22,<1.0.0",
     "httpx>=0.25.0,<1.0.0",
     "fastapi>=0.104.1,<1.0.0",
-    "uvicorn[standard]>=0.24.0,<0.30.0",
+    "uvicorn[standard]>=0.24.0,<0.55.0",
     "pydantic>=2.0.0,<3.0.0",
-    "sse-starlette>=1.0.0,<2.0.0",
+    "sse-starlette>=1.0.0,<4.0.0",
     "sentence-transformers>=2.6.0",
-    "openai>=1.10.0,<2.0.0",
+    "openai>=1.10.0,<4.0.0",
     "sqlite-vec>=0.1.0",
     "prometheus-client>=0.17.0,<1.0.0",
+    "posthog>=3.0.0,<4.0.0",
 ]
 
 [project.optional-dependencies]

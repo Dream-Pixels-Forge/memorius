@@ -9,9 +9,8 @@ from __future__ import annotations
 
 import math
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
-
 
 # ── Decay constants ──────────────────────────────────────────────────────────
 
@@ -35,11 +34,11 @@ def _parse_dt(iso_str: str | None) -> datetime:
     Returns the current UTC time if *iso_str* is None or unparseable.
     """
     if not iso_str:
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
     try:
-        return datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+        return datetime.fromisoformat(iso_str)
     except (ValueError, AttributeError):
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
 
 
 def calculate_heat_score(
@@ -55,7 +54,7 @@ def calculate_heat_score(
       - Access frequency (linear, capped at 10)
       - Freshness since creation (exponential decay, 90-day half-life)
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     created = _parse_dt(created_at)
     last_accessed = _parse_dt(accessed_at) if accessed_at else created
 
@@ -100,7 +99,7 @@ def calculate_decay_score(
       - Time since last access (longer ago = lower)
       - Access frequency (more accesses = higher, logarithmic)
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     created = _parse_dt(created_at)
 
     days_old = max((now - created).total_seconds() / 86400, 0)
@@ -153,7 +152,7 @@ def calculate_search_score(
 
 def mark_accessed(conn: sqlite3.Connection, memory_id: str):
     """Update last_accessed timestamp and increment access_count for a memory."""
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     conn.execute(
         """UPDATE memory_meta
            SET last_accessed = ?,
@@ -176,7 +175,7 @@ def find_stale_memories(
     its decay score is below *threshold* **or** its metadata contains an
     ``expires_at`` ISO timestamp that is strictly in the past.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     rows = conn.execute(
         """SELECT id, vault, shelf, folder, note, content, created_at,
                   last_accessed, access_count, metadata
@@ -205,7 +204,7 @@ def find_stale_memories(
 
         if expires_at:
             try:
-                exp_dt = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+                exp_dt = datetime.fromisoformat(expires_at)
                 if exp_dt <= now:
                     expired = True
             except (ValueError, TypeError):
@@ -228,7 +227,7 @@ def find_stale_memories(
 
 def archive_memories(conn: sqlite3.Connection, memory_ids: list[str]):
     """Mark memories as archived (soft delete)."""
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     for mid in memory_ids:
         conn.execute(
             "UPDATE memory_meta SET archived = 1, updated_at = ? WHERE id = ?",

@@ -97,6 +97,7 @@ def engine():
 @pytest.fixture
 def client(engine):
     from fastapi.testclient import TestClient
+
     from memorius.rest_server import MemoriusAPI
 
     api = MemoriusAPI(engine)
@@ -108,7 +109,7 @@ class TestBookcaseAssets:
     """Assets ship with the package and are well-formed (Verification 1)."""
 
     def test_bookcase_assets(self):
-        import memorius.bookcase as bookcase_pkg  # noqa: F401  (package must exist)
+        import memorius.bookcase as bookcase_pkg
 
         root = Path(bookcase_pkg.__file__).parent
         for name in REQUIRED_ASSETS:
@@ -257,7 +258,7 @@ class TestBookcaseServe:
                         ) as resp:
                             assert resp.status == 200
                             page_text = resp.read().decode("utf-8")
-                    except Exception:
+                    except Exception:  # noqa: BLE001, S110
                         pass
                 if not health_ok:
                     try:
@@ -266,7 +267,7 @@ class TestBookcaseServe:
                             timeout=2,
                         ) as resp:
                             health_ok = resp.status == 200
-                    except Exception:
+                    except Exception:  # noqa: BLE001, S110
                         pass
                 if page_text and health_ok:
                     break
@@ -476,7 +477,7 @@ class TestBookcaseFloorPlan:
         url = json.dumps((Path(bookcase_pkg.__file__).parent / "bookcase-layout.js").as_uri())
         res = subprocess.run(
             ["node", "--input-type=module", "-e", _LAYOUT_PROBE % {"url": url}],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True, text=True, timeout=60, check=False,
         )
         assert res.returncode == 0, res.stderr
         out = json.loads(res.stdout)
