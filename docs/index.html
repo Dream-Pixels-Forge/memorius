@@ -210,6 +210,12 @@
     border: none;
     background: transparent;
   }
+  #hero-fallback {
+    width: 100%;
+    height: 100%;
+    display: block;
+    /* no border-radius/shadow - frameless fallback */
+  }
   /* keep text content left-aligned on desktop when in grid */
   @media (min-width: 901px) {
     .hero-text { text-align: left; }
@@ -281,6 +287,8 @@
     </div>
 
     <div class="hero-3d-wrap fade-up delay-2">
+      <img id="hero-fallback" src="assets/librarian-hippo.webp" alt="The Memorius librarian hippo - fallback when 3D fails to load"
+           style="width:100%;height:100%;object-fit:contain;border-radius:0;box-shadow:none;display:none;" />
       <canvas id="hero-canvas" aria-label="The Memorius librarian hippo, rotating as you scroll"></canvas>
     </div>
   </div>
@@ -567,8 +575,8 @@
         console.error("Hero 3D failed to load:", err);
       });
 
-      clock = new THREE.Clock();
-      animate();
+      // Start 3D initialization
+    init3D();
     }
 
     function scrollProgress() {
