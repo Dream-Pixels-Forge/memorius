@@ -231,3 +231,66 @@ class TestExportMarkdown:
         assert len(md_files) == 1
         text = md_files[0].read_text(encoding="utf-8")
         assert "tags" in text
+
+
+# ── Path traversal guards (issue #60, H-07) ──────────────────────────────────
+
+class TestPathTraversal:
+    """Backup dest/src paths must not escape allowed base directories."""
+
+    def test_export_json_blocks_traversal(self, engine):
+        from memorius.backup import export_json
+
+        dest = Path(tempfile.gettempdir()) / "../../../etc/memorius_hack.json"
+        with pytest.raises(ValueError, match="must be inside one of"):
+            export_json(engine, dest)
+
+    def test_import_json_blocks_traversal(self, engine):
+        from memorius.backup import import_json
+
+        src = Path(tempfile.gettempdir()) / "../../../etc/memorius_hack.json"
+        with pytest.raises(ValueError, match="must be inside one of"):
+            import_json(engine, src)
+
+    def test_export_markdown_blocks_traversal(self, engine):
+        from memorius.backup import export_markdown
+
+        dest = Path(tempfile.gettempdir()) / "../../../etc/md_out"
+        with pytest.raises(ValueError, match="must be inside one of"):
+            export_markdown(engine, dest)
+
+    def test_export_json_under_tmp_allowed(self, engine):
+        """Export under /tmp should work (it's an allowed base)."""
+        from memorius.backup import export_json
+
+        dest = Path(tempfile.mkdtemp()) / "backup.json"
+        path = export_json(engine, dest)
+        assert path.exists()
+
+
+# ── Obsidian path confinement (issue #60, H-08) ──────────────────────────────
+
+class TestObsidianPathConfinement:
+    """resolve_vault_path with restrict_to_home=True blocks paths outside home."""
+
+    def test_obsidian_allows_home_path(self, tmp_path, monkeypatch):
+        from memorius.obsidian import resolve_vault_path
+
+        home = Path.home().resolve()
+        # Use a path under home
+        vault = home / "Documents" / "Obsidian Vault"
+        result = resolve_vault_path(str(vault), restrict_to_home=True)
+        assert result == vault.resolve()
+
+    def test_obsidian_blocks_outside_home(self, monkeypatch):
+        from memorius.obsidian import resolve_vault_path
+
+        with pytest.raises(ValueError, match="must be inside"):
+            resolve_vault_path("/etc/passwd", restrict_to_home=True)
+
+    def test_obsidian_no_restrict_allows_any(self, monkeypatch):
+        """Without restrict_to_home, any path is allowed (backward compat)."""
+        from memorius.obsidian import resolve_vault_path
+
+        result = resolve_vault_path("/tmp/some/vault")
+        assert result == Path("/tmp/some/vault").resolve()
