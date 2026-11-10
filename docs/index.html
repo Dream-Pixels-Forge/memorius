@@ -76,7 +76,7 @@
     position: relative; z-index: 1;
   }
   .hero-install {
-    display: inline-flex; align-items: stretch;
+    display: inline-flex; align-items: center; /* vertical center for all children */
     background: var(--bg-elev);
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -91,8 +91,8 @@
     box-shadow: var(--shadow-md), 0 0 0 1px var(--accent-glow);
   }
   .hero-install-prompt {
-    display: inline-flex; align-items: center;
-    padding: 11px 12px 11px 14px;
+    display: inline-flex; align-items: center; height: 100%;
+    padding: 0 12px 0 14px;
     color: var(--accent-hi);
     font-family: var(--mono);
     font-size: 12.5px;
@@ -100,9 +100,9 @@
     font-weight: 600;
     background: color-mix(in srgb, var(--accent) 8%, transparent);
   }
-  .hero-install code { background: none; border: none; padding: 0 16px; color: var(--fg); font-size: 12.5px; font-weight: 500; min-width: 160px; }
+  .hero-install code { background: none; border: none; padding: 0 16px; color: var(--fg); font-size: 12.5px; font-weight: 500; min-width: 160px; display: inline-flex; align-items: center; height: 100%; }
   .hero-install button {
-    display: inline-flex; align-items: center; gap: 6px;
+    display: inline-flex; align-items: center; gap: 6px; height: 100%;
     background: transparent;
     border: none; border-left: 1px solid var(--border);
     color: var(--fg-dim);
