@@ -6,6 +6,7 @@
  */
 import { BookcaseScene } from "./bookcase-scene.js";
 import { Librarian } from "./bookcase-librarian.js";
+import { Minimap } from "./bookcase-minimap.js";
 
 const $ = (id) => document.getElementById(id);
 const API =
@@ -18,10 +19,21 @@ const state = {
   books: [],
   shelfCount: 0,
   greeting: false,
+  results: [],
+  resultIdx: 0,
+  current: null, // book open in the detail panel
 };
 
 const scene = new BookcaseScene($("bc-scene"));
 const librarian = new Librarian({ onLog: logGuidance });
+const minimap = new Minimap($("bc-map"), {
+  plan: () => scene._cases,
+  cam: () => scene.camera.position,
+  yaw: () => scene.walk.yaw,
+  hits: () => scene.hits(),
+  lantern: () => scene.guide.lantern.position,
+});
+scene.onFrame = (t) => minimap.draw(t);
 
 async function api(path, opts = {}) {
   const res = await fetch(`${API}${path}`, {
@@ -155,6 +167,10 @@ async function runSearch(query) {
       content: m.content,
       created_at: m.created_at || m.createdAt,
     }));
+    // directions are computed from where the visitor stands *before* the flight
+    const directions = results.length ? scene.describe(results[0].id) : null;
+    state.results = results;
+    state.resultIdx = 0;
     window.dispatchEvent(new CustomEvent("bc:search", {
       detail: {
         topId: results.length ? results[0].id : null,
@@ -162,8 +178,8 @@ async function runSearch(query) {
         query: q,
       },
     }));
-    renderResults(q, results);
-    librarian.announceSearch(q, results);
+    renderResults(q, results, directions);
+    librarian.announceSearch(q, results, directions);
     setStatus(results.length ? `${results.length} matches` : "no matches");
   } catch (err) {
     setStatus("search failed", true);
@@ -171,7 +187,20 @@ async function runSearch(query) {
   }
 }
 
-function renderResults(query, results) {
+/* N / P: walk the visitor from one result to the next. */
+function stepResult(delta) {
+  const list = state.results;
+  if (!list.length) return;
+  state.resultIdx = (state.resultIdx + delta + list.length) % list.length;
+  const r = list[state.resultIdx];
+  const directions = scene.describe(r.id);
+  window.dispatchEvent(new CustomEvent("bc:fly", { detail: { id: r.id } }));
+  document.querySelectorAll(".bc-result").forEach((el, i) =>
+    el.classList.toggle("bc-result-current", i === state.resultIdx));
+  librarian.announceStep(state.resultIdx, list.length, r, directions);
+}
+
+function renderResults(query, results, directions = null) {
   const panel = $("bc-detail");
   const body = $("bc-detail-body");
   body.innerHTML = "";
@@ -190,10 +219,19 @@ function renderResults(query, results) {
     div.innerHTML =
       `<div class="bc-result-title">${escapeHtml(r.label)}</div>` +
       `<div class="bc-result-where">shelf ${escapeHtml(r.shelf || "default")}` +
-      ` / folder ${escapeHtml(r.folder || "default")}${i === 0 ? " · top hit" : ""}</div>`;
+      ` / folder ${escapeHtml(r.folder || "default")}${i === 0 ? " · top hit" : ""}</div>` +
+      (i === 0 && directions
+        ? `<div class="bc-result-dir">${escapeHtml(directions.where)} · ${escapeHtml(directions.level)}</div>`
+        : "");
     div.addEventListener("click", () => openBook(r.id));
     body.appendChild(div);
   });
+  if (results.length > 1) {
+    const hint = document.createElement("p");
+    hint.className = "bc-meta";
+    hint.textContent = "N / P to be walked to the next / previous result.";
+    body.appendChild(hint);
+  }
   panel.hidden = false;
 }
 
@@ -203,32 +241,122 @@ function escapeHtml(s) {
   }[c]));
 }
 
-/* ── book detail ─────────────────────────────────────────────── */
+/* ── book detail: the book drawn from the shelf and opened ──── */
+function relativeDate(value) {
+  const t = typeof value === "number" ? value * (value < 1e12 ? 1000 : 1) : Date.parse(value);
+  if (!t || Number.isNaN(t)) return String(value || "unknown");
+  const days = Math.round((Date.now() - t) / 86400000);
+  const when = days <= 0 ? "today" : days === 1 ? "yesterday" : days < 60 ? `${days} days ago`
+    : days < 730 ? `${Math.round(days / 30)} months ago` : `${Math.round(days / 365)} years ago`;
+  return `${new Date(t).toLocaleDateString()} · ${when}`;
+}
+
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text != null) node.textContent = text;
+  return node;
+}
+
 async function openBook(id) {
   try {
     const m = await api(`/memory/${encodeURIComponent(id)}`);
+    state.current = m;
+    window.dispatchEvent(new CustomEvent("bc:open", { detail: { id } }));
+    const shelf = m.shelf || "default";
+    const folder = m.folder || "default";
     const body = $("bc-detail-body");
     body.innerHTML = "";
-    const h = document.createElement("h2");
-    h.textContent = `${m.shelf || "default"}/${m.folder || "default"}/${m.note || "default"}`;
+    body.appendChild(el("div", "bc-crumb", `${shelf} › ${folder}`));
+    const h = el("h2", "bc-title", (m.note || "default").replace(/[-_]+/g, " "));
+    h.title = `${shelf}/${folder}/${m.note || "default"}`;
     body.appendChild(h);
-    const meta = document.createElement("div");
-    meta.className = "bc-meta";
-    meta.textContent = [
-      `id: ${m.id}`,
-      `created: ${m.created_at || m.createdAt || "unknown"}`,
-      m.tags && m.tags.length ? `tags: ${m.tags.join(", ")}` : "",
-    ].filter(Boolean).join("\n");
-    body.appendChild(meta);
-    const content = document.createElement("div");
-    content.className = "bc-content";
-    content.textContent = m.content || "";
-    body.appendChild(content);
+    body.appendChild(el("div", "bc-meta", relativeDate(m.created_at || m.createdAt)));
+    if (m.tags && m.tags.length) {
+      const tags = el("div", "bc-tags");
+      for (const t of m.tags) tags.appendChild(el("span", "bc-tag", t));
+      body.appendChild(tags);
+    }
+    const actions = el("div", "bc-actions");
+    const walkBtn = el("button", "bc-btn", "Walk me there");
+    walkBtn.type = "button";
+    walkBtn.addEventListener("click", () =>
+      window.dispatchEvent(new CustomEvent("bc:fly", { detail: { id } })));
+    const readBtn = el("button", "bc-btn", librarian.supported ? "Read aloud" : "Read aloud (n/a)");
+    readBtn.type = "button";
+    readBtn.disabled = !librarian.supported;
+    readBtn.addEventListener("click", () => librarian.readAloud(h.textContent, m.content));
+    actions.append(walkBtn, readBtn);
+    body.appendChild(actions);
+    body.appendChild(el("div", "bc-content", m.content || ""));
+    const neighbours = state.books
+      .filter((b) => b.id !== id && b.shelf === shelf && b.folder === folder)
+      .slice(0, 6);
+    if (neighbours.length) {
+      body.appendChild(el("h3", null, "Beside it on the shelf"));
+      for (const b of neighbours) {
+        const row = el("div", "bc-neighbour", b.note.replace(/[-_]+/g, " "));
+        row.tabIndex = 0;
+        row.addEventListener("click", () => openBook(b.id));
+        row.addEventListener("keydown", (e) => { if (e.key === "Enter") openBook(b.id); });
+        body.appendChild(row);
+      }
+    }
+    body.appendChild(el("div", "bc-meta bc-id", `id ${m.id}`));
     $("bc-detail").hidden = false;
   } catch (err) {
     setStatus("book not found", true);
   }
 }
+
+function closeDetail() {
+  $("bc-detail").hidden = true;
+  state.current = null;
+  window.dispatchEvent(new CustomEvent("bc:open", { detail: { id: null } }));
+}
+
+/* Keyboard: / search · Esc close · N/P results · F fly to top · R reset ·
+ * M map · ? help. Ignored while typing in a field. */
+function onShortcut(e) {
+  const tag = e.target && e.target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+    if (e.key === "Escape") e.target.blur();
+    return;
+  }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key;
+  if (k === "/") {
+    e.preventDefault();
+    $("bc-search").focus();
+  } else if (k === "Escape") {
+    if (!$("bc-usage").hidden) $("bc-usage").hidden = true;
+    else if (!$("bc-detail").hidden) closeDetail();
+    librarian.hush();
+  } else if (k === "n" || k === "N") stepResult(1);
+  else if (k === "p" || k === "P") stepResult(-1);
+  else if ((k === "f" || k === "F") && state.results.length) {
+    window.dispatchEvent(new CustomEvent("bc:fly", { detail: { id: state.results[state.resultIdx].id } }));
+  } else if (k === "r" || k === "R") {
+    window.dispatchEvent(new CustomEvent("bc:reset-view", { detail: {} }));
+  } else if (k === "m" || k === "M") toggleMap();
+  else if (k === "?") toggleHelp();
+  if (/^(Key[WASD]|Arrow)/.test(e.code)) dismissHint();
+}
+
+function toggleMap() {
+  const map = $("bc-map");
+  map.hidden = !map.hidden;
+}
+
+function toggleHelp() {
+  $("bc-usage").hidden = !$("bc-usage").hidden;
+}
+
+function dismissHint() {
+  const hint = $("bc-hint");
+  if (hint && !hint.classList.contains("bc-hint-gone")) hint.classList.add("bc-hint-gone");
+}
+
 /* ── wire everything ─────────────────────────────────────────── */
 function wire() {
   $("bc-search-form").addEventListener("submit", (e) => {
@@ -252,8 +380,18 @@ function wire() {
     window.dispatchEvent(new CustomEvent("bc:reset-view", { detail: {} }));
   });
 
-  $("bc-detail-close").addEventListener("click", () => {
-    $("bc-detail").hidden = true;
+  $("bc-detail-close").addEventListener("click", closeDetail);
+  $("bc-help").addEventListener("click", toggleHelp);
+  window.addEventListener("keydown", onShortcut);
+  setTimeout(dismissHint, 12000);
+
+  // cinematic letterbox during crane moves; crosshair under pointer-lock
+  window.addEventListener("bc:cinema", (e) => {
+    document.body.classList.toggle("bc-cinema", !!e.detail.on);
+  });
+  window.addEventListener("bc:locked", (e) => {
+    document.body.classList.toggle("bc-locked", !!e.detail.locked);
+    if (e.detail.locked) dismissHint();
   });
 
   window.addEventListener("bc:book-hover", (e) => {

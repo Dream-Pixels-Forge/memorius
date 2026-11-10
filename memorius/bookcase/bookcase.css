@@ -150,8 +150,8 @@ select:disabled { opacity: 0.4; }
   position: fixed;
   top: 64px;
   right: 14px;
-  bottom: 110px;
-  width: 340px;
+  bottom: 198px;
+  width: 360px;
   max-width: calc(100vw - 28px);
   z-index: 20;
   background: var(--bc-panel);
@@ -274,3 +274,96 @@ select:disabled { opacity: 0.4; }
   word-break: break-word;
 }
 
+
+/* ── next-level: reading panel ───────────────────────────────── */
+:root { --bc-serif: Georgia, "Iowan Old Style", "Times New Roman", serif; --bc-gilt: #d9b25f; }
+#bc-help {
+  border: 1px solid var(--bc-panel-line); background: rgba(0, 0, 0, 0.35);
+  color: var(--bc-text); border-radius: 999px; width: 30px; height: 30px; cursor: pointer;
+}
+#bc-help:hover { border-color: var(--bc-accent); }
+.bc-crumb { font-family: var(--bc-mono); font-size: 11px; color: var(--bc-gilt); letter-spacing: 0.06em; }
+.bc-detail h2.bc-title {
+  font-family: var(--bc-serif); font-size: 22px; font-weight: 600; line-height: 1.2;
+  color: var(--bc-text); margin: 6px 0 6px; text-transform: capitalize;
+}
+.bc-tags { margin: 8px 0 4px; }
+.bc-actions { display: flex; gap: 8px; margin: 12px 0 14px; }
+.bc-btn {
+  border: 1px solid var(--bc-panel-line); background: var(--bc-accent-soft); color: var(--bc-text);
+  border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer;
+}
+.bc-btn:hover { border-color: var(--bc-accent); }
+.bc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.bc-detail .bc-content {
+  font-family: var(--bc-serif); font-size: 15px; line-height: 1.7; color: #ece2d0;
+  border-top: 1px solid var(--bc-panel-line); padding-top: 12px;
+}
+.bc-detail .bc-content::first-letter {
+  float: left; font-size: 2.7em; line-height: 0.9; padding: 4px 6px 0 0; color: var(--bc-gilt);
+}
+.bc-neighbour {
+  font-family: var(--bc-serif); font-size: 13px; padding: 5px 8px; border-radius: 6px;
+  cursor: pointer; color: var(--bc-text-dim); text-transform: capitalize;
+}
+.bc-neighbour:hover, .bc-neighbour:focus { color: var(--bc-text); background: var(--bc-accent-soft); outline: none; }
+.bc-id { margin-top: 14px; opacity: 0.6; }
+.bc-result-dir { margin-top: 4px; font-size: 11px; color: var(--bc-gilt); }
+.bc-result-current { border-color: var(--bc-gilt); }
+
+/* ── help dialog ─────────────────────────────────────────────── */
+.bc-usage {
+  position: fixed; z-index: 40; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 120px); overflow-y: auto;
+  background: rgba(16, 12, 9, 0.95); border: 1px solid var(--bc-panel-line); border-radius: 14px;
+  padding: 18px 22px; line-height: 1.6; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+.bc-usage h2 { font-family: var(--bc-serif); font-weight: 600; margin: 0 0 8px; color: var(--bc-gilt); }
+.bc-usage li { margin: 4px 0; color: var(--bc-text-dim); }
+.bc-usage b { color: var(--bc-text); }
+kbd, .bc-usage code {
+  font-family: var(--bc-mono); font-size: 11px; padding: 1px 5px; border-radius: 4px;
+  border: 1px solid var(--bc-panel-line); background: rgba(0, 0, 0, 0.4); color: var(--bc-text);
+}
+
+/* ── minimap, hint, crosshair ────────────────────────────────── */
+.bc-map {
+  position: fixed; right: 14px; bottom: 14px; z-index: 10; width: 170px; height: 170px;
+  background: rgba(13, 10, 7, 0.78); border: 1px solid var(--bc-panel-line); border-radius: 12px;
+  cursor: crosshair; backdrop-filter: blur(8px);
+}
+.bc-map[hidden] { display: none; }
+.bc-hint {
+  position: fixed; left: 50%; top: 66%; transform: translateX(-50%); z-index: 11;
+  padding: 8px 16px; border-radius: 999px; background: rgba(13, 10, 7, 0.8);
+  border: 1px solid var(--bc-panel-line); color: var(--bc-text-dim); font-size: 12px;
+  white-space: nowrap; transition: opacity 900ms ease, transform 900ms ease; pointer-events: none;
+}
+.bc-hint b { color: var(--bc-text); font-weight: 600; }
+.bc-hint-gone { opacity: 0; transform: translate(-50%, 10px); }
+#bc-cross {
+  position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px;
+  border-radius: 50%; border: 1px solid rgba(245, 239, 230, 0.8); z-index: 12;
+  pointer-events: none; display: none;
+}
+body.bc-locked #bc-cross { display: block; }
+
+/* ── cinematic letterbox during crane moves ──────────────────── */
+.bc-bars i {
+  position: fixed; left: 0; right: 0; height: 9vh; background: #000; z-index: 9;
+  pointer-events: none; transition: transform 700ms cubic-bezier(0.7, 0, 0.3, 1);
+}
+.bc-bars i:first-child { top: 0; transform: translateY(-100%); }
+.bc-bars i:last-child { bottom: 0; transform: translateY(100%); }
+body.bc-cinema .bc-bars i { transform: translateY(0); }
+body.bc-cinema .bc-topbar, body.bc-cinema .bc-map { opacity: 0.25; transition: opacity 500ms ease; }
+.bc-topbar, .bc-map { transition: opacity 500ms ease; }
+
+@media (max-width: 720px) {
+  .bc-hint { display: none; }
+  .bc-map { width: 120px; height: 120px; bottom: auto; top: 120px; }
+  .bc-guidance { right: 14px; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bc-bars i, .bc-hint, .bc-topbar, .bc-map { transition: none; }
+}

@@ -1,5 +1,38 @@
 # Changelog
 
+## Unreleased
+
+### New Features
+- **Bookcase: the lantern librarian.** The librarian is now a visible
+  lantern-light that floats at your shoulder. On a search it takes off and
+  the camera follows it in one unbroken crane move: up out of the aisle,
+  over the tops of the stacks, down into the right aisle and in to the book.
+  Matching books physically slide out of the shelf (top hit furthest, with
+  an orange halo), and the librarian speaks directions relative to where you
+  stand ("about 7 metres to your right, on the middle shelf"). The page opens
+  with an establishing shot from the rafters, and letterbox bars frame every
+  camera move. Space/Esc skips a move.
+- **Night reading-room look.** ACES tone mapping, warm brass pendant lamps
+  over every aisle with faint light cones (a fixed pool of 6 real lights
+  follows you, so cost stays constant), cool moonlight, drifting dust,
+  contact shadows, parquet floor, walnut cases with cornices and brass
+  section plaques. Books are procedurally bound: hue by folder, brightness
+  and gilt by recency, gilt spine titles, folder plates, visible page blocks,
+  varied heights.
+- **Reading panel.** Clicking a book draws it out of the row and opens it:
+  serif reading text with a drop cap, tags as chips, relative age, "beside
+  it on the shelf" neighbours, *Walk me there* and *Read aloud*.
+- **Navigation.** Floor-plan minimap (M; click to travel), N/P to cycle
+  results, F to fly back, R to reset, / to search, ? for a help sheet,
+  Shift to hurry, crosshair-based picking under pointer-lock (previously
+  clicks while locked used a stale cursor position).
+- **Accessibility.** `prefers-reduced-motion` turns off the crane and
+  establishing shots, dust drift and head-bob; the canvas has an ARIA label;
+  new speech interrupts stale speech instead of queueing.
+- New modules `bookcase-atmosphere.js`, `bookcase-guide.js`,
+  `bookcase-textures.js`, `bookcase-minimap.js`; still Three.js r160 via
+  CDN, no build step, no new dependencies, zero REST/MCP/CLI changes.
+
 ## v0.9.4 (2026-10-20)
 
 ### Fixed

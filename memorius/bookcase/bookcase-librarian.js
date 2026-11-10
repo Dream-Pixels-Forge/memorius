@@ -57,10 +57,12 @@ export class Librarian {
   }
 
   /** Speak (when enabled) and always log the text so guidance stays visible. */
-  say(text) {
-    this.onLog(text);
+  say(text, { log = true, interrupt = true } = {}) {
+    if (log) this.onLog(text);
     if (this.enabled && this._supported && this.voices.length) {
       try {
+        // a librarian answers the latest question, not a queue of old ones
+        if (interrupt) window.speechSynthesis.cancel();
         const u = new SpeechSynthesisUtterance(text);
         if (this.voice) {
           u.voice = this.voice;
@@ -77,8 +79,8 @@ export class Librarian {
 
   greet(bookCount, shelfCount) {
     this.say(
-      `Welcome. This case holds ${bookCount} books across ${shelfCount} shelves. ` +
-      "Type a search below, or hold the microphone, and I will fly you to what you are looking for."
+      `Good evening. This library holds ${bookCount} books across ${shelfCount} shelves. ` +
+      "Tell me what you are looking for, and follow my lantern."
     );
   }
 
@@ -86,7 +88,8 @@ export class Librarian {
     this.say(`Now showing vault ${name}. ${bookCount} books on the shelves.`);
   }
 
-  announceSearch(query, results) {
+  /* directions: spoken-direction hint for the top hit (from scene.describe). */
+  announceSearch(query, results, directions = null) {
     if (!results.length) {
       this.say(`No matches for "${query}". Try a different word, or ask me about something broader.`);
       return;
@@ -94,9 +97,33 @@ export class Librarian {
     const where = (r) => `shelf ${r.shelf || "default"}, folder ${r.folder || "default"}`;
     const name = (r) => r.label || r.note || r.id;
     let msg = `${results.length} match${results.length === 1 ? "" : "es"} for "${query}". `;
-    msg += `Top hit: "${name(results[0])}" on ${where(results[0])}. `;
+    msg += `Top hit: "${name(results[0])}" on ${where(results[0])}`;
+    msg += directions ? `, ${directions.text}. Follow the lantern. ` : ". ";
     for (const r of results.slice(1, 3)) msg += `Also: "${name(r)}" on ${where(r)}. `;
     this.say(msg);
+  }
+
+  /* Cycling through results with N / P. */
+  announceStep(index, total, result, directions = null) {
+    const name = result.label || result.note || result.id;
+    this.say(`Result ${index + 1} of ${total}: "${name}"${directions ? `, ${directions.text}` : ""}.`);
+  }
+
+  /* Read a book's opening lines aloud (voice only; text is already on screen). */
+  readAloud(title, content) {
+    const body = String(content || "").replace(/\s+/g, " ").slice(0, 600);
+    this.onLog(`Reading "${title}" aloud.`);
+    this.say(`${title}. ${body}`, { log: false });
+  }
+
+  hush() {
+    if (this._supported) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {
+        /* nothing to stop */
+      }
+    }
   }
 
   announceError(message) {

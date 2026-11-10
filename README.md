@@ -78,29 +78,21 @@ taken.
 
 Once the page is open:
 
-- **Walk:** WASD or arrow keys at eye height. You can't pass through shelves.
-- **Look:** click-drag to look around (pointer-lock if available).
-- **Vault:** pick a vault from the dropdown (options come from `GET /vaults`).
-- **Layout:** switch between "by shelf" and "by recency" to re-arrange cases.
-- **Search:** type in the vault search bar and hit Enter/Go — the camera flies
-  to the matching book and marks it.
-- **Book click:** click a book to open its detail panel (content + librarian
-  speech when the Librarian toggle is on).
-- **Mic:** hold the mic button to speak your search (Chromium only).
-- **Reset view:** click ⟲ view to return to the starting camera position.
+- **Walk:** WASD or arrow keys at eye height, **Shift** to hurry. You can't pass through shelves.
+- **Look:** click the room to grab mouse-look (a crosshair appears; **Esc** releases), or click-drag.
+- **Ask the librarian:** press **/** and type (or hold the mic). The librarian's lantern takes off;
+  the camera follows it in one crane move up over the stacks and down into the right aisle.
+  Matching books slide out of the shelf, the top hit furthest, and the librarian says where
+  it is relative to you ("about 7 metres to your right, on the middle shelf").
+- **Results:** **N** / **P** walk you to the next / previous match; **F** flies back to it.
+- **Read:** click a book. It's drawn out of the row and opens in a reading panel with tags,
+  age, "beside it on the shelf" neighbours, *Walk me there* and *Read aloud*.
+- **Map:** **M** toggles the floor plan (you, the lantern, the hits); click it to be walked there.
+- **Vault / layout:** dropdowns switch vault (from `GET /vaults`) or order by shelf / recency.
+- **Reset / skip:** **R** resets the view; **Space** or **Esc** skips a camera move. **?** shows all controls.
+- **Colour:** every folder has its own cloth binding; fresher memories are brighter with shinier gilt.
 
-The librarian reads each book aloud when toggled on; all utterances are also
-logged in the guidance panel on the page.
-
-
-<details>
-<summary><b>For development</b></summary>
-
-```bash
-pip install "memorius[dev]"   # adds pytest + pytest-asyncio
-```
-
-</details>
+Camera moves, dust and head-bob respect `prefers-reduced-motion`.
 
 ## Quick start
 
