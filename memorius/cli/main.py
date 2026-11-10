@@ -411,7 +411,11 @@ def main():
     }
     handler = commands.get(args.command)
     if handler:
-        handler(engine, args, config)
+        try:
+            handler(engine, args, config)
+        except Exception as exc:  # noqa: BLE001 — top-level safety net for CLI
+            print(f"Error: {exc}", file=sys.stderr)
+            raise SystemExit(1)
     else:
         print(f"Unknown command: {args.command}")
 
@@ -615,12 +619,33 @@ def cmd_mine(engine, args, config):
 
 def cmd_diary(engine, args, config):
     """Write a diary entry."""
-    session_id = args.session_id or input("Session ID: ").strip()
+    if args.session_id:
+        session_id = args.session_id
+    else:
+        try:
+            session_id = input("Session ID: ").strip()
+        except EOFError:
+            print("Aborted.")
+            return
     if not session_id:
         print("Error: session_id required")
         return
-    title = args.title or input("Title: ").strip()
-    summary = args.summary or input("Summary: ").strip()
+    if args.title:
+        title = args.title
+    else:
+        try:
+            title = input("Title: ").strip()
+        except EOFError:
+            print("Aborted.")
+            return
+    if args.summary:
+        summary = args.summary
+    else:
+        try:
+            summary = input("Summary: ").strip()
+        except EOFError:
+            print("Aborted.")
+            return
 
     entry = engine.write_diary(
         session_id=session_id,
@@ -1121,7 +1146,11 @@ def cmd_profile(engine, args, config):
     """Build session memory profile."""
     session_id = args.session_id
     if not session_id:
-        session_id = input("Session ID: ").strip()
+        try:
+            session_id = input("Session ID: ").strip()
+        except EOFError:
+            print("Aborted.")
+            return
     if not session_id:
         print("Error: session_id required")
         return
@@ -1519,7 +1548,11 @@ def cmd_recall(engine, args, config):
     """Recall past agent learnings."""
     query = args.query
     if not query:
-        query = input("Search query: ").strip()
+        try:
+            query = input("Search query: ").strip()
+        except EOFError:
+            print("Aborted.")
+            return
     if not query:
         print("Error: no query provided.")
         return
