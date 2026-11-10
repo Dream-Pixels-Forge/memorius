@@ -1,0 +1,13 @@
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    ignore:
+      - dependency-name: "chromadb"
+        versions: [">=1.0.0"]
+      - dependency-name: "sentence-transformers"
+        # Large transitive surface (torch/transformers) — review manually
+        versions: [">=3.0.0"]

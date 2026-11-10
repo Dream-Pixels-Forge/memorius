@@ -156,6 +156,7 @@ def main():
     consolidate_p.add_argument("--vault", default=None, help="Filter by vault")
     consolidate_p.add_argument("--threshold", type=float, default=0.80, help="Similarity threshold (0-1)")
     consolidate_p.add_argument("--dry-run", action="store_true", help="Preview without changes")
+    consolidate_p.add_argument("--snapshot-dir", default=None, help="Directory to save consolidation snapshot before archiving")
 
     extract_p = subparsers.add_parser("extract", help="Extract memories from conversation")
     extract_p.add_argument("file", nargs="?", default=None, help="Conversation file path")
@@ -208,6 +209,7 @@ def main():
     prune_p.add_argument("--threshold", type=float, default=0.1, help="Decay score threshold (default: 0.1)")
     prune_p.add_argument("--dry-run", action="store_true", help="Preview without touching memories")
     prune_p.add_argument("--delete", dest="hard_delete", action="store_true", help="Hard-delete instead of soft-archive")
+    prune_p.add_argument("--confirm", action="store_true", help="Confirm hard-delete (required with --delete)")
     prune_p.add_argument("--json", dest="output_json", action="store_true", help="Output as JSON")
 
     export_p = subparsers.add_parser("export", help="Export vault to JSON or Markdown")
@@ -409,7 +411,11 @@ def main():
     }
     handler = commands.get(args.command)
     if handler:
-        handler(engine, args, config)
+        try:
+            handler(engine, args, config)
+        except Exception as exc:  # noqa: BLE001 — top-level safety net for CLI
+            print(f"Error: {exc}", file=sys.stderr)
+            raise SystemExit(1)
     else:
         print(f"Unknown command: {args.command}")
 
@@ -613,12 +619,33 @@ def cmd_mine(engine, args, config):
 
 def cmd_diary(engine, args, config):
     """Write a diary entry."""
-    session_id = args.session_id or input("Session ID: ").strip()
+    if args.session_id:
+        session_id = args.session_id
+    else:
+        try:
+            session_id = input("Session ID: ").strip()
+        except EOFError:
+            print("Aborted.")
+            return
     if not session_id:
         print("Error: session_id required")
         return
-    title = args.title or input("Title: ").strip()
-    summary = args.summary or input("Summary: ").strip()
+    if args.title:
+        title = args.title
+    else:
+        try:
+            title = input("Title: ").strip()
+        except EOFError:
+            print("Aborted.")
+            return
+    if args.summary:
+        summary = args.summary
+    else:
+        try:
+            summary = input("Summary: ").strip()
+        except EOFError:
+            print("Aborted.")
+            return
 
     entry = engine.write_diary(
         session_id=session_id,
@@ -781,7 +808,27 @@ def cmd_bookcase(engine, args, config):
         sys.exit(1)
     static_dir = Path(bookcase_pkg.__file__).resolve().parent
     handler = partial(http.server.SimpleHTTPRequestHandler, directory=str(static_dir))
-    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", static_port), handler)
+
+    # Bounded thread pool to prevent thread-per-connection exhaustion (H-24)
+    class _BoundedThreadingHTTPServer(http.server.ThreadingHTTPServer):
+        daemon_threads = True
+        request_queue_size = 50
+
+        def __init__(self, *args, **kwargs):
+            import concurrent.futures
+            self._thread_pool = concurrent.futures.ThreadPoolExecutor(
+                max_workers=50, thread_name_prefix="bookcase-static"
+            )
+            super().__init__(*args, **kwargs)
+
+        def process_request(self, request, client_address):
+            self._thread_pool.submit(super().process_request, request, client_address)
+
+        def server_close(self):
+            self._thread_pool.shutdown(wait=False)
+            super().server_close()
+
+    httpd = _BoundedThreadingHTTPServer(("127.0.0.1", static_port), handler)
     threading.Thread(
         target=httpd.serve_forever, daemon=True, name="memorius-bookcase-static"
     ).start()
@@ -961,10 +1008,13 @@ def cmd_consolidate(engine, args, config):
         vault=args.vault,
         similarity_threshold=args.threshold,
         dry_run=args.dry_run,
+        snapshot_dir=args.snapshot_dir,
     )
     print(f"  Clusters found:    {result.clusters_found}")
     print(f"  Memories merged:   {result.memories_merged}")
     print(f"  Memories archived: {result.memories_archived}")
+    if result.snapshot_path:
+        print(f"  Snapshot saved:    {result.snapshot_path} ({result.snapshot_memory_count} memories)")
     if result.details:
         print("\n  Details:")
         for d in result.details[:5]:
@@ -1096,7 +1146,11 @@ def cmd_profile(engine, args, config):
     """Build session memory profile."""
     session_id = args.session_id
     if not session_id:
-        session_id = input("Session ID: ").strip()
+        try:
+            session_id = input("Session ID: ").strip()
+        except EOFError:
+            print("Aborted.")
+            return
     if not session_id:
         print("Error: session_id required")
         return
@@ -1290,10 +1344,15 @@ def cmd_update(engine, args, config):
 
 def cmd_prune(engine, args, config):
     """Find and archive stale memories."""
+    # Hard-delete requires explicit confirmation
+    if args.hard_delete and not args.confirm:
+        print("Error: --delete requires --confirm to acknowledge data loss.")
+        return
     result = engine.prune(
         threshold=args.threshold,
         dry_run=args.dry_run,
         archive=not args.hard_delete,
+        confirm=args.confirm,
     )
     if getattr(args, "output_json", False):
         print(json.dumps(result, indent=2))
@@ -1489,7 +1548,11 @@ def cmd_recall(engine, args, config):
     """Recall past agent learnings."""
     query = args.query
     if not query:
-        query = input("Search query: ").strip()
+        try:
+            query = input("Search query: ").strip()
+        except EOFError:
+            print("Aborted.")
+            return
     if not query:
         print("Error: no query provided.")
         return
