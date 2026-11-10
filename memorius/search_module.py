@@ -117,7 +117,7 @@ class SearchModule:
 
                 blended.sort(key=lambda x: x[1], reverse=True)
                 results = [m for m, _ in blended]
-            except Exception:
+            except Exception:  # noqa: BLE001
                 logger.debug("Hybrid BM25 blending failed, using vector results")
 
         # ── 3. Temporal stage ────────────────────────────────────────────
@@ -158,7 +158,7 @@ class SearchModule:
             for mem in results:
                 if "__distance__" in (mem.metadata or {}):
                     del mem.metadata["__distance__"]
-        except Exception:  # best-effort: temporal scoring failure — fall back to raw rank order
+        except Exception:  # best-effort: temporal scoring failure — fall back to raw rank order  # noqa: BLE001
             logger.debug("Temporal decay scoring failed, using rank order")
             results = results[:limit]
 
@@ -169,7 +169,7 @@ class SearchModule:
                 results = rerank_search_results(query, results, top_k=limit)
             except ImportError:
                 logger.debug("Cross-encoder reranker not installed, skipping")
-            except Exception:  # best-effort: reranker failure — keep original similarity order
+            except Exception:  # best-effort: reranker failure — keep original similarity order  # noqa: BLE001
                 logger.debug("Reranking failed, keeping original order")
 
         # ── 5. Graph expansion (opt-in) ──────────────────────────────────
@@ -236,7 +236,7 @@ class SearchModule:
                     min_weight=min_weight, max_nodes=max_extra,
                 )
                 expanded_ids = list(res.expanded_ids)
-        except Exception:  # best-effort: graph expansion failure — return empty, not an error
+        except Exception:  # best-effort: graph expansion failure — return empty, not an error  # noqa: BLE001
             logger.debug("Graph expansion failed (best-effort)")
             return []
         if not expanded_ids:

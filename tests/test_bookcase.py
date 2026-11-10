@@ -258,7 +258,7 @@ class TestBookcaseServe:
                         ) as resp:
                             assert resp.status == 200
                             page_text = resp.read().decode("utf-8")
-                    except Exception:
+                    except Exception:  # noqa: BLE001, S110
                         pass
                 if not health_ok:
                     try:
@@ -267,7 +267,7 @@ class TestBookcaseServe:
                             timeout=2,
                         ) as resp:
                             health_ok = resp.status == 200
-                    except Exception:
+                    except Exception:  # noqa: BLE001, S110
                         pass
                 if page_text and health_ok:
                     break

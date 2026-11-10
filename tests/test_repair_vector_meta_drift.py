@@ -50,7 +50,7 @@ def _vector_ids(engine, collection_names=None) -> list[str]:
     for name in cols:
         try:
             col = client.get_collection(name)
-        except Exception:
+        except Exception:  # noqa: BLE001, S112
             continue
         ids.extend(col.get(include=[])["ids"] or [])
     return ids

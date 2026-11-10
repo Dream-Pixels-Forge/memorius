@@ -483,11 +483,11 @@ class McpServer:
         logger.info("MCP server starting (stdio)")
         try:
             cast(io.TextIOWrapper, sys.stdout).reconfigure(encoding="utf-8")
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
         try:
             cast(io.TextIOWrapper, sys.stdin).reconfigure(encoding="utf-8")
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
         consecutive_errors = 0

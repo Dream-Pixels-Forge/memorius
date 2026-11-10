@@ -369,7 +369,7 @@ def get_graph_data(
         meta_str = row_dict.get("metadata") or "{}"
         try:
             meta = json.loads(meta_str) if isinstance(meta_str, str) else meta_str
-        except Exception:
+        except Exception:  # noqa: BLE001
             meta = {}
         
         content = row_dict.get("content") or ""

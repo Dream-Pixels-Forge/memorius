@@ -348,7 +348,7 @@ class MemoriusAPI:
                         "vaults": status.get("vaults", 0)
                     }
                 }
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Readiness check failed: {e}")
                 return JSONResponse(  # pyright: ignore[reportPossiblyUnboundVariable]
                     status_code=503,
@@ -840,7 +840,7 @@ class MemoriusAPI:
                 
                 MEMORIUS_CONSOLIDATION_QUEUE_SIZE.set(consolidation_queue_size)
                 
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 # If we can't update metrics, still serve what we have
                 pass
             

@@ -118,11 +118,11 @@ class VaultEngine:
             self._consolidation_daemon = None
         try:
             self._meta.close_connection(self._meta._db_path)
-        except Exception:  # best-effort: prevent cleanup errors from propagating
+        except Exception:  # best-effort: prevent cleanup errors from propagating  # noqa: BLE001, S110
             pass
         try:
             self._meta_episodic.close_connection(self._meta_episodic._db_path)
-        except Exception:  # best-effort: prevent cleanup errors from propagating
+        except Exception:  # best-effort: prevent cleanup errors from propagating  # noqa: BLE001, S110
             pass
         self._vector = None  # pyright: ignore[reportAttributeAccessIssue]
         self._vector_episodic = None  # pyright: ignore[reportAttributeAccessIssue]
@@ -273,7 +273,7 @@ class VaultEngine:
                 graph_min_weight=graph_min_weight, folder=folder, note=note,
                 tags=tags, rerank=rerank,
             )
-        except Exception:  # best-effort: episodic search failure must not break search
+        except Exception:  # best-effort: episodic search failure must not break search  # noqa: BLE001
             logger.debug("Episodic search failed (best-effort)")
             episodic_results = []
 
@@ -349,7 +349,7 @@ class VaultEngine:
             validate_memory_id(memory_id)
             self._meta.init_graph()
             edges = self._meta.get_linked(memory_id, relation="contradicts")
-        except Exception:  # best-effort: graph/meta failure should not break contradiction lookup
+        except Exception:  # best-effort: graph/meta failure should not break contradiction lookup  # noqa: BLE001
             logger.debug("get_contradictions(%s) failed (best-effort)", memory_id)
             return []
         contra_ids = [e["target_id"] for e in edges]
@@ -543,7 +543,7 @@ class VaultEngine:
         """Get hierarchy for a vault, checking semantic store first then episodic."""
         try:
             return self._meta_semantic.get_hierarchy(vault)
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Fall back to episodic store
             return self._meta_episodic.get_hierarchy(vault)
 
@@ -734,7 +734,7 @@ class VaultEngine:
         for col in client.list_collections():
             try:
                 ids = col.get(include=[])["ids"] or []
-            except Exception:  # best-effort: unreadable collection — skip
+            except Exception:  # best-effort: unreadable collection — skip  # noqa: BLE001
                 logger.debug("repair: could not read collection %s", col.name)
                 ids = []
             all_vector_ids.extend(ids)
@@ -751,7 +751,7 @@ class VaultEngine:
             for col in self._vector._lazy_client().list_collections():  # pyright: ignore[reportAttributeAccessIssue]
                 try:
                     col_ids = col.get(include=[])["ids"] or []
-                except Exception:  # best-effort: unreadable collection — skip
+                except Exception:  # best-effort: unreadable collection — skip  # noqa: BLE001, S112
                     continue
                 col_orphans = [vid for vid in col_ids if vid in orphan_set]
                 if col_orphans:
@@ -781,7 +781,7 @@ class VaultEngine:
                 try:
                     self._vector.add(memory)
                     missing_reindexed += 1
-                except Exception:  # best-effort: reindex failure is logged, not fatal
+                except Exception:  # best-effort: reindex failure is logged, not fatal  # noqa: BLE001
                     logger.warning("repair: reindex failed for %s", mid)
 
         # Re-count after mutations to report the resulting state.
@@ -792,7 +792,7 @@ class VaultEngine:
             for col in client.list_collections():
                 try:
                     vector_count += col.count()
-                except Exception:
+                except Exception:  # noqa: BLE001, S110
                     pass
         else:
             vector_count = len(all_vector_ids)

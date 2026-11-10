@@ -77,7 +77,7 @@ class DuckDuckGoProvider(WebSearchProvider):
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 raw = resp.read().decode("utf-8", "replace")
-        except Exception as e:  # network/timeout — never crash the CLI
+        except Exception as e:  # network/timeout — never crash the CLI  # noqa: BLE001
             logger.warning("DuckDuckGo search failed: %s", e)
             return []
         return _parse_ddg_lite(raw, max_results)
@@ -129,7 +129,7 @@ class TavilyProvider(WebSearchProvider):
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 body = json.loads(resp.read().decode("utf-8", "replace"))
-        except Exception as e:  # network/timeout/auth — never crash the CLI
+        except Exception as e:  # network/timeout/auth — never crash the CLI  # noqa: BLE001
             logger.warning("Tavily search failed: %s", e)
             return []
         out: list[WebResult] = []

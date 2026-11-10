@@ -438,13 +438,13 @@ def consolidate(
                         mem["id"],
                         metadata=meta
                     )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Error applying neuroscience-inspired modifications: {e}")
             # Fallback to original archiving behavior on error
             try:
                 engine._meta.archive_memories(insight["source_ids"])
                 result.memories_archived += len(insight["source_ids"])
-            except Exception as e2:
+            except Exception as e2:  # noqa: BLE001
                 logger.warning(f"Could not archive source memories: {e2}")
 
     # Snapshot memories before archiving, if snapshot_dir is set

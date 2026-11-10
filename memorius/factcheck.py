@@ -181,7 +181,7 @@ def check_statement(
                             m_match["id"], m_contra["id"],
                             weight=edge_weight, relation="contradicts",
                         )
-        except Exception:  # best-effort: graph edge persistence failure — fact-check result is still valid
+        except Exception:  # best-effort: graph edge persistence failure — fact-check result is still valid  # noqa: BLE001
             logger.debug("Contradiction-edge persistence failed (best-effort)")
 
     return FactCheckResult(

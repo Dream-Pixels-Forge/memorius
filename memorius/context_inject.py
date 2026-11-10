@@ -207,7 +207,7 @@ class ContextInjector:
                 # set that search returned and the injector never used.
                 try:
                     self._engine.touch(mem.id)
-                except Exception:  # best-effort: touch failure is non-critical — continue injection
+                except Exception:  # best-effort: touch failure is non-critical — continue injection  # noqa: BLE001, S110
                     pass
             if len(filtered) >= limit:
                 break

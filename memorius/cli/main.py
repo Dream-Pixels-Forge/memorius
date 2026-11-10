@@ -763,7 +763,7 @@ def _bc_health_check(base: str, timeout: float) -> bool:
             with urllib.request.urlopen(f"{base}/health", timeout=2) as resp:
                 if resp.status == 200:
                     return True
-        except Exception:
+        except Exception:  # noqa: BLE001
             _time.sleep(0.5)
     return False
 

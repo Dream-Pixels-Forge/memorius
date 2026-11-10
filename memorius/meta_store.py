@@ -33,7 +33,7 @@ def _close_thread_conn():
     for conn in conns.values():
         try:
             conn.close()
-        except Exception:  # best-effort: prevent atexit handler from raising during shutdown
+        except Exception:  # best-effort: prevent atexit handler from raising during shutdown  # noqa: BLE001, S110
             pass
     local.memorius_conns = {}
 
@@ -301,7 +301,7 @@ class SQLiteStore:
                 DROP INDEX IF EXISTS idx_diaries_palace;
             """)
             conn.commit()
-        except Exception as e:  # best-effort: old table drop failure is non-critical
+        except Exception as e:  # best-effort: old table drop failure is non-critical  # noqa: BLE001
             logger.warning("Could not drop old tables: %s", e)
 
         logger.info("Migrated hierarchy: palaces/wings/rooms/drawers -> vaults/shelves/folders/notes")
@@ -928,7 +928,7 @@ class SQLiteStore:
             return self.fetchall(
                 "SELECT source_id, target_id, weight, relation, created_at FROM memory_graph"
             )
-        except Exception:  # best-effort: graph table may not exist — return empty list
+        except Exception:  # best-effort: graph table may not exist — return empty list  # noqa: BLE001
             return []
 
     def import_hierarchy(self, vaults: list[dict[str, Any]], shelves: list[dict[str, Any]],
@@ -1031,7 +1031,7 @@ class SQLiteStore:
                      e.get("tvalid") or e.get("created_at", now)),
                 )
                 count += 1
-            except Exception:  # best-effort: skip corrupted edge, continue with rest
+            except Exception:  # best-effort: skip corrupted edge, continue with rest  # noqa: BLE001, S110
                 pass
         return count
 
@@ -1071,7 +1071,7 @@ class SQLiteStore:
             row = self.fetchone("SELECT COUNT(*) as c FROM memory_graph")
             assert row is not None
             return row["c"]
-        except Exception:  # best-effort: graph table may not exist yet — return 0
+        except Exception:  # best-effort: graph table may not exist yet — return 0  # noqa: BLE001
             return 0
 
     def close(self) -> None:
@@ -1093,5 +1093,5 @@ class SQLiteStore:
         if conn is not None:
             try:
                 conn.close()
-            except Exception:  # best-effort: prevent close errors during cleanup
+            except Exception:  # best-effort: prevent close errors during cleanup  # noqa: BLE001, S110
                 pass

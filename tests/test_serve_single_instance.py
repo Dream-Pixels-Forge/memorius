@@ -63,7 +63,7 @@ def _terminate(proc: subprocess.Popen) -> None:
         if stream:
             try:
                 stream.close()
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 pass
 
 

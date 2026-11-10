@@ -118,7 +118,7 @@ def cmd_batch(parsed: argparse.Namespace):
             out_path.write_text(result)
             results["converted"] += 1
             logger.info(f"Converted: {filepath.name} → {out_path.name}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error converting {filepath.name}: {e}")
             results["errors"] += 1
 

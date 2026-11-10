@@ -112,14 +112,14 @@ class StoreModule:
                         memory.id, metadata={"duplicate_of": hit.id},
                     )
                     break
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.debug("Semantic dedup check failed (best-effort)")
         # Auto-link to related memories via content similarity
         try:
             self._meta.init_graph()
             recent = self._meta.list_memories_meta(vault=vault, limit=50)
             self._meta.auto_link_by_proximity(memory.id, recent)
-        except Exception:  # best-effort: graph linking failure should not prevent memory storage
+        except Exception:  # best-effort: graph linking failure should not prevent memory storage  # noqa: BLE001
             logger.debug("Graph linking failed (best-effort)")
         return memory
 
@@ -132,7 +132,7 @@ class StoreModule:
         try:
             validate_memory_id(memory_id)
             self._meta.record_access(memory_id)
-        except Exception:  # best-effort: touch failure is non-critical (reinforcement only)
+        except Exception:  # best-effort: touch failure is non-critical (reinforcement only)  # noqa: BLE001
             logger.debug("touch(%s) failed (best-effort)", memory_id)
 
     def get_by_ids(

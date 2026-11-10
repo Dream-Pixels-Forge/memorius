@@ -339,7 +339,7 @@ class HookEngine:
                 if result.get("block"):
                     should_block = True
                     block_reason = result.get("reason", "Save checkpoint")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Action {action.name} failed: {e}")
                 results.append({"action": action.name, "error": str(e)})
 
@@ -473,7 +473,7 @@ class HookEngine:
                 "memory_count": len(memories),
                 "memory_ids": [m.id for m in memories],
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"action": action.name, "status": "error", "error": str(e)}
 
     def _action_diary(self, action: HookAction, event: HookEvent, context: dict) -> dict:
@@ -490,7 +490,7 @@ class HookEngine:
                 content=event.raw_payload.get("content", json.dumps(event.raw_payload)),
             )
             return {"action": action.name, "status": "done", "diary_id": entry.get("id")}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"action": action.name, "status": "error", "error": str(e)}
 
     def _action_conditional_diary(self, action: HookAction, event: HookEvent, context: dict) -> dict:
@@ -540,7 +540,7 @@ class HookEngine:
             }
         except subprocess.TimeoutExpired:
             return {"action": action.name, "status": "timeout"}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"action": action.name, "status": "error", "error": str(e)}
 
     def _action_webhook(self, action: HookAction, event: HookEvent, context: dict) -> dict:
@@ -578,7 +578,7 @@ class HookEngine:
         # Validate URL to prevent SSRF
         try:
             parsed = urlparse(url)
-        except Exception:
+        except Exception:  # noqa: BLE001
             return {"action": action.name, "status": "error", "error": "Invalid URL"}
 
         # Only allow http/https schemes
@@ -683,7 +683,7 @@ class HookEngine:
             }
         except ImportError:
             return {"action": action.name, "status": "error", "error": "httpx not installed"}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"action": action.name, "status": "error", "error": str(e)}
 
     @staticmethod
@@ -711,7 +711,7 @@ class HookEngine:
                 "context_length": len(context_text),
                 "context_preview": context_text[:200] if context_text else "",
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"action": action.name, "status": "error", "error": str(e)}
 
     def _action_consolidate(self, action: HookAction, event: HookEvent, context: dict) -> dict:
@@ -731,7 +731,7 @@ class HookEngine:
                 "memories_merged": result.memories_merged,
                 "memories_archived": result.memories_archived,
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"action": action.name, "status": "error", "error": str(e)}
 
     def _action_factcheck(self, action: HookAction, event: HookEvent, context: dict) -> dict:
@@ -755,5 +755,5 @@ class HookEngine:
                 "confidence": result.confidence,
                 "explanation": result.explanation,
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"action": action.name, "status": "error", "error": str(e)}

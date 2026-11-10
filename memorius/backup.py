@@ -185,7 +185,7 @@ def import_json(engine, src: str | Path, *, merge: bool = True) -> dict[str, Any
                     metadata=json.loads(m.get("metadata") or "{}"),
                 )
                 engine._vector.add(mem)
-            except Exception as exc:  # best-effort: re-embedding failure — memory still imported to meta
+            except Exception as exc:  # best-effort: re-embedding failure — memory still imported to meta  # noqa: BLE001
                 logger.warning("Failed to re-embed memory %s: %s", m["id"], exc)
         else:
             stats["memories_skipped"] += 1

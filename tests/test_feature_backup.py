@@ -29,7 +29,7 @@ def engine():
     if hasattr(eng, "_vector") and hasattr(eng._vector, "_client"):
         try:
             eng._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
 
@@ -100,7 +100,7 @@ class TestExportImportJSON:
         if hasattr(engine2, "_vector") and hasattr(engine2._vector, "_client"):
             try:
                 engine2._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 pass
 
     def test_import_skip_existing(self, engine):
@@ -172,14 +172,14 @@ class TestExportImportJSON:
                 (m1.id, m2.id),
             ).fetchone()
             assert row[0] >= 1
-        except Exception:
+        except Exception:  # noqa: BLE001
             pytest.fail("Graph edge not found after import")
 
         shutil.rmtree(tmp3, ignore_errors=True)
         if hasattr(engine3, "_vector") and hasattr(engine3._vector, "_client"):
             try:
                 engine3._vector._client = None  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 pass
 
     def test_schema_version_rejects_future(self, engine):
