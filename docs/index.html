@@ -487,7 +487,7 @@
     });
   })();
 </script>
-<script src="assets/site.js"><<script src="assets/site.js"></script>
+<script src="assets/site.js"></script>
 
 <script type="module">
   /* ── Scroll-driven 3D hero: the Memorius librarian hippo ── */
@@ -497,87 +497,81 @@
 
   (function () {
     const canvas = document.getElementById("hero-canvas");
-    if (!canvas) return;
+    const fallbackImg = document.getElementById("hero-fallback");
 
     let renderer, scene, camera, hippo, pointLight, clock, rafId;
+    let using3D = false;
 
     function init3D() {
-      scene = new THREE.Scene();
-      camera = new THREE.PerspectiveCamera(40, 1, 0.1, 40);
-      camera.position.set(0, 0.5, 2.7);
+      try {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(40, 1, 0.1, 40);
+        camera.position.set(0, 0.5, 2.7);
 
-      renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: "high-performance" });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.setSize(canvas.clientWidth || 400, canvas.clientHeight || 400);
-      renderer.toneMapping = THREE.ReinhardToneMapping;
-      renderer.toneMappingExposure = 1.1;
+        renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: "high-performance" });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(canvas.clientWidth || 400, canvas.clientHeight || 400);
+        renderer.toneMapping = THREE.ReinhardToneMapping;
+        renderer.toneMappingExposure = 1.1;
 
-      const amb = new THREE.AmbientLight(0xffffff, 0.45);
-      scene.add(amb);
+        const amb = new THREE.AmbientLight(0xffffff, 0.45);
+        scene.add(amb);
 
-      const dir = new THREE.DirectionalLight(0xffffff, 0.7);
-      dir.position.set(2, 5, 4);
-      dir.castShadow = true;
-      scene.add(dir);
+        const dir = new THREE.DirectionalLight(0xffffff, 0.7);
+        dir.position.set(2, 5, 4);
+        dir.castShadow = true;
+        scene.add(dir);
 
-      pointLight = new THREE.PointLight(0xf97316, 0, 10);
-      pointLight.position.set(0, 1.2, 1.2);
-      scene.add(pointLight);
+        pointLight = new THREE.PointLight(0xf97316, 0, 10);
+        pointLight.position.set(0, 1.2, 1.2);
+        scene.add(pointLight);
 
-      // Setup DRACO loader for GLB compression
-      const dracoLoader = new DRACOLoader();
-      dracoLoader.setDecoderPath("https://www.gstatic.com/draco/v1/decoders/");
-      dracoLoader.setDecoderConfig({ type: "js" });
+        const dracoLoader = new DRACOLoader();
+        dracoLoader.setDecoderPath("https://www.gstatic.com/draco/v1/decoders/");
+        dracoLoader.setDecoderConfig({ type: "js" });
 
-      const loader = new GLTFLoader();
-      loader.setDRACOLoader(dracoLoader);
-      
-      // Setup meshopt decoder for EXT_meshopt_compression
-      const setupMeshoptDecoder = () => {
-        const decoderScript = document.createElement('script');
-        decoderScript.src = 'https://cdn.jsdelivr.net/gh/KhronosGroup/meshutils@main/src/meshopt_reader.js';
-        decoderScript.onload = () => {
-          // Global meshopt decoder available
-          if (window.meshoptDecoder) {
-            loader.setMeshoptDecoder(window.meshoptDecoder);
-          }
-        };
-        document.head.appendChild(decoderScript);
-      };
-      setupMeshoptDecoder();
+        const loader = new GLTFLoader();
+        loader.setDRACOLoader(dracoLoader);
 
-      loader.load("assets/librarian-hippo.glb", (gltf) => {
-        const model = gltf.scene;
-        const box = new THREE.Box3().setFromObject(model);
-        const size = new THREE.Vector3();
-        box.getSize(size);
-        const s = 1.35 / Math.max(size.x, size.y, size.z);
-        model.scale.setScalar(s);
-        box.getCenter(new THREE.Vector3());
-        box.getSize(size);
-        const center = new THREE.Vector3();
-        box.getCenter(center);
-        model.position.set(-center.x * s, -center.y * s + 0.02, -center.z * s + 0.1);
+        loader.load("assets/librarian-hippo.glb", (gltf) => {
+          const model = gltf.scene;
+          const box = new THREE.Box3().setFromObject(model);
+          const size = new THREE.Vector3();
+          box.getSize(size);
+          const s = 1.35 / Math.max(size.x, size.y, size.z);
+          model.scale.setScalar(s);
+          const center = new THREE.Vector3();
+          box.getCenter(center);
+          model.position.set(-center.x * s, -center.y * s + 0.02, -center.z * s + 0.1);
 
-        model.traverse((o) => {
-          if (o.isMesh) {
-            o.material.emissive = new THREE.Color(0x4a3424);
-            o.material.emissiveMap = o.material.map;
-            o.material.metalness = 0.15;
-            o.material.roughness = 0.55;
-            o.castShadow = true;
-            o.receiveShadow = true;
-          }
+          model.traverse((o) => {
+            if (o.isMesh) {
+              o.material.emissive = new THREE.Color(0x4a3424);
+              o.material.emissiveMap = o.material.map;
+              o.material.metalness = 0.15;
+              o.material.roughness = 0.55;
+              o.castShadow = true;
+              o.receiveShadow = true;
+            }
+          });
+          hippo = model;
+          scene.add(model);
+          using3D = true;
+          clock = new THREE.Clock();
+          animate();
+        }, undefined, (err) => {
+          console.warn("3D model failed, showing fallback:", err.message);
+          useFallback();
         });
-        hippo = model;
-        scene.add(model);
-      }, undefined, (err) => {
-        console.error("Hero 3D failed to load:", err);
-      });
+      } catch (e) {
+        console.warn("3D init error, showing fallback:", e.message);
+        useFallback();
+      }
+    }
 
-      // Start 3D initialization
-    init3D();
-    }();
+    function useFallback() {
+      if (fallbackImg) fallbackImg.style.display = "block";
+      if (canvas) canvas.style.display = "none";
     }
 
     function scrollProgress() {
@@ -585,11 +579,11 @@
       if (!hero) return 0;
       const rect = hero.getBoundingClientRect();
       const vh = window.innerHeight;
-      let p = (vh - rect.top) / (vh + rect.height);
-      return Math.max(0, Math.min(1, p));
+      return Math.max(0, Math.min(1, (vh - rect.top) / (vh + rect.height)));
     }
 
     function animate() {
+      if (!using3D) return;
       rafId = requestAnimationFrame(animate);
       const t = clock ? clock.getElapsedTime() : 0;
       const p = scrollProgress();
@@ -601,8 +595,7 @@
       }
 
       if (pointLight) {
-        const pulse = 0.6 + Math.sin(t * 2.0) * 0.15 + p * 1.6;
-        pointLight.intensity = pulse;
+        pointLight.intensity = 0.6 + Math.sin(t * 2.0) * 0.15 + p * 1.6;
         pointLight.color.setHSL(0.095, 1, 0.45 + p * 0.25);
       }
 
@@ -619,11 +612,10 @@
     }
 
     window.addEventListener("resize", onResize);
-    init();
+    init3D();
     window.addEventListener("scroll", () => { /* progress read in animate loop */ });
   })();
 </script>
-
-
+</script>
 </body>
 </html>
