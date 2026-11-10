@@ -662,8 +662,11 @@ class McpServer:
         }
 
     def tool_memorius_extract(self, args: dict) -> dict:
+        conversation = args.get("conversation")
+        if not conversation or not isinstance(conversation, str):
+            return {"error": "conversation is required and must be a string"}
         memories = self._engine.extract_memories(
-            conversation=args["conversation"],
+            conversation=conversation,
             vault=args.get("vault", "main"),
             shelf=args.get("shelf", "extracted"),
         )
@@ -674,8 +677,11 @@ class McpServer:
         }
 
     def tool_memorius_factcheck(self, args: dict) -> dict:
+        statement = args.get("statement")
+        if not statement or not isinstance(statement, str):
+            return {"error": "statement is required and must be a string"}
         result = self._engine.check_fact(
-            statement=args["statement"],
+            statement=statement,
             vault=args.get("vault"),
         )
         return {
@@ -688,21 +694,27 @@ class McpServer:
         }
 
     def tool_memorius_context(self, args: dict) -> dict:
+        query = args.get("query")
+        if not query or not isinstance(query, str):
+            return {"error": "query is required and must be a string"}
         context = self._engine.get_context(
-            query=args["query"],
+            query=query,
             vault=args.get("vault"),
             max_items=args.get("max_items", 5),
         )
         return {
-            "query": args["query"],
+            "query": query,
             "context": context,
             "has_context": bool(context),
         }
 
     def tool_memorius_session_profile(self, args: dict) -> dict:
         from memorius.session import format_profile_for_context
+        session_id = args.get("session_id")
+        if not session_id or not isinstance(session_id, str):
+            return {"error": "session_id is required and must be a string"}
         profile = self._engine.get_session_profile(
-            session_id=args["session_id"],
+            session_id=session_id,
             vault=args.get("vault", "main"),
         )
         return {

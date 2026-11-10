@@ -489,6 +489,11 @@ class MemoriusAPI:
             vault = _validate_name(payload.get("vault", "main"), "vault")
             shelf = _validate_name(payload.get("shelf", "extracted"), "shelf")
             backend = payload.get("backend", "auto")
+            if backend not in ("auto", "openai", "ollama", "regex"):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid backend '{backend}'. Must be one of: auto, openai, ollama, regex",
+                )
             memories = engine.extract_memories(conversation=text, backend=backend, vault=vault, shelf=shelf)
             return {
                 "extracted": len(memories),
