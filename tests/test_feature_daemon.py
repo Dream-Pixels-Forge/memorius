@@ -1,4 +1,5 @@
 """Tests for Phase 5.4 — REST daemon and PID file management."""
+import os
 import subprocess
 import sys
 import time
@@ -79,6 +80,32 @@ class TestPidFile:
         captured = capsys.readouterr()
         assert "not running" in captured.out
         assert not pid_file.exists()
+
+    def test_stop_refuses_non_memorius_pid(self, tmp_path, capsys, monkeypatch):
+        """_stop_daemon refuses to kill a non-memorius process (PID safety)."""
+        from memorius.cli.main import _stop_daemon, _is_memorius_process
+
+        pid_file = tmp_path / "foreign.pid"
+        # Use our own PID but pretend it's not memorius by monkeypatching
+        own_pid = os.getpid()
+        pid_file.write_text(str(own_pid))
+
+        # Monkeypatch _is_memorius_process to return False
+        monkeypatch.setattr("memorius.cli.main._is_memorius_process", lambda pid: False)
+
+        _stop_daemon(pid_file)
+        captured = capsys.readouterr()
+        assert "not a memorius process" in captured.out
+        assert not pid_file.exists()
+
+    def test_is_memorius_process_rejects_non_memorius(self):
+        """_is_memorius_process returns False for non-memorius processes."""
+        from memorius.cli.main import _is_memorius_process
+        import os
+        # PID 1 is init/systemd, not memorius
+        assert _is_memorius_process(1) is False
+        # Current pytest process is not memorius
+        assert _is_memorius_process(os.getpid()) is False
 
 
 # ── CLI flag wiring ──

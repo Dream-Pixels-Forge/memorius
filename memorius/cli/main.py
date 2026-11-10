@@ -873,8 +873,22 @@ def cmd_bookcase(engine, args, config):
         print("Bookcase stopped.")
 
 
+def _is_memorius_process(pid: int) -> bool:
+    """Return True if /proc/<pid>/cmdline indicates a memorius process."""
+    try:
+        cmdline = Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\x00", b" ")
+    except OSError:
+        return False
+    return b"memorius" in cmdline
+
+
 def _stop_daemon(pid_file: Path):
-    """Stop a running daemon by PID file."""
+    """Stop a running daemon by PID file.
+
+    Only terminates processes that appear to be memorius daemons
+    (checked via /proc/<pid>/cmdline on Linux) to avoid killing
+    arbitrary processes if the PID file is tampered with.
+    """
     import os
     import signal
     import time
@@ -899,6 +913,13 @@ def _stop_daemon(pid_file: Path):
 
     if not alive:
         print(f"PID {pid} not running, cleaning up")
+        pid_file.unlink(missing_ok=True)
+        return
+
+    # Verify this is actually a memorius process before killing it.
+    # Prevents killing an arbitrary process if the PID file was tampered with.
+    if not _is_memorius_process(pid):
+        print(f"PID {pid} is not a memorius process — refusing to kill")
         pid_file.unlink(missing_ok=True)
         return
 
