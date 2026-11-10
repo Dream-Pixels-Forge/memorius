@@ -142,11 +142,12 @@ class MemoriusAPI:
         handler.setFormatter(JSONFormatter())
         memorius_logger.addHandler(handler)
 
-        # CORS — restrictive by default; regex covers dynamic ports
+        # CORS — restrictive by default; only allow the REST port (8912)
+        # and bookcase static port (8400) on loopback.
         app.add_middleware(
             CORSMiddleware,
             allow_origins=["app://obsidian.md"],
-            allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost)(:\d+)?$",
+            allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost):(8912|8400)$",
             allow_methods=["*"],
             allow_headers=["*"],
         )
@@ -841,7 +842,8 @@ class MemoriusAPI:
 
 
 def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912,
-                    tls_cert: str | None = None, tls_key: str | None = None):
+                    tls_cert: str | None = None, tls_key: str | None = None,
+                    insecure: bool = False):
     """Start the FastAPI REST server.
 
     Args:
@@ -849,6 +851,7 @@ def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912,
         port: Listen port (default 8912).
         tls_cert: Optional path to TLS certificate file for HTTPS.
         tls_key: Optional path to TLS private key file for HTTPS.
+        insecure: If True, run without TLS (plaintext HTTP).
     """
     try:
         import uvicorn
@@ -856,11 +859,21 @@ def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912,
         print("Error: REST server requires uvicorn. Install: pip install memorius")
         return
 
+    # TLS required unless --insecure is explicitly passed
+    if not insecure and not (tls_cert and tls_key):
+        print(
+            "Error: TLS is required for memorius serve-rest. "
+            "Provide --tls-cert and --tls-key, or use --insecure for plaintext HTTP.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     api = MemoriusAPI(engine)
     app = api.create_app()
 
     api_key = os.environ.get("MEMORIUS_API_KEY")
-    print(f"Memorius REST API running on http://{host}:{port}")
+    scheme = "https" if (tls_cert and tls_key) else "http"
+    print(f"Memorius REST API running on {scheme}://{host}:{port}")
     if api_key:
         print("  API key authentication: enabled (all endpoints)")
     else:
@@ -878,8 +891,8 @@ def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912,
     ssl_keyfile = tls_key
     if tls_cert and tls_key:
         print("  TLS: enabled")
-    elif tls_cert or tls_key:
-        print("  WARNING: both --tls-cert and --tls-key required for TLS — running without TLS")
+    elif insecure:
+        print("  TLS: disabled (--insecure) — plaintext HTTP")
 
     try:
         uvicorn.run(

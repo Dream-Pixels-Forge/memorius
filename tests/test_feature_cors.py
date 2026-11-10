@@ -36,7 +36,32 @@ def client(engine):
 class TestCORSPreflight:
     """CORS headers are present for localhost/127.0.0.1 with any port."""
 
-    def test_preflight_localhost_5173(self, client):
+    def test_preflight_localhost_rest_port(self, client):
+        """CORS preflight allowed on REST port 8912."""
+        response = client.options(
+            "/search",
+            headers={
+                "Origin": "http://localhost:8912",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+        assert response.status_code == 200
+        assert "access-control-allow-origin" in response.headers
+
+    def test_preflight_127_0_0_1_bookcase_port(self, client):
+        """CORS preflight allowed on bookcase port 8400."""
+        response = client.options(
+            "/search",
+            headers={
+                "Origin": "http://127.0.0.1:8400",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+        assert response.status_code == 200
+        assert "access-control-allow-origin" in response.headers
+
+    def test_preflight_unknown_port_rejected(self, client):
+        """CORS preflight rejected on non-allowed localhost port (e.g. 5173)."""
         response = client.options(
             "/search",
             headers={
@@ -44,30 +69,7 @@ class TestCORSPreflight:
                 "Access-Control-Request-Method": "POST",
             },
         )
-        assert response.status_code == 200
-        assert "access-control-allow-origin" in response.headers
-
-    def test_preflight_127_0_0_1_8080(self, client):
-        response = client.options(
-            "/search",
-            headers={
-                "Origin": "http://127.0.0.1:8080",
-                "Access-Control-Request-Method": "POST",
-            },
-        )
-        assert response.status_code == 200
-        assert "access-control-allow-origin" in response.headers
-
-    def test_preflight_no_port(self, client):
-        response = client.options(
-            "/search",
-            headers={
-                "Origin": "http://localhost",
-                "Access-Control-Request-Method": "POST",
-            },
-        )
-        assert response.status_code == 200
-        assert "access-control-allow-origin" in response.headers
+        assert "access-control-allow-origin" not in response.headers or response.status_code == 400
 
     def test_preflight_obsidian_scheme(self, client):
         response = client.options(
