@@ -17,7 +17,8 @@
 {
   "imports": {
     "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+    "three/addons/libs/draco/": "https://unpkg.com/three@0.160.0/examples/js/libs/draco/"
   }
 }
 </script>
@@ -484,6 +485,8 @@
   /* ── Scroll-driven 3D hero: the Memorius librarian hippo ── */
   import * as THREE from "three";
   import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+  import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
+  import { MeshoptDecoder } from "three/addons/libs/meshopt/bin/meshopt.module.js";
 
   (function () {
     const canvas = document.getElementById("hero-canvas");
@@ -491,7 +494,7 @@
 
     let renderer, scene, camera, hippo, pointLight, clock, rafId;
 
-    function init() {
+    async function init() {
       scene = new THREE.Scene();
       camera = new THREE.PerspectiveCamera(40, 1, 0.1, 40);
       camera.position.set(0, 0.5, 2.7);
@@ -514,7 +517,14 @@
       pointLight.position.set(0, 1.2, 1.2);
       scene.add(pointLight);
 
+      // Setup DRACO + meshopt decoders for compressed GLB
+      const dracoLoader = new DRACOLoader();
+      dracoLoader.setDecoderPath("https://unpkg.com/three@0.160.0/examples/js/libs/draco/");
+
       const loader = new GLTFLoader();
+      loader.setDRACOLoader(dracoLoader);
+      loader.setMeshoptDecoder(await MeshoptDecoder());
+
       loader.load("assets/librarian-hippo.glb", (gltf) => {
         const model = gltf.scene;
         const box = new THREE.Box3().setFromObject(model);
@@ -541,7 +551,7 @@
         hippo = model;
         scene.add(model);
       }, undefined, (err) => {
-        console.warn("hero hippo model failed to load:", err);
+        console.error("Hero 3D failed to load:", err);
       });
 
       clock = new THREE.Clock();
