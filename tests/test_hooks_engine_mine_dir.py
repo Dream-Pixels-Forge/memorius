@@ -220,3 +220,51 @@ class TestWebhookSsrf:
 
 
 # ── _sanitize_template_value injection tests (issue #61, H-10) ──────────────
+
+import re
+from memorius.hooks.engine import _sanitize_template_value
+
+
+class TestSanitizeTemplateValue:
+    """Shell metacharacters must be stripped from template values."""
+
+    def test_allows_normal_text(self):
+        assert _sanitize_template_value("hello world") == "hello world"
+
+    def test_allows_spaces_and_hyphens(self):
+        assert _sanitize_template_value("rm -rf /") == "rm -rf /"
+
+    def test_removes_semicolon(self):
+        assert _sanitize_template_value("foo;bar") == "foobar"
+
+    def test_removes_backtick(self):
+        assert "`" not in _sanitize_template_value("foo`bar")
+
+    def test_removes_dollar(self):
+        assert "$" not in _sanitize_template_value("foo$bar")
+
+    def test_removes_pipe(self):
+        assert _sanitize_template_value("foo|bar") == "foobar"
+
+    def test_removes_ampersand(self):
+        assert _sanitize_template_value("foo&bar") == "foobar"
+
+    def test_removes_angle_brackets(self):
+        assert _sanitize_template_value("foo<bar>baz") == "foobarbaz"
+
+    def test_removes_parens(self):
+        assert _sanitize_template_value("foo(bar)baz") == "foobarbaz"
+
+    def test_removes_null_bytes(self):
+        assert "\x00" not in _sanitize_template_value("foo\x00bar")
+
+    def test_removes_control_chars(self):
+        result = _sanitize_template_value("foo\x01bar\x7fbaz")
+        assert "\x01" not in result and "\x7f" not in result
+
+    def test_removes_all_metacharacters_together(self):
+        value = "foo;bar`baz$qux|quux&corge<grault>(garply)"
+        result = _sanitize_template_value(value)
+        for ch in ";`$&|<>()":
+            assert ch not in result, f"Found {ch!r} in {result!r}"
+        assert result == "foobarbazquxquuxcorgegraultgarply"

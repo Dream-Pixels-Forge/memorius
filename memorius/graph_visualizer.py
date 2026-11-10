@@ -26,6 +26,9 @@ def render_graph_html(
         Full HTML string ready to serve or write to disk.
     """
     json_payload = json.dumps(graph_data, ensure_ascii=False)
+    # Escape </script> to prevent XSS via script-tag breakout (json.dumps does
+    # not escape this sequence by default).
+    json_payload = json_payload.replace("</script>", "<\\/script>")
     safe_title = _html.escape(str(title))
 
     return f"""<!DOCTYPE html>

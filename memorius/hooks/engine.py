@@ -88,6 +88,8 @@ def _sanitize_template_value(value: str) -> str:
     Strips shell metacharacters, null bytes, and control characters
     to prevent injection via template substitution.
     """
+    # Remove shell metacharacters that could inject commands
+    value = re.sub(r'[;`$&|<>()]', '', value)
     # Remove null bytes
     value = value.replace("\x00", "")
     # Remove control characters except newline and tab

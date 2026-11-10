@@ -150,3 +150,50 @@ def test_mcp_graph_export(tmp_path):
         assert "<!DOCTYPE html>" in res_html["preview"]
     finally:
         engine.close()
+
+
+# ── XSS escaping tests (issue #61, H-12) ────────────────────────────────────
+
+
+class TestGraphXssEscaping:
+    """graph_visualizer must escape </script> in data to prevent XSS."""
+
+    def test_script_breakout_escaped_in_json_payload(self):
+        """</script> in graph node data must be escaped as <\\/script>."""
+        from memorius.graph_visualizer import render_graph_html
+        import re
+
+        html = render_graph_html(
+            {
+                "nodes": [{"id": "1", "label": "benign</script><script>alert(1)</script>"}],
+                "edges": [],
+                "summary": {},
+            },
+            title="Test",
+        )
+        # Find the rawData JSON payload in the HTML
+        match = re.search(r"const rawData = (.*?);", html, re.DOTALL)
+        assert match, "rawData not found in HTML"
+        payload = match.group(1)
+        # The data's </script> must be escaped
+        assert "</script>" not in payload, f"Unescaped </script> in payload: {payload}"
+        assert "<\\/script>" in payload, f"Escaped </script> not in payload: {payload}"
+
+    def test_script_breakout_in_edge_data(self):
+        """</script> in edge data must also be escaped."""
+        from memorius.graph_visualizer import render_graph_html
+        import re
+
+        html = render_graph_html(
+            {
+                "nodes": [{"id": "1", "label": "node1"}],
+                "edges": [{"source": "1", "target": "2", "label": "edge</script>"}],
+                "summary": {},
+            },
+            title="Test",
+        )
+        match = re.search(r"const rawData = (.*?);", html, re.DOTALL)
+        assert match, "rawData not found in HTML"
+        payload = match.group(1)
+        assert "</script>" not in payload
+        assert "<\\/script>" in payload
