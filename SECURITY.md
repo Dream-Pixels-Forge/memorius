@@ -1,0 +1,32 @@
+# Security Policy
+
+## Supported versions
+
+We actively support the latest release of Memorius. Older releases may not receive
+security updates.
+
+| Version | Supported |
+|---------|-----------|
+| 0.9.x   | ✅        |
+| < 0.9   | ❌        |
+
+## Reporting a vulnerability
+
+Please do **not** open a public GitHub issue for security vulnerabilities.
+
+Instead, email us directly with details of the issue, steps to reproduce, and any
+suggested fix. We'll acknowledge receipt within 48 hours and work with you on
+disclosure and remediation.
+
+## Scope
+
+- Memorius CLI, MCP server, REST API, and agent hooks
+- Local-first storage (ChromaDB, SQLite-vec)
+- Not included: third-party agent integrations or LLM provider APIs
+
+## Disclosure
+
+We follow coordinated disclosure. Once a fix is ready, we'll:
+1. Publish a patch release on PyPI
+2. Add a GitHub Release with notes
+3. Credit the reporter (unless you prefer to remain anonymous)

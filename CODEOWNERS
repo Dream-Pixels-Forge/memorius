@@ -1,0 +1,16 @@
+# Code Ownership
+
+## Core maintainers
+*   @Dream-Pixels-Forge
+
+## File ownership
+
+| Path pattern | Owners |
+|---|---|
+| `memorius/` | @Dream-Pixels-Forge |
+| `tests/` | @Dream-Pixels-Forge |
+| `pyproject.toml` | @Dream-Pixels-Forge |
+| `.github/` | @Dream-Pixels-Forge |
+| `README.md` | @Dream-Pixels-Forge |
+| `CHANGELOG.md` | @Dream-Pixels-Forge |
+| `dev-notes/` | @Dream-Pixels-Forge |
