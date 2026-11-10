@@ -180,6 +180,7 @@
     z-index: 1;
     max-width: 1100px;
     margin: 0 auto;
+    justify-content: space-between;
   }
   @media (max-width: 900px) {
     .hero-wrap { grid-template-columns: 1fr; gap: 46px; text-align: center; }
@@ -190,12 +191,11 @@
     position: relative;
     height: 700px;
     width: 100%;
-    max-width: 620px;
+    max-width: 520px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-left: auto;
-    /* frameless — model floats on the hero background, no card wrapper */
+    /* frameless — model floats on hero background, no card wrapper */
   }
   @media (max-width: 900px) {
     .hero-3d-wrap { height: 520px; max-width: 520px; margin: 0 auto; }
