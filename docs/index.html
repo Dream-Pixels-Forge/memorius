@@ -13,6 +13,14 @@
 <meta name="twitter:card" content="summary_large_image" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23F97316'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='ui-monospace,SFMono-Regular,monospace' font-size='34' font-weight='700' fill='white'%3EM%3C/text%3E%3C/svg%3E" />
 <link rel="stylesheet" href="assets/site.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
 <style>
   /* Landing hero only */
   .landing-hero {
@@ -161,6 +169,52 @@
   .badge:hover { border-color: var(--border-hi); color: var(--fg); }
   .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
   .badge .accent { color: var(--accent-hi); font-weight: 700; }
+
+  /* ── Hero 3D (librarian hippo mascot) ── */
+  .hero-wrap {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 70px;
+    align-items: center;
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  @media (max-width: 900px) {
+    .hero-wrap { grid-template-columns: 1fr; gap: 46px; text-align: center; }
+    .landing-hero h1, .landing-hero p.lead { text-align: center; }
+    .hero-install, .hero-actions, .hero-badges { justify-content: center; margin-left: auto; margin-right: auto; }
+  }
+  .hero-3d-wrap {
+    position: relative;
+    height: 620px;
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+  }
+  @media (max-width: 900px) {
+    .hero-3d-wrap { height: 420px; max-width: 420px; margin: 0 auto; }
+  }
+  #hero-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    border-radius: 22px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border);
+    background: radial-gradient(600px 400px at 50% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent);
+  }
+  /* keep text content left-aligned on desktop when in grid */
+  @media (min-width: 901px) {
+    .hero-text { text-align: left; }
+    .hero-text .hero-install, .hero-text .hero-actions, .hero-text .hero-badges {
+      justify-content: flex-start; margin-left: 0;
+    }
+  }
 </style>
 </head>
 <body>
@@ -186,41 +240,46 @@
 </nav>
 
 <header class="landing-hero">
-  <div class="hero-orb"></div>
-  <div class="container">
-    <span class="landing-eyebrow">
-      <span class="pulse-dot"></span>
-      <span>Universal memory for any AI agent</span>
-    </span>
-    <h1>Give your AI agent<br /><span class="accent">a memory that persists</span></h1>
-    <p class="lead">
-      Memorius is a self-contained, agent-agnostic memory system with hierarchical
-      knowledge organization, pluggable embeddings, and neuroscience-inspired
-      consolidation. Works with 7 AI coding agents out of the box.
-    </p>
+  <div class="hero-wrap">
+    <div class="hero-text fade-up">
+      <span class="landing-eyebrow">
+        <span class="pulse-dot"></span>
+        <span>Universal memory for any AI agent</span>
+      </span>
+      <h1>Give your AI agent<br /><span class="accent">a memory that persists</span></h1>
+      <p class="lead">
+        Memorius is a self-contained, agent-agnostic memory system with hierarchical
+        knowledge organization, pluggable embeddings, and neuroscience-inspired
+        consolidation. Works with 7 AI coding agents out of the box.
+      </p>
 
-    <div class="hero-install" role="group" aria-label="Install command">
-      <span class="hero-install-prompt">$</span>
-      <code id="install-cmd">pip install memorius</code>
-      <button id="copy-btn" type="button" aria-label="Copy install command">Copy</button>
+      <div class="hero-install" role="group" aria-label="Install command">
+        <span class="hero-install-prompt">$</span>
+        <code id="install-cmd">pip install memorius</code>
+        <button id="copy-btn" type="button" aria-label="Copy install command">Copy</button>
+      </div>
+
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="getting-started.html">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.5 4.5a2.5 2.5 0 013.5 3.5L12 13l2.5 4.5a2.5 2.5 0 01-4.5 2.5L5.5 17 4.5 13.5a2.5 2.5 0 013.5-3.5L10.5 11z"/></svg>
+          Get Started
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/Dream-Pixels-Forge/memorius">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.7 5.5.7 11.9c0 5 3.3 9.3 7.8 10.8.6.1.8-.2.8-.6v-2.1c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2 1-.3 2-.4 3-.4s2 .1 3 .4c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.8.1 3.1.7.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.2c0 .3.2.7.8.6 4.5-1.5 7.8-5.8 7.8-10.8C23.3 5.5 18.3.5 12 .5z"/></svg>
+          Star on GitHub
+        </a>
+      </div>
+
+      <div class="hero-badges">
+        <span class="badge"><span class="dot"></span> <span class="accent">v0.9.6</span> MIT licensed</span>
+        <span class="badge">Python 3.11+</span>
+        <span class="badge">7 agent integrations</span>
+        <span class="badge">MCP + REST + Hooks</span>
+      </div>
     </div>
 
-    <div class="hero-actions">
-      <a class="btn btn-primary" href="getting-started.html">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.5 4.5a2.5 2.5 0 013.5 3.5L12 13l2.5 4.5a2.5 2.5 0 01-4.5 2.5L5.5 17 4.5 13.5a2.5 2.5 0 013.5-3.5L10.5 11z"/></svg>
-        Get Started
-      </a>
-      <a class="btn btn-ghost" href="https://github.com/Dream-Pixels-Forge/memorius">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.7 5.5.7 11.9c0 5 3.3 9.3 7.8 10.8.6.1.8-.2.8-.6v-2.1c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2 1-.3 2-.4 3-.4s2 .1 3 .4c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.8.1 3.1.7.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.2c0 .3.2.7.8.6 4.5-1.5 7.8-5.8 7.8-10.8C23.3 5.5 18.3.5 12 .5z"/></svg>
-        Star on GitHub
-      </a>
-    </div>
-
-    <div class="hero-badges">
-      <span class="badge"><span class="dot"></span> <span class="accent">v0.9.6</span> MIT licensed</span>
-      <span class="badge">Python 3.11+</span>
-      <span class="badge">7 agent integrations</span>
-      <span class="badge">MCP + REST + Hooks</span>
+    <div class="hero-3d-wrap fade-up delay-2">
+      <canvas id="hero-canvas" aria-label="The Memorius librarian hippo, rotating as you scroll"></canvas>
     </div>
   </div>
 </header>
@@ -419,5 +478,119 @@
   })();
 </script>
 <script src="assets/site.js"></script>
+
+<script type="module">
+  /* ── Scroll-driven 3D hero: the Memorius librarian hippo ── */
+  import * as THREE from "three";
+  import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+  (function () {
+    const canvas = document.getElementById("hero-canvas");
+    if (!canvas) return;
+
+    let renderer, scene, camera, hippo, pointLight, clock, rafId;
+
+    function init() {
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(40, 1, 0.1, 40);
+      camera.position.set(0, 0.5, 2.7);
+
+      renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: "high-performance" });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(canvas.clientWidth || 400, canvas.clientHeight || 400);
+      renderer.toneMapping = THREE.ReinhardToneMapping;
+      renderer.toneMappingExposure = 1.1;
+
+      const amb = new THREE.AmbientLight(0xffffff, 0.45);
+      scene.add(amb);
+
+      const dir = new THREE.DirectionalLight(0xffffff, 0.7);
+      dir.position.set(2, 5, 4);
+      dir.castShadow = true;
+      scene.add(dir);
+
+      pointLight = new THREE.PointLight(0xf97316, 0, 10);
+      pointLight.position.set(0, 1.2, 1.2);
+      scene.add(pointLight);
+
+      const loader = new GLTFLoader();
+      loader.load("assets/librarian-hippo.glb", (gltf) => {
+        const model = gltf.scene;
+        const box = new THREE.Box3().setFromObject(model);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const s = 1.35 / Math.max(size.x, size.y, size.z);
+        model.scale.setScalar(s);
+        box.getCenter(new THREE.Vector3());
+        box.getSize(size);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        model.position.set(-center.x * s, -center.y * s + 0.02, -center.z * s + 0.1);
+
+        model.traverse((o) => {
+          if (o.isMesh) {
+            o.material.emissive = new THREE.Color(0x4a3424);
+            o.material.emissiveMap = o.material.map;
+            o.material.metalness = 0.15;
+            o.material.roughness = 0.55;
+            o.castShadow = true;
+            o.receiveShadow = true;
+          }
+        });
+        hippo = model;
+        scene.add(model);
+      }, undefined, (err) => {
+        console.warn("hero hippo model failed to load:", err);
+      });
+
+      clock = new THREE.Clock();
+      animate();
+    }
+
+    function scrollProgress() {
+      const hero = document.querySelector(".landing-hero");
+      if (!hero) return 0;
+      const rect = hero.getBoundingClientRect();
+      const vh = window.innerHeight;
+      let p = (vh - rect.top) / (vh + rect.height);
+      return Math.max(0, Math.min(1, p));
+    }
+
+    function animate() {
+      rafId = requestAnimationFrame(animate);
+      const t = clock ? clock.getElapsedTime() : 0;
+      const p = scrollProgress();
+
+      if (hippo) {
+        hippo.rotation.y = t * 0.12 + p * Math.PI * 1.4;
+        hippo.position.y = Math.sin(t * 1.6 + p * 2.5) * 0.10;
+        hippo.rotation.z = Math.sin(t * 0.6) * 0.035 + p * 0.05;
+      }
+
+      if (pointLight) {
+        const pulse = 0.6 + Math.sin(t * 2.0) * 0.15 + p * 1.6;
+        pointLight.intensity = pulse;
+        pointLight.color.setHSL(0.095, 1, 0.45 + p * 0.25);
+      }
+
+      if (renderer) renderer.render(scene, camera);
+    }
+
+    function onResize() {
+      if (!camera || !renderer) return;
+      const w = canvas.clientWidth || 400;
+      const h = canvas.clientHeight || 400;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+
+    window.addEventListener("resize", onResize);
+    init();
+    window.addEventListener("scroll", () => { /* progress read in animate loop */ });
+  })();
+</script>
+
+
 </body>
 </html>
