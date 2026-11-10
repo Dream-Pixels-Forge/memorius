@@ -653,11 +653,14 @@ class McpServer:
             vault=args.get("vault"),
             similarity_threshold=args.get("similarity_threshold", 0.80),
             dry_run=args.get("dry_run", True),
+            snapshot_dir=args.get("snapshot_dir"),
         )
         return {
             "clusters_found": result.clusters_found,
             "memories_merged": result.memories_merged,
             "memories_archived": result.memories_archived,
+            "snapshot_path": result.snapshot_path,
+            "snapshot_memory_count": result.snapshot_memory_count,
             "details": result.details[:10],
         }
 
