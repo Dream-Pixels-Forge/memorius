@@ -1,16 +1,14 @@
 """Tests for memorius/graph.py — knowledge graph operations."""
 
 import sqlite3
-import tempfile
-from pathlib import Path
 
 from memorius.graph import (
+    auto_link_by_proximity,
+    expand_graph,
+    get_graph_stats,
+    get_linked,
     init_graph_schema,
     link_memories,
-    get_linked,
-    expand_graph,
-    auto_link_by_proximity,
-    get_graph_stats,
 )
 
 

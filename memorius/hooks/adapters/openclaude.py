@@ -1,5 +1,7 @@
 """OpenClaude adapter."""
 
+from typing import ClassVar
+
 from memorius.hooks.models import BaseAgentAdapter, HookEvent, HookEventType
 
 
@@ -11,7 +13,7 @@ class OpenClaudeAdapter(BaseAgentAdapter):
     """
 
     agent_name = "openclaude"
-    event_type_map = {
+    event_type_map: ClassVar[dict[str, HookEventType]] = {
         "stop": HookEventType.SESSION_STOP,
         "precompact": HookEventType.PRE_COMPACT,
         "session_start": HookEventType.SESSION_START,

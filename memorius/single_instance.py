@@ -24,7 +24,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 try:
     import fcntl
@@ -56,7 +56,7 @@ class ServeLock:
     the kernel releases the flock on exit. ``release()`` for tests/cleanup.
     """
 
-    def __init__(self, lock_path: Path, fd: Optional[int] = None) -> None:
+    def __init__(self, lock_path: Path, fd: int | None = None) -> None:
         self.lock_path = lock_path
         self._fd = fd
 
@@ -86,7 +86,7 @@ def resolve_lock_path(config: dict[str, Any]) -> Path:
     return Path(raw).expanduser() / LOCK_NAME
 
 
-def _read_lock_pid(lock_path: Path) -> Optional[int]:
+def _read_lock_pid(lock_path: Path) -> int | None:
     try:
         content = lock_path.read_text().strip()
         return int(content) if content.isdigit() else None
@@ -125,7 +125,7 @@ def acquire_serve_lock(config: dict[str, Any], reclaim: bool = False) -> ServeLo
         )
         return ServeLock(lock_path, fd=None)
 
-    last_pid: Optional[int] = None
+    last_pid: int | None = None
     for _ in range(_MAX_ACQUIRE_ATTEMPTS):
         fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT, 0o644)
         try:

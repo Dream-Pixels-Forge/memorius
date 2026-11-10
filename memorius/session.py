@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 logger = logging.getLogger("memorius.session")
@@ -42,7 +42,7 @@ def build_session_profile(
     2. Recently stored memories
     3. Frequently accessed memories
     """
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     profile = SessionProfile(session_id=session_id, vault=vault, created_at=now)
 
     # 1. Get recent diaries
@@ -130,7 +130,7 @@ def inherit_from_previous_session(
                 session_id=new_session_id,
                 vault=vault,
                 summary=diary.get("summary", ""),
-                created_at=datetime.now(timezone.utc).isoformat(),
+                created_at=datetime.now(UTC).isoformat(),
             )
             # Extract from diary content
             content = diary.get("content", "")

@@ -15,13 +15,13 @@ from __future__ import annotations
 import json
 import logging
 import math
-import os
 import threading
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
-from memorius.temporal import calculate_decay_score, _parse_dt
+from memorius.temporal import _parse_dt, calculate_decay_score
+
 from .utils import cosine_similarity
 
 logger = logging.getLogger("memorius.consolidation")
@@ -236,7 +236,7 @@ def _apply_engram_maturation(memory: dict) -> float:
     
     # Maturation is stronger with higher access count
     # But has diminishing returns to prevent overheating
-    access_factor = min(access_count / 20.0, 0.8)  # Max 0.8 boost from access
+    min(access_count / 20.0, 0.8)  # Max 0.8 boost from access
     maturity_factor = 0.5 * (1.0 - math.exp(-access_count / 10.0))  # Saturation curve
     
     # Apply maturation: increase heat score
@@ -281,7 +281,7 @@ def _apply_neuromodulator_gating(memory: dict, recent_novelty: float = 0.5) -> f
     if last_accessed:
         try:
             last_access_dt = _parse_dt(last_accessed)
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             hours_since_access = (now - last_access_dt).total_seconds() / 3600
             
             # Very recent access suggests attentional boost
@@ -450,10 +450,10 @@ def consolidate(
     # Snapshot memories before archiving, if snapshot_dir is set
     if snapshot_dir and not dry_run and result.memories_archived > 0:
         import os as _os
-        snapshot_path = _os.path.join(snapshot_dir, f"consolidation_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json")
+        snapshot_path = _os.path.join(snapshot_dir, f"consolidation_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json")
         _os.makedirs(snapshot_dir, exist_ok=True)
         snapshot_data = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "vault": vault,
             "similarity_threshold": similarity_threshold,
             "clusters": [

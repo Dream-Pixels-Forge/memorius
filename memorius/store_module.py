@@ -15,14 +15,14 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from memorius.models import Memory
-from memorius.vector_store_base import VectorStore
 from memorius.meta_store import SQLiteStore
-from memorius.validation import validate_name, validate_memory_id
+from memorius.models import Memory
 from memorius.utils import safe_parse_json
+from memorius.validation import validate_memory_id, validate_name
+from memorius.vector_store_base import VectorStore
 
 logger = logging.getLogger("memorius.store")
 
@@ -61,7 +61,7 @@ class StoreModule:
 
         merged_metadata = dict(metadata or {})
         if ttl_days is not None and ttl_days >= 0:
-            expires_at = (datetime.now(timezone.utc) + timedelta(days=ttl_days)).isoformat()
+            expires_at = (datetime.now(UTC) + timedelta(days=ttl_days)).isoformat()
             merged_metadata["expires_at"] = expires_at
             merged_metadata["ttl_days"] = ttl_days
 

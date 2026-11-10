@@ -1,39 +1,38 @@
 """Tests for memorius/temporal.py — decay scoring and search ranking."""
 
+from datetime import UTC, datetime, timedelta
+
 from memorius.temporal import (
-    calculate_decay_score,
-    calculate_search_score,
-    find_stale_memories,
-    archive_memories,
+    WEIGHT_ACCESS,
     WEIGHT_AGE_DECAY,
     WEIGHT_RECENCY,
     WEIGHT_REINFORCEMENT,
     WEIGHT_SEMANTIC,
     WEIGHT_TEMPORAL,
-    WEIGHT_ACCESS,
+    calculate_decay_score,
+    calculate_search_score,
 )
-from datetime import datetime, timezone, timedelta
 
 
 def test_decay_score_fresh_memory():
     """A brand-new memory should have a high decay score."""
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     score = calculate_decay_score(created_at=now, access_count=0)
     assert score > 0.5, f"Fresh memory decay too low: {score}"
 
 
 def test_decay_score_old_memory():
     """A 30-day-old memory with no access should have lower score."""
-    old = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    old = (datetime.now(UTC) - timedelta(days=30)).isoformat()
     score_old = calculate_decay_score(created_at=old, access_count=0)
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     score_new = calculate_decay_score(created_at=now, access_count=0)
     assert score_old < score_new, f"Old memory ({score_old}) should score lower than new ({score_new})"
 
 
 def test_decay_score_access_boost():
     """Accessing a memory should boost its score."""
-    old = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
+    old = (datetime.now(UTC) - timedelta(days=10)).isoformat()
     score_no_access = calculate_decay_score(created_at=old, last_accessed=None, access_count=0)
     score_with_access = calculate_decay_score(created_at=old, last_accessed=old, access_count=5)
     assert score_with_access > score_no_access, "Access should boost decay score"
@@ -42,7 +41,7 @@ def test_decay_score_access_boost():
 def test_decay_score_bounds():
     """Decay score should always be between MIN_DECAY_SCORE and 1.0."""
     from memorius.temporal import MIN_DECAY_SCORE
-    very_old = (datetime.now(timezone.utc) - timedelta(days=365)).isoformat()
+    very_old = (datetime.now(UTC) - timedelta(days=365)).isoformat()
     score = calculate_decay_score(created_at=very_old, access_count=0)
     assert MIN_DECAY_SCORE <= score <= 1.0, f"Score {score} out of bounds"
 

@@ -1,7 +1,8 @@
 """Tests for auto-consolidation daemon (v0.8.0)."""
 import sqlite3
-from memorius.consolidation import ConsolidationDaemon
+
 from memorius.config import get_config
+from memorius.consolidation import ConsolidationDaemon
 
 
 def test_config_has_consolidation_section():

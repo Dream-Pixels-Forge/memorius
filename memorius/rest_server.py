@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hmac
 import logging
 import os
 import sys
@@ -13,20 +12,32 @@ from typing import Any
 
 from memorius import __version__ as _memorius_version
 from memorius.validation import (
-    validate_name as _validate_name,
-    validate_session_id as _validate_session_id,
-    validate_content as _validate_content,
     MAX_CONTENT_LENGTH,
+    MAX_DIARY_CONTENT,
     MAX_FIELD_LENGTH,
     MAX_SEARCH_LIMIT,
-    MAX_DIARY_CONTENT,
+)
+from memorius.validation import (
+    validate_content as _validate_content,
+)
+from memorius.validation import (
+    validate_name as _validate_name,
+)
+from memorius.validation import (
+    validate_session_id as _validate_session_id,
 )
 
 # Prometheus metrics
 try:
-    from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
     from fastapi import Response
-    from fastapi.responses import PlainTextResponse, JSONResponse
+    from fastapi.responses import JSONResponse, PlainTextResponse
+    from prometheus_client import (
+        CONTENT_TYPE_LATEST,
+        Counter,
+        Gauge,
+        Histogram,
+        generate_latest,
+    )
     PROMETHEUS_AVAILABLE = True
 except ImportError:
     PROMETHEUS_AVAILABLE = False
@@ -118,8 +129,8 @@ class MemoriusAPI:
         app = FastAPI(title="Memorius API", version=_memorius_version, debug=False)
 
         # Configure JSON logging for memorius
-        import logging
         import json
+        import logging
 
         class JSONFormatter(logging.Formatter):
             def format(self, record):
@@ -358,7 +369,7 @@ class MemoriusAPI:
             ttl_days = payload.get("ttl_days")
             
             # Start timing for operation
-            start_time = time.time()
+            time.time()
             try:
                 memory = engine.store(
                     content=content, vault=vault, shelf=shelf,
@@ -371,11 +382,11 @@ class MemoriusAPI:
                 d = memory.to_dict()
                 d.pop("vector", None)
                 return d
-            except Exception as e:
+            except Exception:
                 # Record failed store
                 if PROMETHEUS_AVAILABLE:
                     MEMORIUS_STORE_OPERATIONS_TOTAL.labels(result="failure").inc()
-                raise e
+                raise
             finally:
                 # For store operations, we might want to track latency too
                 # But the recall latency is specifically for recall operations
@@ -419,11 +430,11 @@ class MemoriusAPI:
                     d.pop("vector", None)
                     out.append(d)
                 return {"query": query, "count": len(results), "results": out}
-            except Exception as e:
+            except Exception:
                 # Record failed search
                 if PROMETHEUS_AVAILABLE:
                     MEMORIUS_SEARCH_OPERATIONS_TOTAL.labels(result="failure").inc()
-                raise e
+                raise
             finally:
                 # Record recall latency
                 if PROMETHEUS_AVAILABLE:
@@ -446,11 +457,11 @@ class MemoriusAPI:
                 if PROMETHEUS_AVAILABLE:
                     MEMORIUS_MINE_OPERATIONS_TOTAL.labels(result="success").inc()
                 return {"stored": len(memories), "memory_ids": [m.id for m in memories]}
-            except Exception as e:
+            except Exception:
                 # Record failed mine
                 if PROMETHEUS_AVAILABLE:
                     MEMORIUS_MINE_OPERATIONS_TOTAL.labels(result="failure").inc()
-                raise e
+                raise
             finally:
                 # Record recall latency for mine operations too (since it involves recall/search)
                 if PROMETHEUS_AVAILABLE:
@@ -472,7 +483,7 @@ class MemoriusAPI:
                 raise HTTPException(status_code=400, detail="Diary content too long")
             
             # Start timing for operation
-            start_time = time.time()
+            time.time()
             try:
                 entry = engine.write_diary(
                     session_id=session_id, vault=vault,
@@ -483,11 +494,11 @@ class MemoriusAPI:
                 if PROMETHEUS_AVAILABLE:
                     MEMORIUS_STORE_OPERATIONS_TOTAL.labels(result="success").inc()
                 return entry
-            except Exception as e:
+            except Exception:
                 # Record failed diary write
                 if PROMETHEUS_AVAILABLE:
                     MEMORIUS_STORE_OPERATIONS_TOTAL.labels(result="failure").inc()
-                raise e
+                raise
             finally:
                 pass
 
@@ -589,7 +600,7 @@ class MemoriusAPI:
         async def obsidian_import(payload: dict[str, Any]):
             if not payload.get("confirm", False) and not payload.get("dry_run", False):
                 raise HTTPException(status_code=400, detail="Import requires confirm=true or dry_run=true")
-            from memorius.obsidian import resolve_vault_path, scan_vault, parse_note
+            from memorius.obsidian import parse_note, resolve_vault_path, scan_vault
             vault_path = resolve_vault_path(payload.get("vault"))
             home = Path.home().resolve()
             if not str(vault_path).startswith(str(home)):
@@ -674,8 +685,6 @@ class MemoriusAPI:
                 d = mem.to_dict()
                 d.pop("vector", None)
                 return d
-            except Exception as e:
-                raise e
             finally:
                 # Record recall latency
                 if PROMETHEUS_AVAILABLE:
@@ -713,7 +722,7 @@ class MemoriusAPI:
                 raise HTTPException(status_code=400, detail=str(e))
             
             # Start timing for operation
-            start_time = time.time()
+            time.time()
             try:
                 result = engine.delete(memory_id)
                 if not result.get("found", False):
@@ -722,11 +731,11 @@ class MemoriusAPI:
                 if PROMETHEUS_AVAILABLE:
                     MEMORIUS_STORE_OPERATIONS_TOTAL.labels(result="success").inc()
                 return result
-            except Exception as e:
+            except Exception:
                 # Record failed delete
                 if PROMETHEUS_AVAILABLE:
                     MEMORIUS_STORE_OPERATIONS_TOTAL.labels(result="failure").inc()
-                raise e
+                raise
             finally:
                 pass
 
@@ -825,10 +834,9 @@ class MemoriusAPI:
                 consolidation_queue_size = 0  # Default
                 if hasattr(engine, 'get_consolidation_queue_size'):
                     consolidation_queue_size = engine.get_consolidation_queue_size()
-                elif hasattr(engine, 'consolidation_daemon') and engine.consolidation_daemon:
-                    # If we have access to the consolidation daemon
-                    if hasattr(engine.consolidation_daemon, 'get_queue_size'):
-                        consolidation_queue_size = engine.consolidation_daemon.get_queue_size()
+                elif (hasattr(engine, 'consolidation_daemon') and engine.consolidation_daemon
+                      and hasattr(engine.consolidation_daemon, 'get_queue_size')):
+                    consolidation_queue_size = engine.consolidation_daemon.get_queue_size()
                 
                 MEMORIUS_CONSOLIDATION_QUEUE_SIZE.set(consolidation_queue_size)
                 

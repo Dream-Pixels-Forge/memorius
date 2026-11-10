@@ -143,7 +143,6 @@ def test_search_folder_and_tags_combine(engine):
 def test_search_invalid_folder_name_raises(engine):
     """folder is a validated name field; a name with spaces must reject
     early (consistent with vault/store/shelf validation)."""
-    from memorius.validation import validate_name
 
     _seed(engine)
     with pytest.raises(ValueError):
@@ -159,10 +158,11 @@ def test_rest_search_threads_folder_filter():
     os.environ["MEMORIUS_API_KEY"] = "secret"
     tmp = tempfile.mkdtemp()
     os.environ["MEMORIUS_STORAGE_PATH"] = tmp
-    from memorius.config import _default_config
-    from memorius.vault import VaultEngine
-    from memorius.rest_server import MemoriusAPI
     from fastapi.testclient import TestClient
+
+    from memorius.config import _default_config
+    from memorius.rest_server import MemoriusAPI
+    from memorius.vault import VaultEngine
 
     cfg = _default_config()
     cfg["storage"]["path"] = tmp
@@ -190,10 +190,11 @@ def test_rest_search_threads_tags_filter():
     os.environ["MEMORIUS_API_KEY"] = "secret"
     tmp = tempfile.mkdtemp()
     os.environ["MEMORIUS_STORAGE_PATH"] = tmp
-    from memorius.config import _default_config
-    from memorius.vault import VaultEngine
-    from memorius.rest_server import MemoriusAPI
     from fastapi.testclient import TestClient
+
+    from memorius.config import _default_config
+    from memorius.rest_server import MemoriusAPI
+    from memorius.vault import VaultEngine
 
     cfg = _default_config()
     cfg["storage"]["path"] = tmp

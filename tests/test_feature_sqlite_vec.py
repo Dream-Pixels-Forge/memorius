@@ -1,6 +1,4 @@
 """Tests for Phase 5.3 — SQLite-vec fallback vector store."""
-import json
-from pathlib import Path
 
 import pytest
 

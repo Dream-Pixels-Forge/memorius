@@ -15,8 +15,8 @@ def engine():
     """Create a VaultEngine with isolated temp storage per test."""
     tmp = Path(tempfile.mkdtemp())
     os.environ["MEMORIUS_STORAGE_PATH"] = str(tmp)
-    from memorius.vault import VaultEngine
     from memorius.config import load_config
+    from memorius.vault import VaultEngine
     config = load_config()
     eng = VaultEngine(config)
     yield eng
@@ -32,8 +32,8 @@ def _make_engine():
     """Build a VaultEngine against an isolated temp store (mirrors test_core)."""
     tmp = tempfile.mkdtemp()
     os.environ["MEMORIUS_STORAGE_PATH"] = tmp
-    from memorius.vault import VaultEngine
     from memorius.config import load_config
+    from memorius.vault import VaultEngine
     return VaultEngine(load_config()), tmp
 
 
@@ -98,7 +98,7 @@ def test_delete_cleans_graph_edges(engine):
     a = engine.store("Python is a programming language used widely", vault="del")
     b = engine.store("Python programming is fun and widely used", vault="del")
     conn = engine.meta._conn()
-    before = conn.execute(
+    conn.execute(
         "SELECT COUNT(*) FROM memory_graph WHERE source_id = ? OR target_id = ?",
         (a.id, a.id),
     ).fetchone()[0]
@@ -174,7 +174,7 @@ def test_cli_delete_abort_on_no(monkeypatch, capsys):
 
 
 def test_cli_delete_invalid_id(capsys):
-    eng, tmp = _make_engine()
+    _eng, tmp = _make_engine()
     try:
         _run_cli(["delete", "not-a-uuid"])
         out = capsys.readouterr().out

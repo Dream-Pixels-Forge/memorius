@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -49,7 +49,7 @@ class Learning:
     confidence: float = 1.0
     applied_count: int = 0
     last_applied: str | None = None
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     vault: str = "main"
 
     def to_dict(self) -> dict[str, Any]:
@@ -81,7 +81,7 @@ class Learning:
             confidence=float(data.get("confidence", 1.0)),
             applied_count=int(data.get("applied_count", 0)),
             last_applied=data.get("last_applied"),
-            created_at=data.get("created_at", datetime.now(timezone.utc).isoformat()),
+            created_at=data.get("created_at", datetime.now(UTC).isoformat()),
             vault=data.get("vault", "main"),
         )
 

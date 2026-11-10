@@ -17,11 +17,11 @@ from __future__ import annotations
 import logging
 import math
 
-from memorius.models import Memory
-from memorius.vector_store_base import VectorStore
 from memorius.meta_store import SQLiteStore
-from memorius.validation import validate_name
+from memorius.models import Memory
 from memorius.utils import safe_parse_json
+from memorius.validation import validate_name
+from memorius.vector_store_base import VectorStore
 
 logger = logging.getLogger("memorius.search")
 
@@ -123,10 +123,10 @@ class SearchModule:
         # ── 3. Temporal stage ────────────────────────────────────────────
         try:
             from memorius.temporal import (
+                calculate_combined_score_with_tier,
                 calculate_decay_score,
                 calculate_search_score,
                 classify_tier,
-                calculate_combined_score_with_tier,
             )
             meta_map = self._meta.get_memory_meta_batch([m.id for m in results])
             scored = []

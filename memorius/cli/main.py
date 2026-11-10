@@ -40,9 +40,9 @@ import sys
 from pathlib import Path
 
 from memorius import __version__
-from memorius.config import load_config, DEFAULT_CONFIG_DIR, DEFAULT_CONFIG_PATH
+from memorius.config import DEFAULT_CONFIG_DIR, DEFAULT_CONFIG_PATH, load_config
 from memorius.vault import VaultEngine
-from memorius.web_search import web_fallback_enabled, should_fallback
+from memorius.web_search import should_fallback, web_fallback_enabled
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -439,7 +439,7 @@ def cmd_init(engine, args, config):
 
 def cmd_setup(engine, args, config):
     """Download ONNX model and initialize vault."""
-    from memorius.model_download import is_model_downloaded, setup_model, get_model_path
+    from memorius.model_download import get_model_path, is_model_downloaded, setup_model
     
     print("memorius setup")
     print("=" * 50)
@@ -828,7 +828,6 @@ def cmd_bookcase(engine, args, config):
         def list_directory(self, path):
             """Override to return 403 instead of a directory listing."""
             self.send_error(403, "Directory listing disabled")
-            return None
 
     # Bounded thread pool to prevent thread-per-connection exhaustion (H-24)
     class _BoundedThreadingHTTPServer(http.server.ThreadingHTTPServer):
@@ -941,7 +940,7 @@ def _stop_daemon(pid_file: Path):
     # Send termination signal
     if os.name == "nt":
         import subprocess
-        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, check=False)
     else:
         os.kill(pid, signal.SIGTERM)
 
@@ -975,8 +974,8 @@ def _start_daemon(engine, host: str, port: int, pid_file: Path,
     proc.pid, so the file exists before this returns.
     """
     import os
-    import sys
     import subprocess
+    import sys
 
     # Pass configuration via environment variables to avoid shell injection
     # through string interpolation in python -c commands.
@@ -1734,7 +1733,7 @@ def cmd_learning_stats(engine, args, config):
 
     if stats["most_applied"]:
         ma = stats["most_applied"]
-        print(f"\nMost applied learning:")
+        print("\nMost applied learning:")
         print(f"  {ma['id'][:8]} [{ma['category']}]")
         print(f"  {ma['content'][:80]}...")
         print(f"  Applied {ma['applied_count']} times")

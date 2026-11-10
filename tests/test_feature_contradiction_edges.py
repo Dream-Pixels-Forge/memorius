@@ -144,7 +144,7 @@ def test_multiple_contradicting_memories(engine):
     are created from the matching memory to each contradicting one."""
     m1 = engine.store("React is used for the frontend", vault="h")
     m2 = engine.store("Vue is used for the frontend", vault="h")
-    m3 = engine.store("Angular is used for the frontend", vault="h")
+    engine.store("Angular is used for the frontend", vault="h")
 
     result = engine.check_fact("React is used for the frontend", vault="h")
     # At least one matching memory should exist for this to work.

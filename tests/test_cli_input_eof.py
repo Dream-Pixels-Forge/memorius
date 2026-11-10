@@ -10,14 +10,13 @@ import os
 import shutil
 import sys
 import tempfile
-from pathlib import Path
 
 
 def _make_engine():
     tmp = tempfile.mkdtemp()
     os.environ["MEMORIUS_STORAGE_PATH"] = tmp
-    from memorius.vault import VaultEngine
     from memorius.config import load_config
+    from memorius.vault import VaultEngine
     return VaultEngine(load_config()), tmp
 
 
@@ -33,7 +32,7 @@ def _stdin_closed(monkeypatch):
 
 
 def test_cmd_diary_eof_aborts(monkeypatch, capsys):
-    eng, tmp = _make_engine()
+    _eng, tmp = _make_engine()
     try:
         _stdin_closed(monkeypatch)
         _run_cli(["diary", "--content", "test content"])
@@ -44,7 +43,7 @@ def test_cmd_diary_eof_aborts(monkeypatch, capsys):
 
 
 def test_cmd_profile_eof_aborts(monkeypatch, capsys):
-    eng, tmp = _make_engine()
+    _eng, tmp = _make_engine()
     try:
         _stdin_closed(monkeypatch)
         _run_cli(["profile"])
@@ -55,7 +54,7 @@ def test_cmd_profile_eof_aborts(monkeypatch, capsys):
 
 
 def test_cmd_recall_eof_aborts(monkeypatch, capsys):
-    eng, tmp = _make_engine()
+    _eng, tmp = _make_engine()
     try:
         _stdin_closed(monkeypatch)
         _run_cli(["recall"])
@@ -67,7 +66,7 @@ def test_cmd_recall_eof_aborts(monkeypatch, capsys):
 
 def test_cmd_diary_with_args_no_input(monkeypatch, capsys):
     """When all args are provided, no input() is called — no EOFError risk."""
-    eng, tmp = _make_engine()
+    _eng, tmp = _make_engine()
     try:
         # Provide all required args as positionals so input() is never reached
         _run_cli(["diary", "s1", "--title", "T", "--summary", "S", "--content", "C"])

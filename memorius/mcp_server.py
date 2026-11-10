@@ -10,16 +10,22 @@ import os
 import sys
 import threading
 import time
-from typing import cast
+from typing import ClassVar, cast
 
 from memorius import __version__ as _memorius_version
 from memorius.validation import (
-    validate_name as _validate_name,
-    validate_session_id as _validate_session_id,
-    validate_memory_id as _validate_memory_id,
     MAX_CONTENT_LENGTH,
     MAX_FIELD_LENGTH,
     MAX_SEARCH_LIMIT,
+)
+from memorius.validation import (
+    validate_memory_id as _validate_memory_id,
+)
+from memorius.validation import (
+    validate_name as _validate_name,
+)
+from memorius.validation import (
+    validate_session_id as _validate_session_id,
 )
 
 logger = logging.getLogger("memorius.mcp")
@@ -79,7 +85,7 @@ class McpServer:
 
     # ── Tool definitions ──
 
-    TOOLS = [
+    TOOLS: ClassVar[list[dict]] = [
         {
             "name": "memorius_status",
             "description": "Get memory vault status: vault count, memory count, recent diaries, embedding provider info. Call at session start.",
@@ -449,8 +455,8 @@ class McpServer:
     def run(self):
         """Run the MCP server over stdio (JSON-RPC)."""
         # Configure JSON logging for memorius
-        import logging
         import json
+        import logging
 
         class JSONFormatter(logging.Formatter):
             def format(self, record):
@@ -509,9 +515,9 @@ class McpServer:
                 if consecutive_errors >= max_consecutive_errors:
                     logger.error("Too many consecutive parse errors, shutting down")
                     break
-            except Exception as e:
+            except Exception:
                 consecutive_errors += 1
-                memorius_logger.exception(f"MCP unexpected error (%d/%d)", consecutive_errors, max_consecutive_errors)
+                memorius_logger.exception("MCP unexpected error (%d/%d)", consecutive_errors, max_consecutive_errors)
                 if consecutive_errors >= max_consecutive_errors:
                     memorius_logger.error("Too many consecutive errors, shutting down")
                     break
@@ -543,7 +549,7 @@ class McpServer:
         return self._make_response(msg_id, {"tools": self.TOOLS})
 
     # Destructive MCP tools that require authorization when MEMORIUS_MCP_TOKEN is set.
-    _MCP_DESTRUCTIVE_TOOLS = {
+    _MCP_DESTRUCTIVE_TOOLS: ClassVar[set[str]] = {
         "memorius_delete",
         "memorius_prune",
         "memorius_consolidate",

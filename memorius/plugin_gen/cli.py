@@ -79,7 +79,6 @@ import yaml
 
 from memorius import __version__ as _MEMORIUS_VERSION
 
-
 DEFAULT_MANIFEST = """\
 # Memorius Universal Plugin Manifest
 # One source of truth for all agent integrations.

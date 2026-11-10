@@ -1,19 +1,19 @@
 """Tests for heat-score functionality (v0.8.0)."""
 
 import datetime
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
 from typing import cast
 
 import pytest
 
+from memorius.meta_store import SQLiteStore
 from memorius.temporal import (
+    calculate_combined_score_with_tier,
     calculate_heat_score,
     classify_tier,
-    calculate_combined_score_with_tier,
 )
-from memorius.meta_store import SQLiteStore
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ def store():
 
 def test_calculate_heat_score():
     """Heat score should return value between 0.0 and 1.0."""
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     created = (now - datetime.timedelta(days=7)).isoformat()
     accessed = (now - datetime.timedelta(hours=12)).isoformat()
     score = calculate_heat_score(created, accessed, access_count=5)
@@ -35,7 +35,7 @@ def test_calculate_heat_score():
 
 def test_calculate_heat_score_higher_when_recent():
     """More recently accessed memory should have higher heat score."""
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     created = (now - datetime.timedelta(days=7)).isoformat()
     recent = (now - datetime.timedelta(hours=1)).isoformat()
     old = (now - datetime.timedelta(days=3)).isoformat()
@@ -63,7 +63,7 @@ def test_calculate_combined_score_with_tier():
 
 def test_meta_store_has_heat_score(store):
     """SQLiteStore should support heat_score in memory_meta."""
-    mid = store.track_memory(
+    store.track_memory(
         "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
         vault="test", shelf="test", folder="test", note="test",
         content="test heat score",
@@ -94,9 +94,10 @@ def test_update_heat_score(store):
 
 def test_search_updates_heat_score(store):
     """search should update heat scores for returned memories."""
-    from memorius.search_module import SearchModule
-    from memorius.models import Memory
     import uuid
+
+    from memorius.models import Memory
+    from memorius.search_module import SearchModule
     
     # Create a fake vector store that returns a known memory
     class FakeVectorStore:
@@ -140,8 +141,9 @@ def test_search_updates_heat_score(store):
 def test_tier_boosted_search(store):
     """Hot memories should rank higher than cold memories with same base score."""
     import uuid
-    from memorius.search_module import SearchModule
+
     from memorius.models import Memory
+    from memorius.search_module import SearchModule
 
     mid1 = str(uuid.uuid4())
     mid2 = str(uuid.uuid4())

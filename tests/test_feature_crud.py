@@ -6,7 +6,6 @@ Phase 2.1 completes the basic CRUD surface:
 - delete(id)       → hard-deletes from both stores (already existed)
 """
 
-import json
 import os
 import shutil
 import tempfile

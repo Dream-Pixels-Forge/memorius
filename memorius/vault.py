@@ -13,16 +13,17 @@ from __future__ import annotations
 import json
 import logging
 import math
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
-from memorius.embeddings import EmbeddingFactory, EmbeddingProvider
 from memorius.config import load_config
+from memorius.embeddings import EmbeddingFactory, EmbeddingProvider
+from memorius.meta_store import SQLiteStore
+from memorius.models import Memory
 from memorius.validation import validate_memory_id
-from memorius.models import Memory  # noqa: F401
 from memorius.vector_store import ChromaStore
 from memorius.vector_store_base import VectorStore
-from memorius.meta_store import SQLiteStore
 
 logger = logging.getLogger("memorius")
 
@@ -558,7 +559,8 @@ class VaultEngine:
     def extract_memories(self, conversation: str, backend: str = "auto",
                          vault: str = "main", shelf: str = "extracted"):
         """Extract structured memories from a conversation using LLM."""
-        from memorius.llm_extract import extract_memories as _extract, format_for_storage
+        from memorius.llm_extract import extract_memories as _extract
+        from memorius.llm_extract import format_for_storage
         extracted = _extract(conversation, backend=backend)
         stored = []
         for item in format_for_storage(extracted):
@@ -618,6 +620,7 @@ class VaultEngine:
             The HTML content string.
         """
         from pathlib import Path
+
         from memorius.graph_visualizer import render_graph_html
 
         graph_data = self.get_graph_data(
@@ -849,7 +852,7 @@ class VaultEngine:
         Returns:
             The stored Memory object.
         """
-        from memorius.learning import validate_category, LEARNINGS_SHELF
+        from memorius.learning import LEARNINGS_SHELF, validate_category
 
         category = validate_category(category)
         folder = category
@@ -979,7 +982,7 @@ class VaultEngine:
         Returns:
             Updated Memory or None if not found.
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         mem = self.get_memory(learning_id)
         if mem is None:
@@ -990,7 +993,7 @@ class VaultEngine:
             learning_id,
             metadata={
                 "applied_count": current_count + 1,
-                "last_applied": datetime.now(timezone.utc).isoformat(),
+                "last_applied": datetime.now(UTC).isoformat(),
             },
         )
 
@@ -1003,7 +1006,6 @@ class VaultEngine:
         Returns:
             Dict with learning statistics.
         """
-        from memorius.learning import LEARNINGS_SHELF
 
         result = self.list_learnings(vault=vault, limit=1000)
         summary = result["summary"]

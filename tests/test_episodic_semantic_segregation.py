@@ -26,7 +26,6 @@ from pathlib import Path
 
 import pytest
 
-
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
 
@@ -135,7 +134,6 @@ class TestStoreRouting:
     def test_get_store_module_for_memory_returns_correct_module(self, engine):
         """The routing logic returns the right StoreModule instance
         for each path tuple."""
-        from memorius.store_module import StoreModule
 
         episodic_module = engine._get_store_module_for_memory(
             "conversations", "mined", "transcript",
@@ -190,7 +188,7 @@ class TestSearchMerge:
         """If the episodic search raises, the semantic results are
         still returned (no exception propagates)."""
         from unittest.mock import patch
-        import memorius.vault as vault_mod
+
 
         engine.store("semantic only memory", vault="main")
 

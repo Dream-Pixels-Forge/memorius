@@ -5,7 +5,6 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -26,6 +25,7 @@ def engine():
 @pytest.fixture
 def client(engine):
     from fastapi.testclient import TestClient
+
     from memorius.rest_server import MemoriusAPI
 
     api = MemoriusAPI(engine)

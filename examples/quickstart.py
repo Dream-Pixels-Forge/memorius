@@ -2,6 +2,7 @@
 
 import tempfile
 from pathlib import Path
+
 from memorius.config import load_config
 from memorius.vault import VaultEngine
 
@@ -49,7 +50,7 @@ def main():
 
         # 5. Show vault status
         status = engine.status()
-        print(f"\nVault status:")
+        print("\nVault status:")
         print(f"  Vaults:              {status['vaults']}")
         print(f"  Memories:            {status['memories']}")
         print(f"  Embedding provider:  {status['embedding_provider']}")

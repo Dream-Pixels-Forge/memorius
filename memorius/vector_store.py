@@ -9,7 +9,7 @@ import hashlib
 import logging
 import re
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -30,9 +30,7 @@ def _is_new_scheme(name: str) -> bool:
     i = 0
     while i < len(rest) and rest[i].isdigit():
         i += 1
-    if i == 0 or i >= len(rest) or rest[i] != "_":
-        return False
-    return True
+    return not (i == 0 or i >= len(rest) or rest[i] != "_")
 
 
 # ── Retry helpers ────────────────────────────────────────────────────────────
@@ -125,7 +123,7 @@ class ChromaStore(VectorStore):
     def add(self, memory):
         """Add or update a memory in vector storage."""
         collection: Any = self._collection(memory.vault, memory.shelf)
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         if not memory.created_at:
             memory.created_at = now
         memory.updated_at = now
@@ -185,7 +183,7 @@ class ChromaStore(VectorStore):
             col_q = col
             try:
                 where = filter_metadata or None
-                res = _retry(lambda: col_q.query(
+                res = _retry(lambda col_q=col_q, where=where: col_q.query(
                     query_embeddings=[query_vector],
                     n_results=n_results,
                     where=where,

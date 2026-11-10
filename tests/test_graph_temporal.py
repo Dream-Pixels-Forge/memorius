@@ -1,14 +1,15 @@
 """Tests for temporal graph edge functionality (v0.8.0)."""
 import datetime
 import sqlite3
+
 from memorius.graph import (
+    expand_graph,
     get_active_edge_count,
     get_edges_at_time,
+    get_linked,
     init_graph_schema,
     invalidate_edge,
     link_memories,
-    expand_graph,
-    get_linked,
 )
 
 

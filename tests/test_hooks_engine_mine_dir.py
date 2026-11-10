@@ -221,7 +221,6 @@ class TestWebhookSsrf:
 
 # ── _sanitize_template_value injection tests (issue #61, H-10) ──────────────
 
-import re
 from memorius.hooks.engine import _sanitize_template_value
 
 

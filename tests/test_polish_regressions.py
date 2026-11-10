@@ -5,11 +5,8 @@ together so future cleanup passes can run them as a single suite.
 """
 
 import json
-import os
-import re
 import shutil
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 from typing import cast
@@ -30,8 +27,8 @@ def test_mcp_server_version_reflects_package():
 
 def test_rest_server_version_reflects_package():
     """rest_server.py should import __version__ rather than hardcode "0.1.0"."""
-    from memorius import __version__
     import memorius.rest_server as rest
+    from memorius import __version__
     assert rest._memorius_version == __version__
 
 
@@ -232,10 +229,10 @@ def test_package_data_includes_license():
 # ────────────────────────────────────────────────────────────────────
 def test_plugin_gen_version_does_not_hardcode_0_1_0():
     import memorius.plugin_gen.cli as pg
+
     # When manifest doesn't specify a version, we fall back to the
     # running __version__ — not a literal string.
     from memorius import __version__
-    manifest = {"name": "x"}  # no version key
     # We can't easily call generate_*, so just assert the constant
     # is the real version.
     assert pg._MEMORIUS_VERSION == __version__
@@ -252,7 +249,7 @@ def test_cli_version_flags_print_running_version():
             pytest.skip(f"{script} not found in PATH")
         proc = subprocess.run(
             [script_path, "--version"],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, timeout=30, check=False,
         )
         combined = proc.stdout + proc.stderr
         assert __version__ in combined, (

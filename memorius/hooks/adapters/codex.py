@@ -1,5 +1,7 @@
 """Codex CLI adapter."""
 
+from typing import ClassVar
+
 from memorius.hooks.models import BaseAgentAdapter, HookEvent, HookEventType
 
 
@@ -7,7 +9,7 @@ class CodexAdapter(BaseAgentAdapter):
     """Parses Codex CLI's hook protocol."""
 
     agent_name = "codex"
-    event_type_map = {
+    event_type_map: ClassVar[dict[str, HookEventType]] = {
         "session-start": HookEventType.SESSION_START,
         "stop": HookEventType.SESSION_STOP,
         "precompact": HookEventType.PRE_COMPACT,

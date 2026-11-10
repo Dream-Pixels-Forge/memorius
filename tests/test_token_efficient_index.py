@@ -15,14 +15,10 @@ memorius/vector_store.py:
 
 from __future__ import annotations
 
-import os
-import shutil
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 
 # ── Config layer ──────────────────────────────────────────────────────────────
 
@@ -124,7 +120,7 @@ class TestChromaStoreHnswMetadata:
 
         with patch.object(store, "_lazy_client", return_value=mock_client):
             # Force a new collection (not in cache)
-            result = store._collection("main", "default")
+            store._collection("main", "default")
 
         # The metadata passed to create_collection should include the HNSW keys
         call_kwargs = mock_client.create_collection.call_args

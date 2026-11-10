@@ -10,10 +10,8 @@ Verifies that:
   graph-linked memories.
 """
 
-import builtins
 import os
 import shutil
-import sys
 import tempfile
 from pathlib import Path
 
@@ -71,7 +69,7 @@ def test_search_expand_graph_pulls_in_linked_memories(engine):
     a, b = _store_linked_pair(engine)
 
     # Sanity: confirm the graph edge was created on store.
-    from memorius.graph import init_graph_schema, get_linked
+    from memorius.graph import get_linked, init_graph_schema
     conn = engine._meta._conn()
     init_graph_schema(conn)
     linked_to_a = get_linked(conn, a.id)
@@ -151,7 +149,7 @@ def test_get_memories_by_ids_missing_ids_skipped(engine):
 def test_context_injector_expands_graph_by_default(engine):
     """ContextInjector.inject defaults expand_graph=True, so the injected
     block can include graph-linked memories beyond the bare vector hits."""
-    a, b = _store_linked_pair(engine)
+    _a, b = _store_linked_pair(engine)
     from memorius.context_inject import ContextInjector
 
     injector = ContextInjector(engine)
@@ -165,7 +163,7 @@ def test_context_injector_expands_graph_by_default(engine):
 
 
 def test_context_injector_can_disable_expansion(engine):
-    a, b = _store_linked_pair(engine)
+    _a, _b = _store_linked_pair(engine)
     from memorius.context_inject import ContextInjector
 
     injector = ContextInjector(engine)
@@ -192,8 +190,9 @@ def test_cmd_search_threads_expand_graph_to_engine(engine, monkeypatch, capsys):
         return []
 
     monkeypatch.setattr(type(engine), "search", fake_search)
-    from memorius.cli.main import cmd_search
     import argparse
+
+    from memorius.cli.main import cmd_search
 
     args = argparse.Namespace(
         query="kubernetes", vault=None, shelf=None, n=5,
@@ -213,8 +212,9 @@ def test_cmd_search_expand_graph_defaults_false_when_attr_absent(engine, monkeyp
         return []
 
     monkeypatch.setattr(type(engine), "search", fake_search)
-    from memorius.cli.main import cmd_search
     import argparse
+
+    from memorius.cli.main import cmd_search
 
     # No expand_graph on this Namespace on purpose.
     args = argparse.Namespace(

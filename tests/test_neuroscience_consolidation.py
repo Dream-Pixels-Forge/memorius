@@ -14,15 +14,13 @@ wired into the consolidation flow without errors.
 """
 
 import json
-import math
 import os
 import shutil
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -149,7 +147,7 @@ class TestNeuromodulatorGating:
     def test_recent_access_boosts_heat(self):
         from memorius.consolidation import _apply_neuromodulator_gating
 
-        recent = datetime.now(timezone.utc).isoformat()
+        recent = datetime.now(UTC).isoformat()
         new_heat = _apply_neuromodulator_gating(
             _mem(heat=0.5, access=5, last_accessed=recent), recent_novelty=0.5
         )
@@ -159,7 +157,7 @@ class TestNeuromodulatorGating:
     def test_stale_access_reduces_heat(self):
         from memorius.consolidation import _apply_neuromodulator_gating
 
-        stale = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+        stale = (datetime.now(UTC) - timedelta(days=3)).isoformat()
         new_heat = _apply_neuromodulator_gating(
             _mem(heat=0.5, access=5, last_accessed=stale), recent_novelty=0.5
         )
@@ -173,7 +171,7 @@ class TestNeuromodulatorGating:
             _mem(heat=0.1, access=0), recent_novelty=0.0
         )
         high = _apply_neuromodulator_gating(
-            _mem(heat=1.0, access=0, last_accessed=datetime.now(timezone.utc).isoformat()),
+            _mem(heat=1.0, access=0, last_accessed=datetime.now(UTC).isoformat()),
             recent_novelty=1.0,
         )
         assert 0.1 <= low <= 1.0

@@ -107,7 +107,7 @@ class TestExportImportJSON:
         """merge=True skips memories already present."""
         from memorius.backup import export_json, import_json
 
-        m = engine.store("existing mem")
+        engine.store("existing mem")
         export_path = Path(tempfile.mkdtemp()) / "skip.json"
         export_json(engine, export_path)
 
@@ -120,7 +120,7 @@ class TestExportImportJSON:
         """merge=False overwrites existing memories."""
         from memorius.backup import export_json, import_json
 
-        m = engine.store("original content")
+        engine.store("original content")
         export_path = Path(tempfile.mkdtemp()) / "replace.json"
         export_json(engine, export_path)
 
@@ -142,7 +142,7 @@ class TestExportImportJSON:
     def test_graph_edges_round_trip(self, engine):
         """Graph edges survive export → import."""
         from memorius.backup import export_json, import_json
-        from memorius.graph import link_memories, init_graph_schema
+        from memorius.graph import init_graph_schema, link_memories
 
         m1 = engine.store("node one")
         m2 = engine.store("node two")

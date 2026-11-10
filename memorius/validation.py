@@ -114,7 +114,7 @@ MAX_DIARY_CONTENT = 50_000
 def validate_content(content: str) -> str:
     """Validate content field. Raises ValueError if invalid."""
     if not isinstance(content, str):
-        raise ValueError("Content must be a string")
+        raise TypeError("Content must be a string")
     if not content.strip():
         raise ValueError("Content cannot be empty")
     if len(content) > MAX_CONTENT_LENGTH:

@@ -1,11 +1,8 @@
 """Tests for Knowledge Graph Visualizer (graph_visualizer.py, graph.py, and endpoints)."""
 
-import json
-import tempfile
 from pathlib import Path
 
-from memorius.config import load_config
-from memorius.graph import get_graph_data, link_memories, init_graph_schema
+from memorius.graph import link_memories
 from memorius.graph_visualizer import render_graph_html
 from memorius.mcp_server import McpServer
 from memorius.vault import VaultEngine
@@ -160,8 +157,9 @@ class TestGraphXssEscaping:
 
     def test_script_breakout_escaped_in_json_payload(self):
         """</script> in graph node data must be escaped as <\\/script>."""
-        from memorius.graph_visualizer import render_graph_html
         import re
+
+        from memorius.graph_visualizer import render_graph_html
 
         html = render_graph_html(
             {
@@ -181,8 +179,9 @@ class TestGraphXssEscaping:
 
     def test_script_breakout_in_edge_data(self):
         """</script> in edge data must also be escaped."""
-        from memorius.graph_visualizer import render_graph_html
         import re
+
+        from memorius.graph_visualizer import render_graph_html
 
         html = render_graph_html(
             {

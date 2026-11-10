@@ -1,6 +1,6 @@
 """Tests for Phase 5.2 — Cross-encoder rerank."""
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
@@ -69,11 +69,12 @@ class TestSearchRerankFlag:
 class TestCLIRerankFlag:
     def test_rerank_flag_accepted(self):
         """search --help shows --rerank."""
-        import subprocess, sys
+        import subprocess
+        import sys
         result = subprocess.run(
             [sys.executable, "-c",
              "import sys; sys.argv=['memorius', 'search', '--help']; from memorius.cli.main import main; main()"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, check=False,
         )
         assert "--rerank" in result.stdout
 
@@ -91,6 +92,7 @@ class TestRESTRerankFlag:
     def test_search_endpoint_accepts_rerank(self, engine):
         """REST /search accepts rerank field."""
         from fastapi.testclient import TestClient
+
         from memorius.rest_server import MemoriusAPI
         os.environ["MEMORIUS_API_KEY"] = "test-key"
         try:

@@ -14,7 +14,7 @@ import threading
 import time
 import uuid
 from collections.abc import Generator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -501,7 +501,7 @@ class SQLiteStore:
     # ── Hierarchy operations ──
 
     def ensure_vault(self, name: str, description: str = "") -> dict[str, Any]:
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         conn = self._conn()
         with self._lock:
             conn.execute(
@@ -514,7 +514,7 @@ class SQLiteStore:
 
     def ensure_shelf(self, vault: str, name: str, description: str = "") -> dict[str, Any]:
         self.ensure_vault(vault)
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         conn = self._conn()
         with self._lock:
             conn.execute(
@@ -529,7 +529,7 @@ class SQLiteStore:
 
     def ensure_folder(self, vault: str, shelf: str, name: str, description: str = "") -> dict[str, Any]:
         self.ensure_shelf(vault, shelf)
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         conn = self._conn()
         with self._lock:
             conn.execute(
@@ -545,7 +545,7 @@ class SQLiteStore:
 
     def ensure_note(self, vault: str, shelf: str, folder: str, name: str, description: str = "") -> dict[str, Any]:
         self.ensure_folder(vault, shelf, folder)
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         conn = self._conn()
         with self._lock:
             conn.execute(
@@ -592,7 +592,7 @@ class SQLiteStore:
         with self._lock:
             conn.execute(
                 "UPDATE notes SET memory_count = memory_count + 1, updated_at = ? WHERE vault = ? AND shelf = ? AND folder = ? AND name = ?",
-                (datetime.now(timezone.utc).isoformat(), vault, shelf, folder, note),
+                (datetime.now(UTC).isoformat(), vault, shelf, folder, note),
             )
             conn.commit()
 
@@ -619,7 +619,7 @@ class SQLiteStore:
                     summary: str = "", content: str = "",
                     exchange_count: int = 0) -> dict[str, Any]:
         """Create or update a diary entry."""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         entry_id = str(uuid.uuid4())
         conn = self._conn()
         with self._lock:
@@ -659,7 +659,7 @@ class SQLiteStore:
                      note: str, content: str, metadata: dict[str, Any] | None = None,
                      created_at: str | None = None) -> None:
         """Track a memory in the meta table for temporal/graph features."""
-        now = created_at or datetime.now(timezone.utc).isoformat()
+        now = created_at or datetime.now(UTC).isoformat()
         conn = self._conn()
         with self._lock:
             conn.execute(
@@ -672,7 +672,7 @@ class SQLiteStore:
 
     def record_access(self, memory_id: str) -> None:
         """Record that a memory was accessed (for temporal decay scoring)."""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         conn = self._conn()
         with self._lock:
             conn.execute(
@@ -689,7 +689,7 @@ class SQLiteStore:
         Metadata is shallow-merged: existing keys are kept unless overwritten
         by the new dict.  ``updated_at`` is always refreshed.
         """
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         conn = self._conn()
         with self._lock:
             row = conn.execute(
@@ -841,7 +841,7 @@ class SQLiteStore:
 
     def archive_memory(self, memory_id: str) -> None:
         """Soft-delete a memory (mark as archived)."""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         conn = self._conn()
         with self._lock:
             conn.execute(
@@ -860,7 +860,7 @@ class SQLiteStore:
         meta = self.get_memory_meta(memory_id)
         if not meta:
             return None
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         with self._lock:
             # Remove graph edges referencing this memory (both directions).
             try:
@@ -934,7 +934,7 @@ class SQLiteStore:
     def import_hierarchy(self, vaults: list[dict[str, Any]], shelves: list[dict[str, Any]],
                          folders: list[dict[str, Any]], notes: list[dict[str, Any]]) -> None:
         """Import hierarchy tables from a backup."""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         for v in vaults:
             self.execute(
                 "INSERT OR IGNORE INTO vaults (name, description, created_at, updated_at) VALUES (?, ?, ?, ?)",
@@ -961,7 +961,7 @@ class SQLiteStore:
     def import_memory_meta(self, memory_data: dict[str, Any], *, merge: bool = True) -> bool:
         """Import a single memory metadata row. Returns True if imported."""
         mid = memory_data["id"]
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         existing = self.fetchone("SELECT id FROM memory_meta WHERE id = ?", (mid,))
         if existing:
             if not merge:
@@ -992,7 +992,7 @@ class SQLiteStore:
     def import_diary(self, diary_data: dict[str, Any], *, merge: bool = True) -> bool:
         """Import a single diary entry. Returns True if imported."""
         did = diary_data["id"]
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         existing = self.fetchone("SELECT id FROM diaries WHERE id = ?", (did,))
         if existing:
             if not merge:
@@ -1019,7 +1019,7 @@ class SQLiteStore:
     def import_graph_edges(self, edges: list[dict[str, Any]]) -> int:
         """Import graph edges from a backup. Returns count imported."""
         self.init_graph()
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         count = 0
         for e in edges:
             try:

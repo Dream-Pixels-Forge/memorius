@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -94,7 +94,7 @@ def export_json(engine, dest: str | Path) -> Path:
 
     payload = {
         "schema_version": SCHEMA_VERSION,
-        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "exported_at": datetime.now(UTC).isoformat(),
         "vaults": hierarchy["vaults"],
         "shelves": hierarchy["shelves"],
         "folders": hierarchy["folders"],

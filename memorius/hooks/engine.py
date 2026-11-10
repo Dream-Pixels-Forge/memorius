@@ -39,18 +39,19 @@ import socket
 import subprocess
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
+
+from memorius.config import load_config
+from memorius.vault import VaultEngine
 
 from . import (
     HookEvent,
     HookResult,
 )
-from memorius.vault import VaultEngine
-from memorius.config import load_config
 
 logger = logging.getLogger("memorius.hooks.engine")
 
@@ -154,7 +155,7 @@ class HookConfig:
     raw: dict = field(default_factory=dict)
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "HookConfig":
+    def from_yaml(cls, path: str | Path) -> HookConfig:
         """Load configuration from a YAML file."""
         path = Path(path).expanduser()
         if not path.exists():
@@ -167,13 +168,13 @@ class HookConfig:
         return cls.from_dict(raw)
 
     @classmethod
-    def default(cls) -> "HookConfig":
+    def default(cls) -> HookConfig:
         """Return the default configuration."""
         raw = yaml.safe_load(DEFAULT_CONFIG_YAML)
         return cls.from_dict(raw)
 
     @classmethod
-    def from_dict(cls, raw: dict) -> "HookConfig":
+    def from_dict(cls, raw: dict) -> HookConfig:
         """Build from a parsed dict (for in-memory construction)."""
         save_interval = int(raw.get("save_interval", DEFAULT_SAVE_INTERVAL))
         state_dir = raw.get("state_dir", "~/.memorius/hook_state")
@@ -300,7 +301,7 @@ class HookEngine:
     shelling out to an external CLI.
     """
 
-    def __init__(self, config: Optional[HookConfig] = None):
+    def __init__(self, config: HookConfig | None = None):
         self.config = config or HookConfig.default()
         self.state_manager = HookStateManager(self.config.state_dir)
         self.webhook_state_manager = WebhookStateManager(self.config.state_dir)
@@ -385,7 +386,7 @@ class HookEngine:
             "agent_name": _sanitize_template_value(event.agent_name),
             "event_type": event.event_type.value,
             "save_interval": str(self.config.save_interval),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
         if event.transcript_path:
@@ -529,7 +530,7 @@ class HookEngine:
 
         try:
             result = subprocess.run(
-                cmd_parts, shell=False, capture_output=True, text=True, timeout=60
+                cmd_parts, shell=False, capture_output=True, text=True, timeout=60, check=False
             )
             return {
                 "action": action.name,
@@ -543,9 +544,9 @@ class HookEngine:
             return {"action": action.name, "status": "error", "error": str(e)}
 
     def _action_webhook(self, action: HookAction, event: HookEvent, context: dict) -> dict:
-        import ipaddress
         import hashlib
         import hmac
+        import ipaddress
         from urllib.parse import urlparse
 
         url_template = action.config.get("url", "")

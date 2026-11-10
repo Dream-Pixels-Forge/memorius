@@ -120,6 +120,7 @@ class TestRESTPagination:
 
     def test_list_memories_endpoint(self, engine):
         from fastapi.testclient import TestClient
+
         from memorius.rest_server import MemoriusAPI
 
         for i in range(5):

@@ -1,5 +1,7 @@
 """Pi adapter."""
 
+from typing import ClassVar
+
 from memorius.hooks.models import BaseAgentAdapter, HookEvent, HookEventType
 
 
@@ -12,7 +14,7 @@ class PiAdapter(BaseAgentAdapter):
     """
 
     agent_name = "pi"
-    event_type_map = {
+    event_type_map: ClassVar[dict[str, HookEventType]] = {
         "session_start": HookEventType.SESSION_START,
         "session_shutdown": HookEventType.SESSION_STOP,
         "stop": HookEventType.SESSION_STOP,
