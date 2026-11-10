@@ -80,6 +80,8 @@ Once the page is open:
 
 - **Walk:** WASD or arrow keys at eye height, **Shift** to hurry. You can't pass through shelves.
 - **Look:** click the room to grab mouse-look (a crosshair appears; **Esc** releases), or click-drag.
+- **The librarian** is the Memorius hippo. He meets you at the entrance and is waiting
+  beside every book you ask for, holding his glowing book toward it.
 - **Ask the librarian:** press **/** and type (or hold the mic). The librarian's lantern takes off;
   the camera follows it in one crane move up over the stacks and down into the right aisle.
   Matching books slide out of the shelf, the top hit furthest, and the librarian says where

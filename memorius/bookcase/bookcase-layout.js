@@ -23,7 +23,7 @@ export const AISLE = 2.2; // walking corridor between case rows
 export const CASES_PER_ROW = 6;
 export const SHELF_USABLE = CASE_W - 0.08;
 export const MIN_SECTIONS = 3;
-export const SPAWN_BACK = 3.2; // spawn distance in front of the first row
+export const SPAWN_BACK = 4.4; // spawn distance in front of the first row
 
 export function caseHeight() {
   return SHELF_Y0 + (SHELVES_PER_CASE - 1) * SHELF_SPACING + 0.14;

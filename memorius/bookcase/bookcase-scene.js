@@ -77,6 +77,7 @@ export class BookcaseScene {
     this._spawn = { x: 0, y: EYE_Y, z: 3.2 };
     this._built = false;
     this.onFrame = null;
+    this.frameBias = new THREE.Vector3(); // shifts arrival framing (two-shot with the librarian)
 
     this.raycaster = new THREE.Raycaster();
     this._ndc = new THREE.Vector2();
@@ -378,14 +379,14 @@ export class BookcaseScene {
 
   /* ── camera moves ──────────────────────────────────────────── */
   _standFor(mesh) {
-    return new THREE.Vector3(mesh.position.x, EYE_Y, mesh.userData.homeZ + 1.3);
+    return new THREE.Vector3(mesh.position.x + this.frameBias.x, EYE_Y, mesh.userData.homeZ + 1.7);
   }
 
   flyTo(id) {
     const mesh = this.byBook.get(id);
     if (!mesh) return;
     const c = this._center();
-    this.guide.lanternRun(mesh.position.clone(), this._standFor(mesh), {
+    this.guide.lanternRun(mesh.position.clone().add(this.frameBias), this._standFor(mesh), {
       overview: { x: c.x, z: c.z }, caseH: caseHeight(),
     });
   }

@@ -7,6 +7,7 @@
 import { BookcaseScene } from "./bookcase-scene.js";
 import { Librarian } from "./bookcase-librarian.js";
 import { Minimap } from "./bookcase-minimap.js";
+import { Mascot } from "./bookcase-mascot.js";
 
 const $ = (id) => document.getElementById(id);
 const API =
@@ -33,7 +34,13 @@ const minimap = new Minimap($("bc-map"), {
   hits: () => scene.hits(),
   lantern: () => scene.guide.lantern.position,
 });
-scene.onFrame = (t) => minimap.draw(t);
+// the hippo librarian: waits at the entrance, meets you at the found book
+const mascot = new Mascot(scene.scene, { reducedMotion: scene.reducedMotion });
+const mascotFrame = mascot.attach(scene);
+scene.onFrame = (t) => {
+  minimap.draw(t);
+  mascotFrame(t);
+};
 
 async function api(path, opts = {}) {
   const res = await fetch(`${API}${path}`, {
@@ -58,7 +65,8 @@ function logGuidance(text) {
   line.className = "bc-line";
   line.textContent = text;
   log.appendChild(line);
-  while (log.children.length > 4) log.removeChild(log.firstChild);
+  while (log.children.length > 3) log.removeChild(log.firstChild);
+  mascot.hop(); // the librarian hops when he speaks
 }
 
 async function loadVaults() {

@@ -3,6 +3,21 @@
 ## Unreleased
 
 ### New Features
+- **Bookcase: the Memorius hippo is the librarian.** He waits by the
+  entrance, holding his glowing book toward you. Ask for something and the
+  lantern (the light from his book) leads the camera through the stacks; when
+  you land he is already standing beside the found book, the lantern settles
+  back into his book, and the arrival is framed as a two-shot (him and the
+  book). He hops whenever he speaks, signs the librarian's text log, and goes
+  back to the entrance on reset. He's an upright cut-out that turns to face
+  you (never tilting into the shelves), shipped as a 56 KB
+  `librarian-hippo.webp` in the package. He's purely decorative: no collider,
+  never blocks book picking, and still with `prefers-reduced-motion`. The
+  entrance spot moves back 1.2 m so he's framed full-length.
+
+## Unreleased
+
+### New Features
 - **Bookcase: the lantern librarian.** The librarian is now a visible
   lantern-light that floats at your shoulder. On a search it takes off and
   the camera follows it in one unbroken crane move: up out of the aisle,

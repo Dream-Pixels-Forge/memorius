@@ -39,7 +39,7 @@ REQUIRED_ASSETS = [
     "bookcase.html", "bookcase.css", "bookcase.js",
     "bookcase-scene.js", "bookcase-walk.js", "bookcase-layout.js",
     "bookcase-atmosphere.js", "bookcase-guide.js", "bookcase-textures.js",
-    "bookcase-minimap.js",
+    "bookcase-minimap.js", "bookcase-mascot.js", "librarian-hippo.webp",
 ]
 MAX_LINES_PER_FILE = 500
 
@@ -386,4 +386,20 @@ class TestBookcaseNextLevel:
         assert "onShortcut" in main, "no keyboard shortcuts"
         minimap = self._asset("bookcase-minimap.js")
         assert "bc:goto" in minimap, "minimap click does not walk the visitor"
+
+    def test_hippo_librarian_mascot(self):
+        import memorius.bookcase as bookcase_pkg
+
+        art = (Path(bookcase_pkg.__file__).parent / "librarian-hippo.webp").read_bytes()
+        assert art[:4] == b"RIFF" and art[8:12] == b"WEBP", "mascot art is not a WebP"
+        assert len(art) < 200_000, "mascot art should stay small (shipped in the wheel)"
+        mascot = self._asset("bookcase-mascot.js")
+        assert "librarian-hippo.webp" in mascot
+        for hook in ("bc:search", "bc:fly", "bc:reset-view", "bc:books"):
+            assert hook in mascot, f"mascot ignores {hook}"
+        assert "bookPoint" in mascot, "lantern cannot settle into his book"
+        assert "reducedMotion" in mascot
+        main = self._asset("bookcase.js")
+        assert "./bookcase-mascot.js" in main and "mascot.hop()" in main
+        assert "librarian-hippo.webp" in self._asset("bookcase.css"), "log not signed"
 

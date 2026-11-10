@@ -244,7 +244,9 @@ select:disabled { opacity: 0.4; }
   left: 14px;
   bottom: 14px;
   z-index: 10;
-  max-width: 520px;
+  max-width: 460px;
+  max-height: 30vh;
+  overflow: hidden;
   padding: 10px 14px;
   background: var(--bc-panel);
   backdrop-filter: blur(10px);
@@ -255,6 +257,12 @@ select:disabled { opacity: 0.4; }
   color: var(--bc-text-dim);
 }
 .bc-guidance:empty { display: none; }
+/* the hippo librarian signs every line he says */
+.bc-guidance {
+  min-height: 64px;
+  padding-left: 66px;
+  background: url("./librarian-hippo.webp") no-repeat 10px 50% / 46px auto, var(--bc-panel);
+}
 .bc-line { margin: 2px 0; }
 .bc-line::before { content: "▸ "; color: var(--bc-accent); }
 
