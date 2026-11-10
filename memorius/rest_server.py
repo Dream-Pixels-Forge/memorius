@@ -5,6 +5,7 @@ from __future__ import annotations
 import hmac
 import logging
 import os
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -96,10 +97,11 @@ class MemoriusAPI:
     def __init__(self, engine):
         self._engine = engine
         self._request_counts: dict[str, list[float]] = {}  # IP -> [timestamps]
+        self._ip_last_access: dict[str, float] = {}  # IP -> last access timestamp
         self._rate_limit_max = 500  # requests per minute
         self._rate_limit_window = 60  # seconds
         self._rate_limit_sweep_counter = 0  # periodic cleanup counter
-        self._rate_limit_max_ips = 10_000  # max unique IPs tracked before force sweep
+        self._rate_limit_max_ips = 1_000  # max unique IPs tracked (reduced from 10k)
 
     def create_app(self):
         """Build and return the FastAPI app with all routes registered."""
@@ -168,26 +170,68 @@ class MemoriusAPI:
         # Mutating methods that require auth even when no API key is configured.
         _MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
+        # ── Idempotency store (H-02) ──
+        # Set of (method, path, idempotency_key) tuples for recently processed
+        # mutating requests, with TTL-based eviction. Thread-safe via a lock.
+        # Used to detect duplicate requests and return 409 Conflict.
+        class _IdempotencyStore:
+            def __init__(self, ttl_seconds: int = 86400):
+                self._ttl = ttl_seconds
+                self._store: dict[str, float] = {}
+                self._lock = threading.Lock()
+                self._last_cleanup = time.monotonic()
+
+            def _key(self, method: str, path: str, idempotency_key: str) -> str:
+                return f"{method.upper()}:{path}:{idempotency_key}"
+
+            def contains(self, method: str, path: str, idempotency_key: str) -> bool:
+                with self._lock:
+                    self._maybe_cleanup()
+                    return self._key(method, path, idempotency_key) in self._store
+
+            def record(self, method: str, path: str, idempotency_key: str):
+                with self._lock:
+                    self._maybe_cleanup()
+                    self._store[self._key(method, path, idempotency_key)] = time.monotonic()
+
+            def _maybe_cleanup(self):
+                now = time.monotonic()
+                if now - self._last_cleanup < 60:
+                    return
+                self._last_cleanup = now
+                cutoff = now - self._ttl
+                expired = [k for k, v in self._store.items() if v < cutoff]
+                for k in expired:
+                    del self._store[k]
+
+        _idempotency_store = _IdempotencyStore()
+
         @app.middleware("http")
-        async def auth_middleware(request: Request, call_next):
-            if request.url.path == "/health":
+        async def idempotency_middleware(request: Request, call_next):
+            # Only apply to mutating requests with an Idempotency-Key header
+            if request.method not in _MUTATING_METHODS:
                 return await call_next(request)
-            # Read API key dynamically per request (env var may change).
-            request_api_key = os.environ.get("MEMORIUS_API_KEY")
-            if request_api_key:
-                auth_header = request.headers.get("Authorization", "")
-                token = auth_header[7:] if auth_header.startswith("Bearer ") else ""
-                # Use compare_digest to prevent timing-based key enumeration
-                if not hmac.compare_digest(token.encode(), request_api_key.encode()):
-                    return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key"})
-            elif request.method in _MUTATING_METHODS:
-                # No API key configured: read-only GET/HEAD/OPTIONS allowed,
-                # but mutating endpoints fail fast to prevent silent data mutation.
+            idempotency_key = request.headers.get("Idempotency-Key")
+            if not idempotency_key:
+                return await call_next(request)
+
+            # Check if this key was already used for this method+path
+            if _idempotency_store.contains(request.method, request.url.path, idempotency_key):
                 return JSONResponse(
-                    status_code=401,
-                    content={"detail": "API key required (set MEMORIUS_API_KEY)"},
+                    status_code=409,
+                    content={"detail": "Request already processed (idempotency key reused)"},
                 )
-            return await call_next(request)
+
+            # Execute the request
+            response = await call_next(request)
+
+            # Record successful responses (2xx) only
+            if 200 <= response.status_code < 300:
+                _idempotency_store.record(
+                    request.method, request.url.path, idempotency_key
+                )
+
+            return response
 
         @app.middleware("http")
         async def size_limit_middleware(request: Request, call_next):
@@ -218,8 +262,10 @@ class MemoriusAPI:
         # Rate limiting middleware
         import time as _time
         rate_store = self._request_counts
+        ip_last_access = self._ip_last_access
         rate_max = self._rate_limit_max
         rate_window = self._rate_limit_window
+        max_ips = self._rate_limit_max_ips
 
         @app.middleware("http")
         async def rate_limit_middleware(request: Request, call_next):
@@ -232,15 +278,22 @@ class MemoriusAPI:
             if client_ip in rate_store:
                 rate_store[client_ip] = [t for t in rate_store[client_ip] if now - t < rate_window]
             else:
+                # New IP — enforce max IP limit by evicting least recently used
+                if len(rate_store) >= max_ips:
+                    # Evict the IP with the oldest last access
+                    oldest_ip = min(ip_last_access, key=ip_last_access.get)
+                    del rate_store[oldest_ip]
+                    del ip_last_access[oldest_ip]
                 rate_store[client_ip] = []
+            ip_last_access[client_ip] = now
             if len(rate_store[client_ip]) >= rate_max:
                 return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded"})
             rate_store[client_ip].append(now)
-            # Periodic sweep: every 200 requests OR when IP count exceeds limit,
+            # Periodic sweep: every 100 requests OR when IP count exceeds limit,
             # evict fully-expired IP entries to prevent unbounded dict growth.
             self._rate_limit_sweep_counter += 1
-            force_sweep = len(rate_store) > self._rate_limit_max_ips
-            if self._rate_limit_sweep_counter >= 200 or force_sweep:
+            force_sweep = len(rate_store) > max_ips
+            if self._rate_limit_sweep_counter >= 100 or force_sweep:
                 self._rate_limit_sweep_counter = 0
                 expired_ips = [
                     ip for ip, ts in rate_store.items()
@@ -248,6 +301,7 @@ class MemoriusAPI:
                 ]
                 for ip in expired_ips:
                     del rate_store[ip]
+                    ip_last_access.pop(ip, None)
             return await call_next(request)
 
         # Register all routes
@@ -478,6 +532,11 @@ class MemoriusAPI:
             vault = _validate_name(payload.get("vault", "main"), "vault")
             shelf = _validate_name(payload.get("shelf", "extracted"), "shelf")
             backend = payload.get("backend", "auto")
+            if backend not in ("auto", "openai", "ollama", "regex"):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid backend '{backend}'. Must be one of: auto, openai, ollama, regex",
+                )
             memories = engine.extract_memories(conversation=text, backend=backend, vault=vault, shelf=shelf)
             return {
                 "extracted": len(memories),

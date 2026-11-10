@@ -98,7 +98,78 @@ class TestCORSActualRequest:
     def test_get_with_origin_header(self, client):
         response = client.get(
             "/status",
-            headers={"Origin": "http://localhost:3000"},
+            headers={"Origin": "http://localhost:8912"},
         )
         assert response.status_code == 200
         assert "access-control-allow-origin" in response.headers
+
+
+# ── Idempotency key tests (issue #65, H-02) ──────────────────────────────────
+
+class TestIdempotency:
+    """Idempotency-Key header prevents duplicate mutating requests."""
+
+    def test_idempotent_post_returns_409_on_reuse(self, client, engine):
+        """Second POST with same Idempotency-Key returns 409 Conflict."""
+        os.environ["MEMORIUS_API_KEY"] = "test-key"
+        try:
+            # First request
+            resp1 = client.post(
+                "/store",
+                json={"content": "idempotency test memory"},
+                headers={
+                    "Authorization": "Bearer test-key",
+                    "Idempotency-Key": "unique-key-123",
+                },
+            )
+            assert resp1.status_code == 200
+
+            # Second request with same key — should return 409
+            resp2 = client.post(
+                "/store",
+                json={"content": "different content that should be ignored"},
+                headers={
+                    "Authorization": "Bearer test-key",
+                    "Idempotency-Key": "unique-key-123",
+                },
+            )
+            assert resp2.status_code == 409
+            assert "idempotency" in resp2.json()["detail"].lower()
+
+            # Different key should create a new memory
+            resp3 = client.post(
+                "/store",
+                json={"content": "different key, different memory"},
+                headers={
+                    "Authorization": "Bearer test-key",
+                    "Idempotency-Key": "unique-key-456",
+                },
+            )
+            assert resp3.status_code == 200
+        finally:
+            os.environ.pop("MEMORIUS_API_KEY", None)
+
+    def test_idempotency_key_only_for_mutating(self, client, engine):
+        """GET requests ignore Idempotency-Key header (no deduplication)."""
+        os.environ["MEMORIUS_API_KEY"] = "test-key"
+        try:
+            resp1 = client.get(
+                "/status",
+                headers={
+                    "Authorization": "Bearer test-key",
+                    "Idempotency-Key": "some-key",
+                },
+            )
+            assert resp1.status_code == 200
+
+            resp2 = client.get(
+                "/status",
+                headers={
+                    "Authorization": "Bearer test-key",
+                    "Idempotency-Key": "some-key",
+                },
+            )
+            assert resp2.status_code == 200
+            # GET requests are not subject to idempotency — both succeed
+        finally:
+            os.environ.pop("MEMORIUS_API_KEY", None)

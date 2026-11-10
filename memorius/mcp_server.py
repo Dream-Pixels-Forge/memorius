@@ -8,6 +8,8 @@ import json
 import logging
 import os
 import sys
+import threading
+import time
 from typing import cast
 
 from memorius import __version__ as _memorius_version
@@ -21,6 +23,48 @@ from memorius.validation import (
 )
 
 logger = logging.getLogger("memorius.mcp")
+
+
+# ── Idempotency store for MCP destructive tools (H-02) ──
+class _McpIdempotencyStore:
+    def __init__(self, ttl_seconds: int = 86400):
+        self._ttl = ttl_seconds
+        self._store: dict[str, tuple[dict, float]] = {}
+        self._lock = threading.Lock()
+        self._last_cleanup = time.monotonic()
+
+    def get(self, tool_name: str, idempotency_key: str):
+        with self._lock:
+            self._maybe_cleanup()
+            return self._store.get(f"{tool_name}:{idempotency_key}")
+
+    def set(self, tool_name: str, idempotency_key: str, result: dict):
+        with self._lock:
+            self._maybe_cleanup()
+            self._store[f"{tool_name}:{idempotency_key}"] = (result, time.monotonic())
+
+    def _maybe_cleanup(self):
+        now = time.monotonic()
+        if now - self._last_cleanup < 60:
+            return
+        self._last_cleanup = now
+        cutoff = now - self._ttl
+        expired = [k for k, v in self._store.items() if v[1] < cutoff]
+        for k in expired:
+            del self._store[k]
+
+
+_MCP_IDEMPOTENCY_STORE = _McpIdempotencyStore()
+
+# Destructive MCP tools that support idempotency keys
+_MCP_IDEMPOTENT_TOOLS = {
+    "memorius_delete",
+    "memorius_update",
+    "memorius_consolidate",
+    "memorius_prune",
+    "memorius_repair",
+    "memorius_apply_learning",
+}
 
 
 class McpServer:
@@ -136,6 +180,7 @@ class McpServer:
                     "vault": {"type": "string", "description": "Filter by vault (default: all)"},
                     "similarity_threshold": {"type": "number", "description": "Similarity threshold 0-1 (default: 0.80)", "default": 0.80},
                     "dry_run": {"type": "boolean", "description": "Preview without changes (default: true)", "default": True},
+                    "idempotency_key": {"type": "string", "description": "Idempotency key — repeat calls with same key return cached result"},
                 },
             },
         },
@@ -246,6 +291,7 @@ class McpServer:
                     "memory_id": {"type": "string", "description": "Memory UUID"},
                     "content": {"type": "string", "description": "New content (omit to keep existing)"},
                     "metadata": {"type": "object", "description": "Metadata to shallow-merge (omit to keep existing)"},
+                    "idempotency_key": {"type": "string", "description": "Idempotency key — repeat calls with same key return cached result"},
                 },
                 "required": ["memory_id"],
             },
@@ -257,6 +303,7 @@ class McpServer:
                 "type": "object",
                 "properties": {
                     "memory_id": {"type": "string", "description": "Memory UUID to delete"},
+                    "idempotency_key": {"type": "string", "description": "Idempotency key — repeat calls with same key return cached result"},
                 },
                 "required": ["memory_id"],
             },
@@ -270,6 +317,7 @@ class McpServer:
                     "threshold": {"type": "number", "description": "Decay score threshold below which memories are stale (default: 0.1)", "default": 0.1},
                     "dry_run": {"type": "boolean", "description": "List candidates without touching them (default: true)", "default": True},
                     "archive": {"type": "boolean", "description": "Soft-archive (true) or hard-delete (false) stale memories (default: true)", "default": True},
+                    "idempotency_key": {"type": "string", "description": "Idempotency key — repeat calls with same key return cached result"},
                 },
             },
         },
@@ -287,6 +335,7 @@ class McpServer:
                     "vault": {"type": "string", "description": "Restrict the repair to a single vault (default: all vaults)"},
                     "reindex": {"type": "boolean", "description": "Re-embed content for metadata rows whose vector is missing (default: false)", "default": False},
                     "dry_run": {"type": "boolean", "description": "Preview changes without mutating the vector store (default: false)", "default": False},
+                    "idempotency_key": {"type": "string", "description": "Idempotency key — repeat calls with same key return cached result"},
                 },
             },
         },
@@ -366,6 +415,7 @@ class McpServer:
                 "type": "object",
                 "properties": {
                     "learning_id": {"type": "string", "description": "Memory UUID of the learning to mark as applied"},
+                    "idempotency_key": {"type": "string", "description": "Idempotency key — repeat calls with same key return cached result"},
                 },
                 "required": ["learning_id"],
             },
@@ -526,11 +576,28 @@ class McpServer:
         if auth_error:
             return self._make_error(msg_id, -32603, auth_error)
 
+        # Idempotency check (H-02): if this tool was already called with the
+        # same idempotency_key, return the cached result instead of
+        # re-executing (prevents duplicate mutations on retry).
+        idempotency_key = arguments.get("idempotency_key")
+        if tool_name in _MCP_IDEMPOTENT_TOOLS and idempotency_key:
+            cached = _MCP_IDEMPOTENCY_STORE.get(tool_name, idempotency_key)
+            if cached is not None:
+                return self._make_response(msg_id, {
+                    "content": [{"type": "text", "text": json.dumps(cached, indent=2)}],
+                    "idempotent": True,
+                })
+
         handler = self._get_tool_handler(tool_name)
         if handler is None:
             return self._make_error(msg_id, -32601, f"Unknown tool: {tool_name}")
 
         result = handler(arguments)
+
+        # Cache successful result for idempotency
+        if tool_name in _MCP_IDEMPOTENT_TOOLS and idempotency_key:
+            _MCP_IDEMPOTENCY_STORE.set(tool_name, idempotency_key, result)
+
         return self._make_response(msg_id, {
             "content": [{"type": "text", "text": json.dumps(result, indent=2)}],
         })
@@ -653,17 +720,23 @@ class McpServer:
             vault=args.get("vault"),
             similarity_threshold=args.get("similarity_threshold", 0.80),
             dry_run=args.get("dry_run", True),
+            snapshot_dir=args.get("snapshot_dir"),
         )
         return {
             "clusters_found": result.clusters_found,
             "memories_merged": result.memories_merged,
             "memories_archived": result.memories_archived,
+            "snapshot_path": result.snapshot_path,
+            "snapshot_memory_count": result.snapshot_memory_count,
             "details": result.details[:10],
         }
 
     def tool_memorius_extract(self, args: dict) -> dict:
+        conversation = args.get("conversation")
+        if not conversation or not isinstance(conversation, str):
+            return {"error": "conversation is required and must be a string"}
         memories = self._engine.extract_memories(
-            conversation=args["conversation"],
+            conversation=conversation,
             vault=args.get("vault", "main"),
             shelf=args.get("shelf", "extracted"),
         )
@@ -674,8 +747,11 @@ class McpServer:
         }
 
     def tool_memorius_factcheck(self, args: dict) -> dict:
+        statement = args.get("statement")
+        if not statement or not isinstance(statement, str):
+            return {"error": "statement is required and must be a string"}
         result = self._engine.check_fact(
-            statement=args["statement"],
+            statement=statement,
             vault=args.get("vault"),
         )
         return {
@@ -688,21 +764,27 @@ class McpServer:
         }
 
     def tool_memorius_context(self, args: dict) -> dict:
+        query = args.get("query")
+        if not query or not isinstance(query, str):
+            return {"error": "query is required and must be a string"}
         context = self._engine.get_context(
-            query=args["query"],
+            query=query,
             vault=args.get("vault"),
             max_items=args.get("max_items", 5),
         )
         return {
-            "query": args["query"],
+            "query": query,
             "context": context,
             "has_context": bool(context),
         }
 
     def tool_memorius_session_profile(self, args: dict) -> dict:
         from memorius.session import format_profile_for_context
+        session_id = args.get("session_id")
+        if not session_id or not isinstance(session_id, str):
+            return {"error": "session_id is required and must be a string"}
         profile = self._engine.get_session_profile(
-            session_id=args["session_id"],
+            session_id=session_id,
             vault=args.get("vault", "main"),
         )
         return {

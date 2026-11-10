@@ -645,13 +645,15 @@ class VaultEngine:
         return self._meta.get_memory_stats()
 
     def prune(self, threshold: float = 0.1, dry_run: bool = False,
-              archive: bool = True) -> dict[str, Any]:
+              archive: bool = True, confirm: bool = False) -> dict[str, Any]:
         """Find stale memories and optionally soft-archive them.
 
         Args:
             threshold: decay-score threshold below which memories are stale.
             dry_run: list candidates without touching them.
             archive: if True (default) soft-archives; if False hard-deletes.
+            confirm: required for hard-delete (archive=False) to acknowledge
+              data loss.
 
         Returns:
             dict with keys: stale (list of candidates), count,
@@ -670,6 +672,9 @@ class VaultEngine:
             "archived_count": 0,
         }
         if dry_run or not stale:
+            return result
+        if not archive and not confirm:
+            result["error"] = "hard-delete requires confirm=True"
             return result
         ids = [s["id"] for s in stale]
         if archive:

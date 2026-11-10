@@ -1,5 +1,5 @@
 /* bookcase-walk.js — first-person walk controls for the vault library.
- * WASD/arrow walking at eye height with mouse look (pointer-lock preferred,
+ * WASD/arrow walking at eye height (Shift to hurry) with mouse look (pointer-lock preferred,
  * drag-look fallback) and axis-separated AABB collision so the camera can
  * never pass through shelves or fall below the floor. Consumed by
  * bookcase-scene.js; colliders are case AABBs from bookcase-layout.js.
@@ -15,6 +15,8 @@ export class WalkControls {
     this.speed = opts.speed ?? 2.2; // m/s walking pace
     this.pad = opts.pad ?? 0.35; // body radius vs case AABBs
     this.colliders = opts.colliders ?? [];
+    this.bob = opts.bob ?? false; // subtle footstep head-bob
+    this._phase = 0;
     this.enabled = true;
     this.yaw = 0;
     this.pitch = 0;
@@ -118,22 +120,28 @@ export class WalkControls {
     if (this._keys.has("KeyS") || this._keys.has("ArrowDown")) f -= 1;
     if (this._keys.has("KeyA") || this._keys.has("ArrowLeft")) s -= 1;
     if (this._keys.has("KeyD") || this._keys.has("ArrowRight")) s += 1;
-    if (f === 0 && s === 0) return false;
+    const p = this.camera.position;
+    if (f === 0 && s === 0) {
+      p.y += (this.eyeY - p.y) * 0.2; // settle back to eye height
+      return false;
+    }
+    const run = this._keys.has("ShiftLeft") || this._keys.has("ShiftRight") ? 1.9 : 1;
 
     const len = Math.hypot(f, s);
     f /= len;
     s /= len;
     const sinY = Math.sin(this.yaw);
     const cosY = Math.cos(this.yaw);
-    const dx = (-sinY * f + cosY * s) * this.speed * dt;
-    const dz = (-cosY * f - sinY * s) * this.speed * dt;
+    const dx = (-sinY * f + cosY * s) * this.speed * run * dt;
+    const dz = (-cosY * f - sinY * s) * this.speed * run * dt;
 
-    const p = this.camera.position;
     const nx = p.x + dx;
     const nz = p.z + dz;
     if (!this.collides(nx, p.z)) p.x = nx; // slide along Z when blocked on X
     if (!this.collides(p.x, nz)) p.z = nz; // slide along X when blocked on Z
-    p.y = this.eyeY; // never below (or above) walking eye height
+    // never below (or above) walking eye height — bob stays within ±2 cm
+    this._phase += dt * 9 * run;
+    p.y = this.eyeY + (this.bob ? this.clamp(Math.sin(this._phase) * 0.018, -0.02, 0.02) : 0);
     return true;
   }
 
