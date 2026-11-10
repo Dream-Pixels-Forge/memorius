@@ -479,14 +479,13 @@
     });
   })();
 </script>
-<script src="assets/site.js"></script>
+<script src="assets/site.js"><<script src="assets/site.js"></script>
 
 <script type="module">
   /* ── Scroll-driven 3D hero: the Memorius librarian hippo ── */
   import * as THREE from "three";
   import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
-  import { MeshoptDecoder } from "meshopt_decoder";
 
   (function () {
     const canvas = document.getElementById("hero-canvas");
@@ -517,14 +516,27 @@
       pointLight.position.set(0, 1.2, 1.2);
       scene.add(pointLight);
 
-      // Setup DRACO loader and meshopt decoder
+      // Setup DRACO loader for GLB compression
       const dracoLoader = new DRACOLoader();
       dracoLoader.setDecoderPath("https://www.gstatic.com/draco/v1/decoders/");
       dracoLoader.setDecoderConfig({ type: "js" });
 
       const loader = new GLTFLoader();
       loader.setDRACOLoader(dracoLoader);
-      loader.setMeshoptDecoder(MeshoptDecoder);
+      
+      // Setup meshopt decoder for EXT_meshopt_compression
+      const setupMeshoptDecoder = () => {
+        const decoderScript = document.createElement('script');
+        decoderScript.src = 'https://cdn.jsdelivr.net/gh/KhronosGroup/meshutils@main/src/meshopt_reader.js';
+        decoderScript.onload = () => {
+          // Global meshopt decoder available
+          if (window.meshoptDecoder) {
+            loader.setMeshoptDecoder(window.meshoptDecoder);
+          }
+        };
+        document.head.appendChild(decoderScript);
+      };
+      setupMeshoptDecoder();
 
       loader.load("assets/librarian-hippo.glb", (gltf) => {
         const model = gltf.scene;
