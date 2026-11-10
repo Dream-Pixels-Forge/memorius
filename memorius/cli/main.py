@@ -65,6 +65,68 @@ def _ensure_utf8_streams():
 
 
 def main():
+    """CLI entry point: run the command; never end in a raw traceback (#59).
+
+    Unexpected errors print one clean line plus a remediation hint and exit
+    1; ``--debug`` re-raises so the full traceback stays available; Ctrl-C
+    exits 130 with "Aborted.".
+    """
+    debug = "--debug" in sys.argv[1:]
+    try:
+        _main()
+    except KeyboardInterrupt:
+        print("\nAborted.", file=sys.stderr)
+        raise SystemExit(130)
+    except Exception as exc:  # top-level CLI safety net (SystemExit passes through)
+        if debug:
+            raise
+        print(f"Error: {type(exc).__name__}: {exc}", file=sys.stderr)
+        hint = _remediation(exc)
+        if hint:
+            print(f"   {hint}", file=sys.stderr)
+        print("   Re-run with --debug for the full traceback.", file=sys.stderr)
+        raise SystemExit(1)
+
+
+def _remediation(exc: BaseException) -> str | None:
+    """A next step to suggest for an unexpected error (None = message says it all)."""
+    import sqlite3
+
+    text = str(exc).lower()
+    if isinstance(exc, sqlite3.OperationalError) and "locked" in text:
+        return ("The vault database is busy: stop other memorius processes "
+                "(e.g. a running `memorius serve`) and retry.")
+    if isinstance(exc, sqlite3.DatabaseError) or "drift" in text or "inconsisten" in text:
+        return ("The vault may be inconsistent: run `memorius doctor`, then "
+                "`memorius repair` if it reports drift.")
+    if isinstance(exc, PermissionError):
+        return ("Check permissions on the storage path (`memorius config` shows it) "
+                "or point MEMORIUS_STORAGE_PATH somewhere writable.")
+    if isinstance(exc, FileNotFoundError):
+        return "Run `memorius init` to create the config and storage directory."
+    if isinstance(exc, ImportError):
+        return "A dependency is missing or broken: reinstall with `pip install -U memorius`."
+    if isinstance(exc, ValueError):
+        return None  # validation errors already say what to fix
+    return "If this keeps happening, run `memorius doctor` to check the vault."
+
+
+def _prompt(label: str, usage: str, *, required: bool = True) -> str | None:
+    """input() that survives piped / closed stdin (#59).
+
+    On EOF a required prompt prints how to pass the value as an argument and
+    returns None (caller aborts); an optional prompt just returns "".
+    """
+    try:
+        return input(label).strip()
+    except EOFError:
+        if not required:
+            return ""
+        print(f"\nAborted. No input on stdin; pass it as an argument: {usage}")
+        return None
+
+
+def _main():
     _ensure_utf8_streams()
     parser = argparse.ArgumentParser(
         "memorius",
@@ -412,11 +474,7 @@ def main():
     }
     handler = commands.get(args.command)
     if handler:
-        try:
-            handler(engine, args, config)
-        except Exception as exc:  # noqa: BLE001 — top-level safety net for CLI
-            print(f"Error: {exc}", file=sys.stderr)
-            raise SystemExit(1)
+        handler(engine, args, config)  # errors reach main()'s handler (#59)
     else:
         print(f"Unknown command: {args.command}")
 
@@ -620,33 +678,15 @@ def cmd_mine(engine, args, config):
 
 def cmd_diary(engine, args, config):
     """Write a diary entry."""
-    if args.session_id:
-        session_id = args.session_id
-    else:
-        try:
-            session_id = input("Session ID: ").strip()
-        except EOFError:
-            print("Aborted.")
-            return
+    usage = "memorius diary <session_id> --title ... --summary ..."
+    session_id = args.session_id or _prompt("Session ID: ", usage)
+    if session_id is None:
+        return
     if not session_id:
         print("Error: session_id required")
         return
-    if args.title:
-        title = args.title
-    else:
-        try:
-            title = input("Title: ").strip()
-        except EOFError:
-            print("Aborted.")
-            return
-    if args.summary:
-        summary = args.summary
-    else:
-        try:
-            summary = input("Summary: ").strip()
-        except EOFError:
-            print("Aborted.")
-            return
+    title = args.title or _prompt("Title: ", usage, required=False)
+    summary = args.summary or _prompt("Summary: ", usage, required=False)
 
     entry = engine.write_diary(
         session_id=session_id,
@@ -1219,10 +1259,8 @@ def cmd_profile(engine, args, config):
     """Build session memory profile."""
     session_id = args.session_id
     if not session_id:
-        try:
-            session_id = input("Session ID: ").strip()
-        except EOFError:
-            print("Aborted.")
+        session_id = _prompt("Session ID: ", "memorius profile <session_id>")
+        if session_id is None:
             return
     if not session_id:
         print("Error: session_id required")
@@ -1621,10 +1659,8 @@ def cmd_recall(engine, args, config):
     """Recall past agent learnings."""
     query = args.query
     if not query:
-        try:
-            query = input("Search query: ").strip()
-        except EOFError:
-            print("Aborted.")
+        query = _prompt("Search query: ", "memorius recall <query>")
+        if query is None:
             return
     if not query:
         print("Error: no query provided.")
