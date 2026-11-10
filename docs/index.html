@@ -485,6 +485,7 @@
   import * as THREE from "three";
   import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
+  import { MeshoptDecoder } from "meshopt_decoder";
 
   (function () {
     const canvas = document.getElementById("hero-canvas");
@@ -515,13 +516,14 @@
       pointLight.position.set(0, 1.2, 1.2);
       scene.add(pointLight);
 
-      // Setup DRACO loader (most GLB models use this compression)
+      // Setup DRACO loader and meshopt decoder
       const dracoLoader = new DRACOLoader();
       dracoLoader.setDecoderPath("https://www.gstatic.com/draco/v1/decoders/");
       dracoLoader.setDecoderConfig({ type: "js" });
 
       const loader = new GLTFLoader();
       loader.setDRACOLoader(dracoLoader);
+      loader.setMeshoptDecoder(MeshoptDecoder);
 
       loader.load("assets/librarian-hippo.glb", (gltf) => {
         const model = gltf.scene;
