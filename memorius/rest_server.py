@@ -5,6 +5,7 @@ from __future__ import annotations
 import hmac
 import logging
 import os
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -169,26 +170,68 @@ class MemoriusAPI:
         # Mutating methods that require auth even when no API key is configured.
         _MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
+        # ── Idempotency store (H-02) ──
+        # Set of (method, path, idempotency_key) tuples for recently processed
+        # mutating requests, with TTL-based eviction. Thread-safe via a lock.
+        # Used to detect duplicate requests and return 409 Conflict.
+        class _IdempotencyStore:
+            def __init__(self, ttl_seconds: int = 86400):
+                self._ttl = ttl_seconds
+                self._store: dict[str, float] = {}
+                self._lock = threading.Lock()
+                self._last_cleanup = time.monotonic()
+
+            def _key(self, method: str, path: str, idempotency_key: str) -> str:
+                return f"{method.upper()}:{path}:{idempotency_key}"
+
+            def contains(self, method: str, path: str, idempotency_key: str) -> bool:
+                with self._lock:
+                    self._maybe_cleanup()
+                    return self._key(method, path, idempotency_key) in self._store
+
+            def record(self, method: str, path: str, idempotency_key: str):
+                with self._lock:
+                    self._maybe_cleanup()
+                    self._store[self._key(method, path, idempotency_key)] = time.monotonic()
+
+            def _maybe_cleanup(self):
+                now = time.monotonic()
+                if now - self._last_cleanup < 60:
+                    return
+                self._last_cleanup = now
+                cutoff = now - self._ttl
+                expired = [k for k, v in self._store.items() if v < cutoff]
+                for k in expired:
+                    del self._store[k]
+
+        _idempotency_store = _IdempotencyStore()
+
         @app.middleware("http")
-        async def auth_middleware(request: Request, call_next):
-            if request.url.path == "/health":
+        async def idempotency_middleware(request: Request, call_next):
+            # Only apply to mutating requests with an Idempotency-Key header
+            if request.method not in _MUTATING_METHODS:
                 return await call_next(request)
-            # Read API key dynamically per request (env var may change).
-            request_api_key = os.environ.get("MEMORIUS_API_KEY")
-            if request_api_key:
-                auth_header = request.headers.get("Authorization", "")
-                token = auth_header[7:] if auth_header.startswith("Bearer ") else ""
-                # Use compare_digest to prevent timing-based key enumeration
-                if not hmac.compare_digest(token.encode(), request_api_key.encode()):
-                    return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key"})
-            elif request.method in _MUTATING_METHODS:
-                # No API key configured: read-only GET/HEAD/OPTIONS allowed,
-                # but mutating endpoints fail fast to prevent silent data mutation.
+            idempotency_key = request.headers.get("Idempotency-Key")
+            if not idempotency_key:
+                return await call_next(request)
+
+            # Check if this key was already used for this method+path
+            if _idempotency_store.contains(request.method, request.url.path, idempotency_key):
                 return JSONResponse(
-                    status_code=401,
-                    content={"detail": "API key required (set MEMORIUS_API_KEY)"},
+                    status_code=409,
+                    content={"detail": "Request already processed (idempotency key reused)"},
                 )
-            return await call_next(request)
+
+            # Execute the request
+            response = await call_next(request)
+
+            # Record successful responses (2xx) only
+            if 200 <= response.status_code < 300:
+                _idempotency_store.record(
+                    request.method, request.url.path, idempotency_key
+                )
+
+            return response
 
         @app.middleware("http")
         async def size_limit_middleware(request: Request, call_next):
