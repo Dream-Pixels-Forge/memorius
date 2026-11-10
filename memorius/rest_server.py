@@ -5,6 +5,7 @@ from __future__ import annotations
 import hmac
 import logging
 import os
+import sys
 import threading
 import time
 from pathlib import Path
@@ -282,7 +283,7 @@ class MemoriusAPI:
                 # New IP — enforce max IP limit by evicting least recently used
                 if len(rate_store) >= max_ips:
                     # Evict the IP with the oldest last access
-                    oldest_ip = min(ip_last_access, key=ip_last_access.get)
+                    oldest_ip = min(ip_last_access, key=ip_last_access.__getitem__)
                     del rate_store[oldest_ip]
                     del ip_last_access[oldest_ip]
                 rate_store[client_ip] = []
