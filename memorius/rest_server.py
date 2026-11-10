@@ -878,7 +878,15 @@ def run_rest_server(engine, host: str = "127.0.0.1", port: int = 8912,
         sys.exit(1)
 
     api = MemoriusAPI(engine)
-    app = api.create_app()
+    try:
+        app = api.create_app()
+    except ImportError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        print(
+            "Install the REST dependencies: pip install memorius",
+            file=sys.stderr,
+        )
+        return
 
     api_key = os.environ.get("MEMORIUS_API_KEY")
     scheme = "https" if (tls_cert and tls_key) else "http"

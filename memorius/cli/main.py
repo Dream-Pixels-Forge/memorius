@@ -805,7 +805,15 @@ def cmd_bookcase(engine, args, config):
             print("Error: REST server requires uvicorn. Install: pip install memorius")
             sys.exit(1)
         from memorius.rest_server import MemoriusAPI
-        app = MemoriusAPI(engine).create_app()
+        try:
+            app = MemoriusAPI(engine).create_app()
+        except ImportError as exc:
+            print(f"Error: {exc}")
+            print(
+                "Install the REST dependencies: pip install 'memorius[rest]'"
+                " or start a REST server first (memorius serve-rest)."
+            )
+            sys.exit(1)
         uvicorn_server = uvicorn.Server(
             uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning")
         )
