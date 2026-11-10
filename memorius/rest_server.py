@@ -96,10 +96,11 @@ class MemoriusAPI:
     def __init__(self, engine):
         self._engine = engine
         self._request_counts: dict[str, list[float]] = {}  # IP -> [timestamps]
+        self._ip_last_access: dict[str, float] = {}  # IP -> last access timestamp
         self._rate_limit_max = 500  # requests per minute
         self._rate_limit_window = 60  # seconds
         self._rate_limit_sweep_counter = 0  # periodic cleanup counter
-        self._rate_limit_max_ips = 10_000  # max unique IPs tracked before force sweep
+        self._rate_limit_max_ips = 1_000  # max unique IPs tracked (reduced from 10k)
 
     def create_app(self):
         """Build and return the FastAPI app with all routes registered."""
@@ -218,8 +219,10 @@ class MemoriusAPI:
         # Rate limiting middleware
         import time as _time
         rate_store = self._request_counts
+        ip_last_access = self._ip_last_access
         rate_max = self._rate_limit_max
         rate_window = self._rate_limit_window
+        max_ips = self._rate_limit_max_ips
 
         @app.middleware("http")
         async def rate_limit_middleware(request: Request, call_next):
@@ -232,15 +235,22 @@ class MemoriusAPI:
             if client_ip in rate_store:
                 rate_store[client_ip] = [t for t in rate_store[client_ip] if now - t < rate_window]
             else:
+                # New IP — enforce max IP limit by evicting least recently used
+                if len(rate_store) >= max_ips:
+                    # Evict the IP with the oldest last access
+                    oldest_ip = min(ip_last_access, key=ip_last_access.get)
+                    del rate_store[oldest_ip]
+                    del ip_last_access[oldest_ip]
                 rate_store[client_ip] = []
+            ip_last_access[client_ip] = now
             if len(rate_store[client_ip]) >= rate_max:
                 return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded"})
             rate_store[client_ip].append(now)
-            # Periodic sweep: every 200 requests OR when IP count exceeds limit,
+            # Periodic sweep: every 100 requests OR when IP count exceeds limit,
             # evict fully-expired IP entries to prevent unbounded dict growth.
             self._rate_limit_sweep_counter += 1
-            force_sweep = len(rate_store) > self._rate_limit_max_ips
-            if self._rate_limit_sweep_counter >= 200 or force_sweep:
+            force_sweep = len(rate_store) > max_ips
+            if self._rate_limit_sweep_counter >= 100 or force_sweep:
                 self._rate_limit_sweep_counter = 0
                 expired_ips = [
                     ip for ip, ts in rate_store.items()
@@ -248,6 +258,7 @@ class MemoriusAPI:
                 ]
                 for ip in expired_ips:
                     del rate_store[ip]
+                    ip_last_access.pop(ip, None)
             return await call_next(request)
 
         # Register all routes
