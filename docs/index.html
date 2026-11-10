@@ -18,53 +18,40 @@
   "imports": {
     "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
     "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
-    "meshopt_decoder": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/libs/meshopt_decoder.js"
+    "three/addons/libs/meshopt_decoder.module.js": "https://unpkg.com/three@0.160.0/examples/jsm/libs/meshopt_decoder.module.js"
   }
 }
 </script>
 <style>
-  /* Landing hero only */
+  /* ── Landing hero ── */
   .landing-hero {
-    padding: 130px 0 100px;
+    padding: 104px 0 88px;
     position: relative;
     overflow: hidden;
-    text-align: center;
+    text-align: left;
   }
   .landing-hero::before {
     content: "";
     position: absolute; inset: 0;
     background:
-      radial-gradient(1100px 500px at 40% -20%, color-mix(in srgb, var(--accent) 20%, var(--bg-elev)), transparent 60%),
-      radial-gradient(600px 350px at 80% 10%, color-mix(in srgb, var(--accent) 12%, var(--bg-elev)), transparent 55%);
+      radial-gradient(1000px 460px at 22% -18%, color-mix(in srgb, var(--accent) 18%, var(--bg-elev)), transparent 62%),
+      radial-gradient(700px 380px at 88% 8%, color-mix(in srgb, var(--accent) 10%, var(--bg-elev)), transparent 58%);
     pointer-events: none;
-  }
-  .hero-orb {
-    position: absolute;
-    width: 720px; height: 720px;
-    left: 50%; top: 46%;
-    transform: translate(-50%, -50%);
-    background: radial-gradient(circle, color-mix(in srgb, var(--accent) 8%, transparent), transparent 64%);
-    pointer-events: none;
-    animation: orb-pulse 8s ease-in-out infinite;
-  }
-  @keyframes orb-pulse {
-    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
-    50% { transform: translate(-50%, -50%) scale(1.15); opacity: 0.35; }
   }
   .landing-eyebrow {
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 8px 20px; border-radius: 999px;
+    padding: 7px 16px; border-radius: 999px;
     background: color-mix(in srgb, var(--accent) 12%, var(--bg-elev));
     border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
     color: var(--accent-hi);
-    font-family: var(--mono); font-size: 11px; font-weight: 700;
+    font-family: var(--mono); font-size: 10.5px; font-weight: 700;
     letter-spacing: 0.14em; text-transform: uppercase;
-    margin-bottom: 28px;
+    margin-bottom: 22px;
     position: relative; z-index: 1;
     backdrop-filter: blur(6px);
   }
   .landing-eyebrow .pulse-dot {
-    width: 7px; height: 7px; border-radius: 50%;
+    width: 6px; height: 6px; border-radius: 50%;
     background: var(--accent);
     animation: dot-pulse 2s ease-in-out infinite;
   }
@@ -73,25 +60,26 @@
     50% { opacity: 0.5; transform: scale(0.9); }
   }
   .landing-hero h1 {
-    font-size: clamp(44px, 7vw, 80px);
-    line-height: 1.02; margin: 0 0 24px; font-weight: 800;
-    letter-spacing: -0.04em; position: relative; z-index: 1;
+    font-size: clamp(36px, 4.4vw, 56px);
+    line-height: 1.06; margin: 0 0 20px; font-weight: 800;
+    letter-spacing: -0.035em; position: relative; z-index: 1;
+    text-wrap: balance;
   }
   .landing-hero h1 .accent {
     background: linear-gradient(135deg, #F97316 0%, #FB923C 55%, #FDBA74 100%);
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
   .landing-hero p.lead {
-    font-size: clamp(17px, 2.4vw, 22px);
+    font-size: clamp(16px, 1.5vw, 18px);
     color: var(--fg-dim);
-    max-width: 640px; margin: 0 auto 40px; line-height: 1.9;
+    max-width: 500px; margin: 0 0 30px; line-height: 1.75;
     position: relative; z-index: 1;
   }
   .hero-install {
     display: inline-flex; align-items: stretch;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 14px;
+    border-radius: 12px;
     overflow: hidden;
     max-width: 100%;
     transition: all 0.35s ease;
@@ -104,7 +92,7 @@
     box-shadow: var(--shadow-md);
   }
   .hero-install-prompt {
-    padding: 16px 18px 16px 24px;
+    padding: 12px 14px 12px 18px;
     color: var(--accent-hi);
     font-family: var(--mono);
     font-size: 13px;
@@ -116,7 +104,7 @@
     background: transparent;
     border: none; border-left: 1px solid var(--border);
     color: var(--fg-dim);
-    padding: 0 22px;
+    padding: 0 18px;
     cursor: pointer;
     font-family: var(--sans); font-size: 12px; font-weight: 600;
     transition: all 0.25s ease;
@@ -125,13 +113,13 @@
   .hero-install button.copied { color: var(--green); animation: copy-pop 0.3s ease; }
   @keyframes copy-pop { 0% { transform: scale(1); } 50% { transform: scale(1.12); } 100% { transform: scale(1); } }
   .hero-actions {
-    display: flex; gap: 14px; justify-content: center; margin-top: 44px; flex-wrap: wrap;
+    display: flex; gap: 12px; justify-content: flex-start; margin-top: 32px; flex-wrap: wrap;
     position: relative; z-index: 1;
   }
   .btn {
     display: inline-flex; align-items: center; gap: 9px;
-    padding: 14px 30px; border-radius: 12px;
-    font-weight: 700; font-size: 14.5px;
+    padding: 13px 26px; border-radius: 11px;
+    font-weight: 700; font-size: 14px;
     transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .btn-primary {
@@ -153,69 +141,67 @@
     transform: translateY(-3px);
     text-decoration: none;
   }
+
+  /* ── Infinity badge carousel (perfect loop: track = 2 identical sets) ── */
+  .badge-carousel {
+    overflow: hidden;
+    margin-top: 34px;
+    position: relative;
+    z-index: 1;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+  }
+  .carousel-track {
+    display: flex;
+    width: max-content;
+    animation: badge-scroll 30s linear infinite;
+    will-change: transform;
+  }
+  .carousel-set {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-right: 12px; /* uniform gap into the next set */
+  }
+  @keyframes badge-scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); } /* exactly one set width = seamless */
+  }
+  .badge-carousel:hover .carousel-track { animation-play-state: paused; }
   .badge {
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 8px 18px; border-radius: 999px;
+    padding: 7px 16px; border-radius: 999px;
     background: color-mix(in srgb, var(--bg-elev) 80%, transparent);
     border: 1px solid var(--border);
     font-size: 12px; color: var(--fg-dim);
     font-weight: 600;
+    white-space: nowrap;
     backdrop-filter: blur(6px);
     transition: all 0.3s ease;
   }
   .badge:hover { border-color: var(--border-hi); color: var(--fg); }
-  .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+  .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex: none; }
   .badge .accent { color: var(--accent-hi); font-weight: 700; }
 
-  /* ── Infinity Carousel ── */
-  .badge-carousel {
-    overflow: hidden;
-    margin-top: 32px;
-    position: relative;
-    z-index: 1;
-  }
-  .carousel-track {
-    display: flex;
-    gap: 16px;
-    align-items: center;
-    animation: scroll 20s linear infinite;
-    will-change: transform;
-  }
-  @keyframes scroll {
-    0% { transform: translateX(0); }
-    100% { transform: translateX(calc(-50% - 16px * 4)); }
-  }
-  .badge-carousel:hover .carousel-track {
-    animation-play-state: paused;
-  }
+  /* ── Hero split: copy left, mascot right ── */
   .hero-wrap {
     display: grid;
-    grid-template-columns: 1.15fr 1fr;
-    gap: 70px;
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+    gap: 56px;
     align-items: center;
     position: relative;
     z-index: 1;
-    max-width: 1100px;
+    max-width: 1160px;
     margin: 0 auto;
-    justify-content: space-between;
-  }
-  @media (max-width: 900px) {
-    .hero-wrap { grid-template-columns: 1fr; gap: 46px; text-align: center; }
-    .landing-hero h1, .landing-hero p.lead { text-align: center; }
-    .hero-install, .hero-actions, .hero-badges { justify-content: center; margin-left: auto; margin-right: auto; }
   }
   .hero-3d-wrap {
     position: relative;
-    height: 700px;
+    height: 560px;
     width: 100%;
-    max-width: 520px;
     display: flex;
     align-items: center;
     justify-content: center;
     /* frameless — model floats on hero background, no card wrapper */
-  }
-  @media (max-width: 900px) {
-    .hero-3d-wrap { height: 520px; max-width: 520px; margin: 0 auto; }
   }
   #hero-canvas {
     width: 100%;
@@ -229,15 +215,27 @@
   #hero-fallback {
     width: 100%;
     height: 100%;
-    display: block;
-    /* no border-radius/shadow - frameless fallback */
+    object-fit: contain;
+    border-radius: 0;
+    box-shadow: none;
+    display: none;
   }
-  /* keep text content left-aligned on desktop when in grid */
-  @media (min-width: 901px) {
-    .hero-text { text-align: left; }
-    .hero-text .hero-install, .hero-text .hero-actions, .hero-text .hero-badges {
-      justify-content: flex-start; margin-left: 0;
-    }
+
+  @media (max-width: 900px) {
+    .landing-hero { padding: 72px 0 64px; text-align: center; }
+    .hero-wrap { grid-template-columns: 1fr; gap: 40px; }
+    .landing-hero h1 { text-align: center; }
+    .landing-hero p.lead { margin-left: auto; margin-right: auto; }
+    .hero-actions { justify-content: center; }
+    .hero-3d-wrap { height: 400px; max-width: 420px; margin: 0 auto; }
+    .carousel-track { animation: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: 100%; }
+    .carousel-set { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: 100%; }
+    .carousel-set[aria-hidden="true"] { display: none; }
+  }
+  @media (max-width: 560px) {
+    .landing-hero h1 { font-size: clamp(30px, 8vw, 40px); }
+    .hero-actions .btn { flex: 1 1 auto; justify-content: center; }
+    .badge-carousel { -webkit-mask-image: none; mask-image: none; }
   }
 </style>
 </head>
@@ -296,21 +294,32 @@
 
       <div class="badge-carousel" aria-label="Project badges">
         <div class="carousel-track">
+          <div class="carousel-set">
           <span class="badge"><span class="dot"></span> <span class="accent">v0.9.6</span> MIT licensed</span>
           <span class="badge">Python 3.11+</span>
           <span class="badge">7 agent integrations</span>
           <span class="badge">MCP + REST + Hooks</span>
+          <span class="badge">ChromaDB + FAISS</span>
+          <span class="badge">Pluggable embeddings</span>
+          <span class="badge">100% local</span>
+          <span class="badge">Hierarchical vault</span>
+          </div>
+          <div class="carousel-set" aria-hidden="true">
           <span class="badge"><span class="dot"></span> <span class="accent">v0.9.6</span> MIT licensed</span>
           <span class="badge">Python 3.11+</span>
           <span class="badge">7 agent integrations</span>
           <span class="badge">MCP + REST + Hooks</span>
+          <span class="badge">ChromaDB + FAISS</span>
+          <span class="badge">Pluggable embeddings</span>
+          <span class="badge">100% local</span>
+          <span class="badge">Hierarchical vault</span>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="hero-3d-wrap fade-up delay-2">
-      <img id="hero-fallback" src="assets/librarian-hippo.webp" alt="The Memorius librarian hippo - fallback when 3D fails to load"
-           style="width:100%;height:100%;object-fit:contain;border-radius:0;box-shadow:none;display:none;" />
+      <img id="hero-fallback" src="assets/librarian-hippo.webp" alt="The Memorius librarian hippo, librarian of the memory vault" />
       <canvas id="hero-canvas" aria-label="The Memorius librarian hippo, rotating as you scroll"></canvas>
     </div>
   </div>
@@ -516,10 +525,14 @@
   import * as THREE from "three";
   import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
+  import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 
   (function () {
     const canvas = document.getElementById("hero-canvas");
     const fallbackImg = document.getElementById("hero-fallback");
+
+    const HEIGHT = 1.55; // mascot world height
+    const MODEL_YAW = Math.PI + 0.15; // slight 3/4 so the face catches the key light
 
     let renderer, scene, camera, hippo, pointLight, clock, rafId;
     let using3D = false;
@@ -527,25 +540,33 @@
     function init3D() {
       try {
         scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(40, 1, 0.1, 40);
-        camera.position.set(0, 0.5, 2.7);
+        camera = new THREE.PerspectiveCamera(36, 1, 0.1, 40);
+        camera.position.set(0, HEIGHT * 0.55, HEIGHT / (2 * Math.tan(18 * Math.PI / 180)) * 1.07);
+        camera.lookAt(0, HEIGHT * 0.53, 0);
 
         renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: "high-performance" });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.setSize(canvas.clientWidth || 400, canvas.clientHeight || 400);
-        renderer.toneMapping = THREE.ReinhardToneMapping;
-        renderer.toneMappingExposure = 1.1;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.35;
 
-        const amb = new THREE.AmbientLight(0xffffff, 0.45);
-        scene.add(amb);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.95));
 
-        const dir = new THREE.DirectionalLight(0xffffff, 0.7);
-        dir.position.set(2, 5, 4);
-        dir.castShadow = true;
-        scene.add(dir);
+        const key = new THREE.DirectionalLight(0xfff2e2, 1.8);
+        key.position.set(2.2, 3.5, 2.8);
+        scene.add(key);
 
-        pointLight = new THREE.PointLight(0xf97316, 0, 10);
-        pointLight.position.set(0, 1.2, 1.2);
+        const fill = new THREE.DirectionalLight(0x9fb4ff, 0.6);
+        fill.position.set(-2.5, 2.2, 1.8);
+        scene.add(fill);
+
+        // front cheek light so the face catches light
+        const front = new THREE.DirectionalLight(0xfff5e8, 0.9);
+        front.position.set(0, 1.2, 2.5);
+        scene.add(front);
+
+        pointLight = new THREE.PointLight(0xf97316, 0, 8);
+        pointLight.position.set(0.5, 1.0, 1.6);
         scene.add(pointLight);
 
         const dracoLoader = new DRACOLoader();
@@ -554,29 +575,31 @@
 
         const loader = new GLTFLoader();
         loader.setDRACOLoader(dracoLoader);
+        loader.setMeshoptDecoder(MeshoptDecoder);
 
         loader.load("assets/librarian-hippo.glb", (gltf) => {
           const model = gltf.scene;
+          // fit by measured bbox, feet on the floor — framing stays right if the GLB changes
           const box = new THREE.Box3().setFromObject(model);
           const size = new THREE.Vector3();
           box.getSize(size);
-          const s = 1.35 / Math.max(size.x, size.y, size.z);
+          const s = HEIGHT / size.y;
           model.scale.setScalar(s);
-          const center = new THREE.Vector3();
-          box.getCenter(center);
-          model.position.set(-center.x * s, -center.y * s + 0.02, -center.z * s + 0.1);
+          const scaledCenter = box.getCenter(new THREE.Vector3()).multiplyScalar(s);
+          model.position.set(-scaledCenter.x, -box.min.y * s, -scaledCenter.z);
+          model.rotation.y = MODEL_YAW;
 
           model.traverse((o) => {
-            if (o.isMesh) {
-              o.material.emissive = new THREE.Color(0x4a3424);
-              o.material.emissiveMap = o.material.map;
-              o.material.metalness = 0.15;
-              o.material.roughness = 0.55;
-              o.castShadow = true;
-              o.receiveShadow = true;
-            }
+            if (!o.isMesh) return;
+            const m = o.material;
+            m.metalness = 0; // no env map here: metal would read black
+            m.roughness = 0.75;
+            m.emissive = new THREE.Color(0x3b2c22);
+            m.emissiveMap = m.map;
+            m.emissiveIntensity = 0.55;
           });
           hippo = model;
+          hippo.userData.baseY = model.position.y;
           scene.add(model);
           using3D = true;
           clock = new THREE.Clock();
@@ -611,9 +634,10 @@
       const p = scrollProgress();
 
       if (hippo) {
-        hippo.rotation.y = t * 0.12 + p * Math.PI * 1.4;
-        hippo.position.y = Math.sin(t * 1.6 + p * 2.5) * 0.10;
-        hippo.rotation.z = Math.sin(t * 0.6) * 0.035 + p * 0.05;
+        // gentle idle sway + a slow turn toward the viewer as you scroll
+        hippo.rotation.y = MODEL_YAW + Math.sin(t * 0.5) * 0.12 + p * 0.5;
+        hippo.position.y = hippo.userData.baseY + Math.sin(t * 1.6 + p * 2.5) * 0.035;
+        hippo.rotation.z = Math.sin(t * 0.6) * 0.02;
       }
 
       if (pointLight) {
