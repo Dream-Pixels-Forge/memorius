@@ -1,11 +1,11 @@
 name: Publish to PyPI
 
 on:
+  # Publish only when a GitHub release is published, so a version bump on
+  # main cannot ship an untagged artifact. workflow_dispatch is the manual
+  # recovery path.
   release:
     types: [published]
-  push:
-    branches: [main]
-    paths: ['pyproject.toml']
   workflow_dispatch:
 
 permissions:

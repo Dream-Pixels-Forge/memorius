@@ -204,6 +204,23 @@ def test_rest_no_api_key_get_allowed():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_rest_no_api_key_readonly_search_allowed():
+    """The bookcase page searches without credentials on a local server.
+
+    POST /search is read-only; when no key is configured it must stay open,
+    while genuine mutations (/store) still return 401.
+    """
+    client, eng, tmp = _rest_client_no_api_key()
+    try:
+        r = client.post("/search", json={"query": "anything"})
+        assert r.status_code == 200, (
+            f"expected 200 for read-only POST /search without key, got {r.status_code}"
+        )
+    finally:
+        eng.close()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_rest_no_api_key_mutating_returns_401():
     """Without MEMORIUS_API_KEY, all mutating endpoints return 401."""
     client, eng, tmp = _rest_client_no_api_key()
