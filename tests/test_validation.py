@@ -90,6 +90,6 @@ def test_validate_content_too_long():
 
 
 def test_validate_content_not_string():
-    """Non-string content should raise ValueError."""
-    with pytest.raises(ValueError, match="string"):
+    """Non-string content is a type error, not a value error."""
+    with pytest.raises(TypeError, match="string"):
         validate_content(123)  # pyright: ignore[reportArgumentType]

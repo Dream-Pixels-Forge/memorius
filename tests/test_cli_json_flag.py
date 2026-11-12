@@ -243,14 +243,14 @@ def test_json_output_sorted_and_deterministic(capsys, seeded_engine):
 
 
 def test_readme_documents_json_flag():
-    """The README's CLI Reference documents --json for stats and status."""
+    """The README's CLI cheat sheet documents --json for stats and status."""
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
-    cli_section = readme.split("## CLI Reference", 1)[1]
+    cli_section = readme.split("## CLI at a glance", 1)[1]
     assert re.search(
-        r"memorius stats\s+Show vault \+ memory \+ graph statistics\n\s+--json",
+        r"memorius stats \[--json\]",
         cli_section,
-    ), "README CLI Reference: stats is missing its --json line"
+    ), "README CLI cheat sheet: stats is missing its --json flag"
     assert re.search(
-        r"memorius status\s+Show vault status\n\s+--json",
+        r"memorius status \[--json\]",
         cli_section,
-    ), "README CLI Reference: status is missing its --json line"
+    ), "README CLI cheat sheet: status is missing its --json flag"

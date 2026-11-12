@@ -60,14 +60,26 @@ def test_prune_soft_archive(engine):
 
 
 def test_prune_hard_delete(engine):
-    """prune(archive=False) hard-deletes stale memories."""
+    """prune(archive=False, confirm=True) hard-deletes stale memories."""
     m = engine.store("prune hard delete test memory content", vault="p")
     with patch("memorius.temporal.calculate_decay_score", return_value=0.0):
-        result = engine.prune(threshold=0.5, dry_run=False, archive=False)
+        result = engine.prune(threshold=0.5, dry_run=False, archive=False, confirm=True)
     assert result["archived_count"] >= 1
     # Memory should be fully gone.
     assert engine.get_memory(m.id) is None
     assert engine.meta.get_memory_meta(m.id) is None
+
+
+def test_prune_hard_delete_requires_confirm(engine):
+    """Hard-delete without confirm=True refuses and deletes nothing."""
+    m = engine.store("prune unconfirmed hard delete content", vault="p")
+    with patch("memorius.temporal.calculate_decay_score", return_value=0.0):
+        result = engine.prune(threshold=0.5, dry_run=False, archive=False)
+    assert result["archived_count"] == 0
+    assert "confirm" in result["error"]
+    # The memory must still exist — no silent data loss.
+    assert engine.get_memory(m.id) is not None
+    assert engine.meta.get_memory_meta(m.id) is not None
 
 
 def test_prune_no_stale_memories(engine):

@@ -13,10 +13,8 @@ see the library as a directory or jump to a shelf without walking/searching.
 2. **Surprise me** (`#bc-surprise`, shortcut `X`):
    - picks a random book from the current vault, flies to it and opens it,
    - announces the pick through the librarian log.
-3. **Copy memory** in the detail panel:
-   - copies the memory content to the clipboard,
-   - falls back to a selectable text area when the Clipboard API is blocked,
-   - logs "Copied to clipboard" / an error via the librarian log.
+3. **Copy memory** — moved to SG-10, where it lives in the centered reader
+   instead of the side panel.
 4. **Index accessibility**: `aria-expanded` on the button, Escape closes the
    panel, rows are keyboard-activatable.
 
@@ -32,7 +30,6 @@ see the library as a directory or jump to a shelf without walking/searching.
 ## Definition of done
 - [ ] Index lists shelves with correct counts and walks to a bay.
 - [ ] Surprise opens a random book.
-- [ ] Copy writes to clipboard or shows the fallback.
 - [ ] Keyboard: I toggles index, X surprises, Escape closes.
 - [ ] `pytest tests/test_bookcase.py -q` green.
 - [ ] Headless smoke check: page boots, index renders, no console errors.

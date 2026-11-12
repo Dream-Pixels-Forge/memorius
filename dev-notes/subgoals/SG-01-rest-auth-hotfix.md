@@ -36,7 +36,7 @@
 - [x] Version `0.9.8`, CHANGELOG updated.
 - [x] `release.yml` no longer publishes on a `pyproject.toml` push, so this
       version cannot ship untagged.
-- [ ] PR merged; PyPI publish verified by SG-04.
+- [x] PR merged (#101); PyPI publish verified by SG-04.
 
 ## Result
 - Full suite: 528 passed, 3 failed, 1 skipped. The 3 failures are the
