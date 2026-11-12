@@ -24,6 +24,15 @@ After SG-01 fixes the 4 auth failures, 3 remain:
 - Run the full suite locally; no new failures.
 
 ## Definition of done
-- [ ] `pytest -q` → 0 failed (skip is acceptable if documented).
-- [ ] No production behavior changed except the validation contract docs.
+- [x] `pytest -q` → 0 failed (skip is acceptable if documented).
+- [x] No production behavior changed except the validation contract docs.
 - [ ] PR merged with CI green.
+
+## Result
+- `test_prune_hard_delete` now passes `confirm=True`; new
+  `test_prune_hard_delete_requires_confirm` asserts the guard returns an
+  error and leaves the memory intact.
+- `validate_content` keeps `TypeError` for non-strings (correct Python
+  semantics); the test and docstring now state that contract.
+- README test targets `## CLI at a glance` and `memorius stats [--json]` /
+  `memorius status [--json]`, matching the current cheat sheet.
