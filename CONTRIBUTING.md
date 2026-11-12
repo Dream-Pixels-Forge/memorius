@@ -41,12 +41,28 @@ python -m pyright
 ruff check .
 ruff format --check .
 
-# Tests
-python -m pytest
+# Tests (the full suite — CI runs exactly this)
+python -m pytest tests/ -q
+
+# Dependency audit (blocking in CI)
+python -m pip-audit --skip-editable
 
 # Build
 python -m build
 ```
+
+### Required CI checks
+
+Every PR must be green on:
+
+| Check | What it runs |
+|-------|--------------|
+| `test (3.11)`, `test (3.12)`, `test (3.13)` | Fast unit + integration subset |
+| `full-suite` | Every file under `tests/` on Python 3.12, then `pip-audit` |
+
+`pip-audit` is **blocking**. If a finding is genuinely unreachable, add a
+documented ignore with a link to the advisory in
+`.github/workflows/test.yml`; do not silence the step with `|| true`.
 
 ## Code style
 

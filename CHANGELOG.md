@@ -12,6 +12,12 @@
   `/health/live`, `/health/ready`) stay open. `test_regression_bugs.py` is
   now part of CI.
 
+### Changed
+- **chromadb 1.x required** (`>=1.0.0,<2.0.0`). The declared `<1.0.0` range
+  resolved 0.6.3 on a clean install, where `list_collections()` returns
+  names and `None` metadata is rejected — 35 tests failed. The code and the
+  suite are tested against 1.5.9. Users on 0.4–0.6 should upgrade.
+
 ## v0.9.7 (2026-11-10)
 
 ### Fixed
