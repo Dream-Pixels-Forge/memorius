@@ -35,7 +35,7 @@ jobs:
 
       - name: Run unit tests
         run: |
-          python -m pytest tests/test_core.py tests/test_features.py tests/test_polish_regressions.py -q --tb=short
+          python -m pytest tests/test_core.py tests/test_features.py tests/test_polish_regressions.py tests/test_regression_bugs.py -q --tb=short
 
       - name: Run integration tests (CLI + MCP)
         run: |

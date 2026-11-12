@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.9.8 (2026-11-12)
+
+### Security
+- **REST authentication restored** (#93). PR #80 accidentally replaced the
+  auth middleware with the idempotency middleware, leaving every REST
+  endpoint unauthenticated in 0.9.6 and 0.9.7. Requests now require a
+  Bearer token when `MEMORIUS_API_KEY` is set; with no key configured,
+  read-only requests (including `POST /search`, used by the bookcase page)
+  are allowed and mutations return 401. Health probes (`/health`,
+  `/health/live`, `/health/ready`) stay open. `test_regression_bugs.py` is
+  now part of CI.
+
 ## v0.9.7 (2026-11-10)
 
 ### Fixed

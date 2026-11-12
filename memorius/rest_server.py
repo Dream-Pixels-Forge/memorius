@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 import sys
@@ -183,6 +184,9 @@ class MemoriusAPI:
 
         # Mutating methods that require auth even when no API key is configured.
         _MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+        # Read-only POST routes: the bookcase page searches a local server
+        # without credentials. They still require a key when one is set.
+        _READ_ONLY_POSTS = {"/search"}
 
         # ── Idempotency store (H-02) ──
         # Set of (method, path, idempotency_key) tuples for recently processed
@@ -246,6 +250,32 @@ class MemoriusAPI:
                 )
 
             return response
+
+        @app.middleware("http")
+        async def auth_middleware(request: Request, call_next):
+            # Health probes stay reachable for supervisors / container checks.
+            if request.url.path.startswith("/health"):
+                return await call_next(request)
+            # Read the key per request: tests and long-running daemons may
+            # rotate MEMORIUS_API_KEY without rebuilding the app.
+            request_api_key = os.environ.get("MEMORIUS_API_KEY")
+            if request_api_key:
+                auth_header = request.headers.get("Authorization", "")
+                token = auth_header[7:] if auth_header.startswith("Bearer ") else ""
+                # compare_digest avoids timing-based key enumeration.
+                if not hmac.compare_digest(token.encode(), request_api_key.encode()):
+                    return JSONResponse(
+                        status_code=401,
+                        content={"detail": "Invalid or missing API key"},
+                    )
+            elif request.method in _MUTATING_METHODS and request.url.path not in _READ_ONLY_POSTS:
+                # No key configured: read-only requests are allowed, but
+                # mutations fail fast instead of silently changing the vault.
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "API key required (set MEMORIUS_API_KEY)"},
+                )
+            return await call_next(request)
 
         @app.middleware("http")
         async def size_limit_middleware(request: Request, call_next):
