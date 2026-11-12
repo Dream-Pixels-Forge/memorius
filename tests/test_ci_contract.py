@@ -3,6 +3,7 @@
 The REST auth regression shipped because CI ran only 6 of 50 test files, and
 the dependency scan was non-blocking. These tests pin both decisions.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -51,7 +52,33 @@ def test_installed_chromadb_satisfies_declared_range():
         dep for dep in data["project"]["dependencies"] if dep.startswith("chromadb")
     )
     installed = version("chromadb")
-    assert installed in SpecifierSet(req[len("chromadb"):]), (
+    assert installed in SpecifierSet(req[len("chromadb") :]), (
         f"installed chromadb {installed} is outside {req!r}; "
         "CI and local runs would test different majors"
+    )
+
+
+def test_tests_do_not_hardcode_a_developer_path():
+    """Tests must derive paths from __file__, never from /home/<someone>.
+
+    `test_cli_repair_subparser_is_registered` passed on the dev machine and
+    failed the first `full-suite` CI run for exactly this reason.
+    """
+    import re
+    import tokenize
+
+    tests_dir = WORKFLOW.parents[2] / "tests"
+    # An absolute path that names a real user segment, e.g. /home/dimona/...
+    pattern = re.compile(r"/(?:home|Users)/[A-Za-z0-9._-]+/|[A-Za-z]:\\\\Users\\\\")
+    offenders: list[str] = []
+    for path in sorted(tests_dir.glob("*.py")):
+        with path.open("rb") as handle:
+            for tok in tokenize.tokenize(handle.readline):
+                if tok.type != tokenize.STRING:
+                    continue
+                if pattern.search(tok.string):
+                    offenders.append(f"{path.name}:{tok.start[0]}")
+    assert not offenders, (
+        "tests hardcode a developer path (use Path(__file__).resolve().parents[1]): "
+        + ", ".join(offenders)
     )
