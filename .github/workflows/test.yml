@@ -67,12 +67,14 @@ jobs:
       - name: Dependency vulnerability scan (blocking)
         run: |
           python -m pip install pip-audit
-          # Ignored: the three chromadb advisories affect the multi-tenant
-          # Chroma HTTP server (RBAC checks, trust_remote_code code injection).
-          # Memorius embeds chromadb through PersistentClient only, is
+          # Ignored: these chromadb advisories all affect the multi-tenant
+          # Chroma HTTP server API (/api/v2/tenants/...): tenant RBAC checks
+          # and trust_remote_code code injection. Memorius never starts a
+          # Chroma server, embeds chromadb through PersistentClient only, is
           # single-tenant, and never sets trust_remote_code. Re-evaluate when
           # chromadb publishes a fixed release.
-          python -m pip-audit --skip-editable \
+          python -m pip_audit --skip-editable \
+            --ignore-vuln PYSEC-2026-311 \
             --ignore-vuln PYSEC-2026-3813 \
             --ignore-vuln PYSEC-2026-3814 \
             --ignore-vuln PYSEC-2026-3815

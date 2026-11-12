@@ -45,7 +45,7 @@ ruff format --check .
 python -m pytest tests/ -q
 
 # Dependency audit (blocking in CI)
-python -m pip-audit --skip-editable
+python -m pip_audit --skip-editable
 
 # Build
 python -m build

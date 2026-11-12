@@ -25,14 +25,47 @@ def test_dependency_audit_is_blocking():
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "pip-audit" in text, "CI has no dependency audit"
     assert "pip-audit || true" not in text, "pip-audit is non-blocking"
+    # The distribution is `pip-audit`; the module is `pip_audit`. Invoking
+    # `python -m pip-audit` fails with "No module named pip-audit".
+    assert "python -m pip_audit" in text, (
+        "audit must be invoked as `python -m pip_audit` (underscore)"
+    )
+    assert "python -m pip-audit " not in text, (
+        "`python -m pip-audit` is not a valid module path"
+    )
 
 
 def test_dependency_audit_ignores_are_documented():
     """The only ignored advisories are the unreachable chromadb server CVEs."""
     text = WORKFLOW.read_text(encoding="utf-8")
-    for vuln in ("PYSEC-2026-3813", "PYSEC-2026-3814", "PYSEC-2026-3815"):
+    for vuln in (
+        "PYSEC-2026-311",
+        "PYSEC-2026-3813",
+        "PYSEC-2026-3814",
+        "PYSEC-2026-3815",
+    ):
         assert vuln in text, f"{vuln} ignore is missing"
     assert "PersistentClient" in text, "ignores have no reachability note"
+
+
+def test_no_chroma_http_server_surface():
+    """The audit ignores stay valid only while chromadb is embedded, not served.
+
+    All ignored advisories target the multi-tenant Chroma HTTP API
+    (/api/v2/tenants/...). If Memorius ever starts a Chroma server or sets
+    trust_remote_code, the exceptions become real vulnerabilities.
+    """
+    package = WORKFLOW.parents[2] / "memorius"
+    offenders = [
+        f"{path.relative_to(package.parent)}:{lineno}"
+        for path in sorted(package.rglob("*.py"))
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if "trust_remote_code" in line or "chromadb.HttpClient" in line
+    ]
+    assert not offenders, (
+        "memorius now touches the Chroma server surface; the pip-audit ignores "
+        "must be re-evaluated: " + ", ".join(offenders)
+    )
 
 
 def test_installed_chromadb_satisfies_declared_range():
