@@ -26,6 +26,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 @pytest.fixture
 def engine():
@@ -210,7 +212,10 @@ def test_cli_repair_subparser_is_registered():
 
     result = subprocess.run(
         [sys.executable, "-m", "memorius.cli.main", "repair", "--help"],
-        capture_output=True, text=True, cwd="/home/dimona/Dream-Pixels-Forge/Dev/cli/memorius", check=False,
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+        check=False,
     )
     # The repair subparser should be reachable (exit 0 from --help), and the
     # flags should be listed.

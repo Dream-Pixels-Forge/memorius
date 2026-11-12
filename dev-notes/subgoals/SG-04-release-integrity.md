@@ -20,6 +20,27 @@ Release gate on 2026-11-12:
   `pyproject.toml` push, publish 0.9.9 instead.
 - Add a release checklist entry to CONTRIBUTING.
 
+## Release notes draft (v0.9.8)
+
+```markdown
+## Security
+- REST authentication restored. 0.9.6 and 0.9.7 accepted unauthenticated
+  mutations and any Bearer token after PR #80 replaced the auth middleware.
+  Requests now require a valid token when MEMORIUS_API_KEY is set; with no
+  key, read-only requests (including the bookcase's POST /search) are
+  allowed and mutations return 401.
+
+## Fixed
+- `memorius prune --delete` remains confirmation-gated; the suite now proves
+  the unconfirmed path deletes nothing.
+- `validate_content` documents its TypeError contract for non-strings.
+- README `--json` documentation test matches the current cheat sheet.
+
+## CI
+- CI runs the full test suite on Python 3.12 and a blocking pip-audit.
+- Release publishing happens only when a GitHub release is published.
+```
+
 ## Definition of done
 - [x] Workflow has no `push` publish trigger (landed with SG-01 to stop
       0.9.8 shipping untagged).
