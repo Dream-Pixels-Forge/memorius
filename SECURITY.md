@@ -14,7 +14,9 @@ security updates.
 
 Please do **not** open a public GitHub issue for security vulnerabilities.
 
-Instead, email us directly with details of the issue, steps to reproduce, and any
+Instead, email the maintainer at **dimona.patrick@gmail.com**, or open a
+[private security advisory](https://github.com/Dream-Pixels-Forge/memorius/security/advisories/new)
+if you prefer GitHub. Include details of the issue, steps to reproduce, and any
 suggested fix. We'll acknowledge receipt within 48 hours and work with you on
 disclosure and remediation.
 
