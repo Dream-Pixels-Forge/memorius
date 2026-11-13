@@ -156,12 +156,19 @@ class MemoriusAPI:
         handler.setFormatter(JSONFormatter())
         memorius_logger.addHandler(handler)
 
-        # CORS — restrictive by default; only allow the REST port (8912)
-        # and bookcase static port (8400) on loopback.
+        # CORS — restrictive by default: only loopback, and only the ports
+        # this deployment actually serves (the REST API and the bookcase
+        # static page). Hardcoding 8912/8400 broke `memorius bookcase
+        # --port/--static-port`: the page booted on the custom port and every
+        # request failed with "API unreachable".
+        server_cfg = (getattr(self._engine, "_config", {}) or {}).get("server", {})
+        rest_port = int(server_cfg.get("rest_port", 8912))
+        static_port = int(server_cfg.get("static_port", 8400))
+        loopback = rf"^https?://(127\.0\.0\.1|localhost):(?:{rest_port}|{static_port})$"
         app.add_middleware(
             CORSMiddleware,
             allow_origins=["app://obsidian.md"],
-            allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost):(8912|8400)$",
+            allow_origin_regex=loopback,
             allow_methods=["*"],
             allow_headers=["*"],
         )

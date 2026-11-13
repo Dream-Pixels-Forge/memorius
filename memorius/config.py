@@ -107,6 +107,7 @@ def _ensure_defaults(config: dict[str, Any]):
     server = config.setdefault("server", {})
     server.setdefault("mcp_port", 8911)
     server.setdefault("rest_port", 8912)
+    server.setdefault("static_port", 8400)
     server.setdefault("host", "127.0.0.1")
 
     vault_cfg = config.setdefault("vault", {})
@@ -147,6 +148,7 @@ def _apply_env_overrides(config: dict[str, Any]):
         "MEMORIUS_EMBEDDINGS_PROVIDER": ("embeddings", "provider"),
         "MEMORIUS_MCP_PORT": ("server", "mcp_port"),
         "MEMORIUS_REST_PORT": ("server", "rest_port"),
+        "MEMORIUS_STATIC_PORT": ("server", "static_port"),
         "MEMORIUS_HOST": ("server", "host"),
         "MEMORIUS_DEFAULT_VAULT": ("vault", "default"),
         "MEMORIUS_WEB_FALLBACK": ("retrieval", "web_fallback"),

@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+### Security
+- **The bookcase page now runs under a strict Content-Security-Policy**
+  (#97). Three.js and its two addons are vendored into the package instead
+  of fetched from unpkg, so `script-src` allow-lists no third-party origin;
+  the page also works offline. The policy ships as an HTTP header (a
+  `<meta>` tag cannot express `frame-ancestors`) and covers the loopback
+  REST origin, the import map (by SHA-256) and the GLB's blob-URL textures.
+  The boot fallback is now `bookcase-boot.js` rather than inline script.
+
+### Fixed
+- **`memorius bookcase --port/--static-port` works.** The API's CORS
+  allow-list was hardcoded to `8912`/`8400`, so the page booted on any
+  other port and then failed every request with "API unreachable". The
+  allow-list now follows `server.rest_port` / `server.static_port`, and
+  `memorius bookcase` publishes the ports it actually uses. Other loopback
+  ports are still rejected.
+- `test_cli_version_flags_print_running_version` resolved the console
+  scripts through `PATH`, so it failed on a machine with an older
+  globally-installed memorius. It now exercises the repo's entry points
+  with the running interpreter.
+
 ## v0.9.8 (2026-11-12)
 
 ### Security

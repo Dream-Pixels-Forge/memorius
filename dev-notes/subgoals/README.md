@@ -12,12 +12,12 @@ PR with `Closes #N`, CI green, squash merge, then update this index.
 | SG-02 | Make the full test suite green (3 stale tests) | P0 | done | #103 merged |
 | SG-03 | Enforce full-suite CI + blocking dependency audit | P1 | done | #104 merged |
 | SG-04 | Release integrity: tag 0.9.7/0.9.8 + fix release trigger | P1 | done | #105 merged, v0.9.8 shipped |
-| SG-05 | Bookcase CSP/SRI hardening (externalize inline script) | P1 | ready | — |
-| SG-06 | Docs/version/PROGRESS sync + security contact | P2 | blocked by SG-04 | — |
-| SG-07 | Bookcase UX: library index, walk-to-shelf, surprise me, copy | P2 | blocked by SG-05 | — |
-| SG-08 | Container hardening (Dockerfile, non-root, dumb-init) | P2 | blocked by SG-03 | — |
+| SG-05 | Bookcase CSP/SRI hardening (vendored Three.js + header CSP) | P1 | in-review | `security/97-bookcase-csp` |
+| SG-06 | Docs/version/PROGRESS sync + security contact | P2 | ready | — |
+| SG-07 | Bookcase UX: library index, walk-to-shelf, surprise me, copy | P2 | ready | — |
+| SG-08 | Container hardening (Dockerfile, non-root, dumb-init) | P2 | ready | — |
 | SG-09 | Repo/branch/local vault hygiene | P3 | ready (ops, no PR) | — |
-| SG-10 | Bookcase: bottom-left walk controls, walking hippo, centered reader | P1 | blocked by SG-05, SG-07 | — |
+| SG-10 | Bookcase: bottom-left walk controls, walking hippo, centered reader | P1 | blocked by SG-07 | — |
 
 Status legend: `ready` · `in-progress` · `in-review` · `done` · `blocked`.
 

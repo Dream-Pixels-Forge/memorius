@@ -5,13 +5,10 @@ together so future cleanup passes can run them as a single suite.
 """
 
 import json
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 from typing import cast
-
-import pytest
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -240,19 +237,38 @@ def test_plugin_gen_version_does_not_hardcode_0_1_0():
 
 def test_cli_version_flags_print_running_version():
     """memorius --version, memorius-hook --version, memorius-plugin-gen --version
-    should all print the actual __version__, not a stale literal."""
+    should all print the actual __version__, not a stale literal.
+
+    The modules are invoked with the *current* interpreter rather than with
+    ``shutil.which(script)``: on a developer machine PATH can resolve to an
+    older globally-installed copy, which made this test fail locally while
+    passing in CI (where ``pip install -e .`` owns the scripts).
+    """
+    import sys
+    import tomllib
+
     from memorius import __version__
 
-    for script in ("memorius", "memorius-hook", "memorius-plugin-gen"):
-        script_path = shutil.which(script)
-        if not script_path:
-            pytest.skip(f"{script} not found in PATH")
+    repo_root = Path(__file__).resolve().parents[1]
+    scripts = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))[
+        "project"
+    ]["scripts"]
+    # The console-script names still have to exist and point at these modules.
+    expected = {
+        "memorius": "memorius.cli.main",
+        "memorius-hook": "memorius.hooks.cli",
+        "memorius-plugin-gen": "memorius.plugin_gen.cli",
+    }
+    for name, module in expected.items():
+        assert scripts[name].split(":")[0] == module, (name, scripts.get(name))
+
+    for module in expected.values():
         proc = subprocess.run(
-            [script_path, "--version"],
-            capture_output=True, text=True, timeout=30, check=False,
+            [sys.executable, "-m", module, "--version"],
+            capture_output=True, text=True, timeout=120, check=False,
         )
         combined = proc.stdout + proc.stderr
         assert __version__ in combined, (
-            f"{script} --version output {combined!r} does not contain "
+            f"{module} --version output {combined!r} does not contain "
             f"the running version {__version__!r}"
         )
