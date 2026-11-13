@@ -1,0 +1,27 @@
+services:
+  memorius:
+    build: .
+    image: memorius:prod
+    ports:
+      # Loopback only: the REST API has no key by default and is read-only.
+      - "127.0.0.1:8912:8912"
+    environment:
+      MEMORIUS_STORAGE_PATH: /data
+      # Set a key to allow writes; empty means read-only for non-loopback.
+      MEMORIUS_API_KEY: ${MEMORIUS_API_KEY:-}
+    volumes:
+      - memorius-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8912/health/live', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  memorius-data:

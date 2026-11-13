@@ -57,6 +57,29 @@ memorius init          # creates ~/.memorius/config.yaml + storage dir
 
 ---
 
+## Run in a container
+
+The production image is multi-stage, runs as non-root **UID 10001**, and uses
+`dumb-init` as PID 1, with the vault on a volume at `/data`.
+
+```bash
+docker build -t memorius:prod .
+docker run --rm -p 127.0.0.1:8912:8912 -v memorius-data:/data memorius:prod
+```
+
+Or with Compose:
+
+```bash
+docker compose up --build
+```
+
+The REST API is published on loopback only; without `MEMORIUS_API_KEY` it is
+read-only for non-loopback clients. Inside the container the API is plaintext
+(`--insecure`) — terminate TLS in front of it or mount certificates and
+override the command. Liveness: `GET /health/live`.
+
+---
+
 ## Quick start
 
 ```bash

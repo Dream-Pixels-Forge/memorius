@@ -1,0 +1,35 @@
+# Build context for the production image: only pyproject.toml, README.md,
+# LICENSE and memorius/ are needed.
+
+# version control / CI
+.git
+.github
+.gitignore
+
+# development inputs
+tests
+docs
+dev-notes
+assets
+scripts
+*.mp3
+
+# caches and build output
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.venv
+venv
+build
+dist
+node_modules
+
+# local configuration and secrets
+.env
+.env.*
+memorius.yaml
+*.local.yaml
