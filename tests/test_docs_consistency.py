@@ -1,9 +1,9 @@
-"""SG-06: the docs must agree with the release they describe (issue #98).
+"""The docs must agree with the release they describe (issue #98).
 
-Version strings drift silently: a badge says v0.9.6 while the package is
-v0.9.8, and PROGRESS still calls the current state v0.9.3. These checks read
-the single source of truth (``pyproject.toml``) and fail until every
-published surface agrees with it.
+Version strings drift silently: a badge keeps saying the previous release
+while the package has moved on, and PROGRESS still calls an old version the
+current state. These checks read the single source of truth
+(``pyproject.toml``) and fail until every published surface agrees with it.
 """
 
 from __future__ import annotations

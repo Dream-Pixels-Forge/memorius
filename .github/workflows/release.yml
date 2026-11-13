@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Tag to publish (e.g. v0.9.8)"
+        description: "Tag to publish (e.g. v0.9.9)"
         required: true
         type: string
 
