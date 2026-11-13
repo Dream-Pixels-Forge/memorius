@@ -21,6 +21,11 @@ class BookcaseRequestHandler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self) -> None:
         for name, value in SECURITY_HEADERS.items():
             self.send_header(name, value)
+        # The page ships inside the wheel and is served straight from the
+        # package directory, so an upgrade rewrites these files in place.
+        # Without no-store the browser keeps running the previous
+        # bookcase.js against the new markup (new buttons do nothing).
+        self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
     def list_directory(self, path):

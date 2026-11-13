@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Added
+- **Bookcase library index and "surprise me"** (#99). `I` (or ☰ index)
+  opens a table of contents built from the floor plan: every bay with its
+  book and folder counts, a library card (books / shelves / folders,
+  oldest → newest), and one click walks the visitor into the bay facing
+  the shelves. `X` (or ✦ surprise) flies the lantern to a random book and
+  opens it. Rows are keyboard-activatable, `aria-expanded` mirrors the
+  panel, and Escape closes it. The index lives in its own
+  `bookcase-index.js` so the main module stays under the 500-line budget.
+- **Copy a memory from the bookcase.** The book detail panel has a Copy
+  action that writes the memory to the clipboard, falling back to a
+  hidden textarea when the page is not on a secure origin.
+
 ### Security
 - **The bookcase page now runs under a strict Content-Security-Policy**
   (#97). Three.js and its two addons are vendored into the package instead
@@ -12,6 +25,11 @@
   The boot fallback is now `bookcase-boot.js` rather than inline script.
 
 ### Fixed
+- **Upgrades no longer leave a stale bookcase in the browser.** The static
+  server sends `Cache-Control: no-store`; the page ships inside the wheel
+  and is served from the package directory, so without it an upgrade
+  rewrote the HTML/JS on disk while the browser kept running the previous
+  `bookcase.js` — new buttons appeared and did nothing.
 - **`memorius bookcase --port/--static-port` works.** The API's CORS
   allow-list was hardcoded to `8912`/`8400`, so the page booted on any
   other port and then failed every request with "API unreachable". The

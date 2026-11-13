@@ -8,6 +8,8 @@ import { BookcaseScene } from "./bookcase-scene.js";
 import { Librarian } from "./bookcase-librarian.js";
 import { Minimap } from "./bookcase-minimap.js";
 import { Mascot } from "./bookcase-mascot.js";
+import { LibraryIndex } from "./bookcase-index.js";
+import { copyButton } from "./bookcase-copy.js";
 
 const $ = (id) => document.getElementById(id);
 const API =
@@ -39,10 +41,15 @@ const minimap = new Minimap($("bc-map"), {
 // the hippo librarian: waits at the entrance, meets you at the found book
 const mascot = new Mascot(scene.scene, { reducedMotion: scene.reducedMotion });
 const mascotFrame = mascot.attach(scene);
-scene.onFrame = (t) => {
-  minimap.draw(t);
-  mascotFrame(t);
-};
+scene.onFrame = (t) => { minimap.draw(t); mascotFrame(t); };
+// index + surprise: reads state lazily, so vault switches stay fresh
+const index = new LibraryIndex({
+  books: () => state.books,
+  plan: () => scene._plan,
+  open: openBook,
+  age: relativeDate,
+  announce: (text) => librarian.say(text),
+});
 
 async function api(path, opts = {}) {
   const res = await fetch(`${API}${path}`, {
@@ -296,7 +303,7 @@ async function openBook(id) {
     readBtn.type = "button";
     readBtn.disabled = !librarian.supported;
     readBtn.addEventListener("click", () => librarian.readAloud(h.textContent, m.content));
-    actions.append(walkBtn, readBtn);
+    actions.append(walkBtn, readBtn, copyButton(() => m.content));
     body.appendChild(actions);
     body.appendChild(el("div", "bc-content", m.content || ""));
     const neighbours = state.books
@@ -326,7 +333,7 @@ function closeDetail() {
 }
 
 /* Keyboard: / search · Esc close · N/P results · F fly to top · R reset ·
- * M map · ? help. Ignored while typing in a field. */
+ * M map · I index · X surprise · ? help. Ignored while typing in a field. */
 function onShortcut(e) {
   const tag = e.target && e.target.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
@@ -334,6 +341,7 @@ function onShortcut(e) {
     return;
   }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (index.handleKey(e)) return;
   const k = e.key;
   if (k === "/") {
     e.preventDefault();

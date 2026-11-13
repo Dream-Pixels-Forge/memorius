@@ -106,7 +106,7 @@ export class BookcaseScene {
     this._on("bc:reset-view", () => this.resetView());
     this._on("bc:open", (e) => this.open(e.detail.id));
     this._on("bc:fly", (e) => this.flyTo(e.detail.id));
-    this._on("bc:goto", (e) => this.goto(e.detail.x, e.detail.z));
+    this._on("bc:goto", (e) => this.goto(e.detail.x, e.detail.z, e.detail.yaw));
     this._on("keydown", (e) => { if (e.code === "Escape" || e.code === "Space") this.guide.cancel(); });
 
     // headless-verification debug hook
@@ -379,13 +379,17 @@ export class BookcaseScene {
     this.guide.dolly(new THREE.Vector3(s.x, EYE_Y, s.z), new THREE.Vector3(s.x, EYE_Y, s.z - 5), 0.9, { hover: false });
   }
 
-  /* Walk to a floor-plan point (minimap click), snapping into an aisle. */
-  goto(x, z) {
+  /* Walk to a floor-plan point (minimap click / library index), snapping
+   * into an aisle. yaw (optional) faces the camera that way on arrival —
+   * the index uses it to look into the bay it just walked you to. */
+  goto(x, z, yaw = null) {
     let px = x;
     let pz = z;
     for (let i = 0; i < 40 && this.walk.collides(px, pz); i += 1) pz += 0.15;
     const to = new THREE.Vector3(px, EYE_Y, pz);
-    const look = to.clone().add(new THREE.Vector3(0, 0, -3));
+    const look = yaw == null
+      ? to.clone().add(new THREE.Vector3(0, 0, -3))
+      : to.clone().add(new THREE.Vector3(-Math.sin(yaw) * 3, 0, -Math.cos(yaw) * 3));
     this.guide.dolly(to, look, this.reducedMotion ? 0.3 : 1.1, { hover: false });
   }
 
