@@ -21,24 +21,24 @@ Deliver a browser-based 3D bookcase (`memorius bookcase`) where the user sees th
 4. **Search flow:** type (primary) or hold-to-talk (Chromium-only, optional) a query → `POST /search` (top 5, scoped to the selected vault) → librarian speaks the results *and their shelf locations* → camera flies to the top hit, which gets a pulsing highlight; all results are marked on the case. **Voice picker:** dropdown populated from `speechSynthesis.getVoices()`, default = librarian heuristic (calm, professional voice name); persisted in `localStorage`.
 5. **Packaging:** page assets live in `memorius/bookcase/` (shipped as package data, so `pip install memorius` works outside a checkout). Deliberately **not** mirrored into `docs/`: CORS is loopback-only by design, so a GitHub-Pages origin could never call the local API — the CLI command is the single launch path.
 ### Deliverables
-- [ ] `memorius/bookcase/bookcase.html` — page skeleton: scene canvas (`#bc-scene`), search input (`#bc-search`), detail panel (`#bc-detail`), librarian toggle + voice input + voice picker (`#bc-librarian`, `#bc-mic`, `#bc-voice`), vault selector (`#bc-vault`), layout selector (`#bc-layout`), status pill (`#bc-status`)
-- [ ] `memorius/bookcase/bookcase.css` — styling consistent with the site's orange/cinematic design language
-- [ ] `memorius/bookcase/bookcase.js` (+ split files `bookcase-scene.js`, `bookcase-librarian.js` if any file would exceed ~500 lines) — data load via the 5 REST endpoints above, 3D build, vault switch + rebuild, layout modes, interactions, search→speak→fly-to flow
-- [ ] `memorius/rest_server.py` — **only** server change: `GET /vaults` → `{vaults: [{name, memories}]}`; `memorius/vault.py` gains thin `Engine.list_vaults()` (union of both meta stores + vector counts, mirroring `status()`'s vault-union logic)
-- [ ] New CLI subcommand in `memorius/cli/main.py`: `memorius bookcase [--port 8912] [--static-port 8400] [--no-browser]` — health-checks the REST server (starts it via the existing serve path if down), serves `memorius/bookcase/` on the static port over loopback, prints the URL, opens the browser unless `--no-browser`
-- [ ] `pyproject.toml` — package data includes `memorius/bookcase/*`; `memorius/bookcase/__init__.py` present so the package imports
-- [ ] `tests/test_bookcase.py` — the tests listed in Verification
-- [ ] Docs: `docs/cli-reference.html` gains the `bookcase` subcommand row; `docs/getting-started.html` gains a short "See your vault in 3D" section; `CHANGELOG.md` unreleased entry
-- [ ] `dev-notes/PROGRESS.md` updated at completion
+- [x] `memorius/bookcase/bookcase.html` — page skeleton: scene canvas (`#bc-scene`), search input (`#bc-search`), detail panel (`#bc-detail`), librarian toggle + voice input + voice picker (`#bc-librarian`, `#bc-mic`, `#bc-voice`), vault selector (`#bc-vault`), layout selector (`#bc-layout`), status pill (`#bc-status`)
+- [x] `memorius/bookcase/bookcase.css` — styling consistent with the site's orange/cinematic design language
+- [x] `memorius/bookcase/bookcase.js` (+ split files `bookcase-scene.js`, `bookcase-librarian.js` if any file would exceed ~500 lines) — data load via the 5 REST endpoints above, 3D build, vault switch + rebuild, layout modes, interactions, search→speak→fly-to flow
+- [x] `memorius/rest_server.py` — **only** server change: `GET /vaults` → `{vaults: [{name, memories}]}`; `memorius/vault.py` gains thin `Engine.list_vaults()` (union of both meta stores + vector counts, mirroring `status()`'s vault-union logic)
+- [x] New CLI subcommand in `memorius/cli/main.py`: `memorius bookcase [--port 8912] [--static-port 8400] [--no-browser]` — health-checks the REST server (starts it via the existing serve path if down), serves `memorius/bookcase/` on the static port over loopback, prints the URL, opens the browser unless `--no-browser`
+- [x] `pyproject.toml` — package data includes `memorius/bookcase/*`; `memorius/bookcase/__init__.py` present so the package imports
+- [x] `tests/test_bookcase.py` — the tests listed in Verification
+- [x] Docs: `docs/cli-reference.html` gains the `bookcase` subcommand row; `docs/getting-started.html` gains a short "See your vault in 3D" section; `CHANGELOG.md` unreleased entry
+- [x] `dev-notes/PROGRESS.md` updated at completion
 
 ### Definition of Done
-- [ ] `python3 -m pytest tests/test_bookcase.py -q` → all pass, exit 0
-- [ ] `python3 -m memorius.cli.main bookcase --help` → exit 0, shows `--no-browser`
-- [ ] Full suite `python3 -m pytest tests/ -q` green (3.12; CI will also run 3.11)
-- [ ] Manual scenario (Verification 4) completes with **zero console errors**
-- [ ] `grep -c 'allow_origins\|allow_origin_regex' memorius/rest_server.py` unchanged vs. pre-feature (no CORS widening)
-- [ ] From a non-repo directory: `python3 -c "import memorius.bookcase"` succeeds after `pip install -e .`
-- [ ] `docs/cli-reference.html` contains `bookcase`; the "every CLI subcommand documented on-site" invariant holds
+- [x] `python3 -m pytest tests/test_bookcase.py -q` → all pass, exit 0
+- [x] `python3 -m memorius.cli.main bookcase --help` → exit 0, shows `--no-browser`
+- [x] Full suite `python3 -m pytest tests/ -q` green (3.12; CI will also run 3.11)
+- [x] Manual scenario (Verification 4) completes with **zero console errors**
+- [x] `grep -c 'allow_origins\|allow_origin_regex' memorius/rest_server.py` unchanged vs. pre-feature (no CORS widening)
+- [x] From a non-repo directory: `python3 -c "import memorius.bookcase"` succeeds after `pip install -e .`
+- [x] `docs/cli-reference.html` contains `bookcase`; the "every CLI subcommand documented on-site" invariant holds
 
 ### Verification Steps
 1. **Assets ship + are well-formed** (`tests/test_bookcase.py::test_bookcase_assets`): files exist under `memorius/bookcase/`; HTML parses with `html.parser` (no malformed tags); required element ids present; JS text contains references to `/vault`, `/memories`, `/search`, `/memory/`; no file > 500 lines without a split.

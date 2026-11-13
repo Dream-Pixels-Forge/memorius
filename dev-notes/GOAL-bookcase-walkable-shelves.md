@@ -19,41 +19,41 @@ greeting, `GET /vaults`-driven sections, all served by `memorius bookcase` with
 zero REST/MCP/CLI changes.
 
 ## Deliverables
-- [ ] Reworked scene layout in `memorius/bookcase/bookcase-scene.js` (may add a
+- [x] Reworked scene layout in `memorius/bookcase/bookcase-scene.js` (may add a
       sibling module, e.g. `bookcase-walk.js`): ≥3 distinct vault sections laid
       out as aisles/walls a person can walk between (not one orbit target)
-- [ ] First-person navigation: WASD/arrow-key walking at eye height plus mouse
+- [x] First-person navigation: WASD/arrow-key walking at eye height plus mouse
       look (pointer-lock preferred, drag-look fallback); camera cannot pass
       through shelves and cannot go below the floor
-- [ ] Realistic shelf dressing: books stand upright, aligned in orderly rows
+- [x] Realistic shelf dressing: books stand upright, aligned in orderly rows
       with plausible varied heights/widths/colors, resting on shelf planks —
       no floating, no intersecting, no books lying flat or scattered
-- [ ] Per-section labels/markers readable while walking (section/vault names)
-- [ ] All pre-existing interactions still work: book click → info + librarian
+- [x] Per-section labels/markers readable while walking (section/vault names)
+- [x] All pre-existing interactions still work: book click → info + librarian
       speech; search → fly-to-book; books pill; librarian greeting
-- [ ] Tests updated in `tests/test_bookcase.py` (existing 3 still pass; asset
+- [x] Tests updated in `tests/test_bookcase.py` (existing 3 still pass; asset
       presence for any new file)
-- [ ] CHANGELOG entry + docs page section describing the walkable bookcase
-- [ ] Repo conventions held: all `memorius/bookcase/*` files ≤500 lines, TDD
+- [x] CHANGELOG entry + docs page section describing the walkable bookcase
+- [x] Repo conventions held: all `memorius/bookcase/*` files ≤500 lines, TDD
       (RED → GREEN), branch-per-task → PR → CI 3.11+3.12 green → squash merge
 
 ## Definition of Done
-- [ ] Scene graph contains ≥3 distinct sections, each with its own shelves,
+- [x] Scene graph contains ≥3 distinct sections, each with its own shelves,
       positioned apart so aisles exist between them
-- [ ] Headless-Chrome live check: page boots via `memorius bookcase`, renders
+- [x] Headless-Chrome live check: page boots via `memorius bookcase`, renders
       with zero JS console errors
-- [ ] Walkability proven headlessly: a scripted synthetic keydown (W) held ~1s
+- [x] Walkability proven headlessly: a scripted synthetic keydown (W) held ~1s
       moves the camera forward by ≥1 world unit; after a scripted walk sequence
       the camera remains above the floor and outside shelf bounds
-- [ ] Book arrangement proven: every book mesh's position sits within its
+- [x] Book arrangement proven: every book mesh's position sits within its
       shelf's vertical band and inside the shelf's horizontal extent
       (verifiable via a scene dump or debug hook, e.g. `window.__bookcase`
       or equivalent observable)
-- [ ] Librarian greeting still renders as text on load (existing behavior)
-- [ ] Full suite green: `python3 -m pytest -q` → all tests pass
-- [ ] `memorius bookcase --help` exits 0
-- [ ] `wc -l memorius/bookcase/*` → every file ≤500 lines
-- [ ] CHANGELOG has the walkable-bookcase entry; docs page updated
+- [x] Librarian greeting still renders as text on load (existing behavior)
+- [x] Full suite green: `python3 -m pytest -q` → all tests pass
+- [x] `memorius bookcase --help` exits 0
+- [x] `wc -l memorius/bookcase/*` → every file ≤500 lines
+- [x] CHANGELOG has the walkable-bookcase entry; docs page updated
 
 ## Verification Steps
 1. `python3 -m pytest -q` — full suite passes (existing 3 bookcase tests +

@@ -13,7 +13,7 @@ PR with `Closes #N`, CI green, squash merge, then update this index.
 | SG-03 | Enforce full-suite CI + blocking dependency audit | P1 | done | #104 merged |
 | SG-04 | Release integrity: tag 0.9.7/0.9.8 + fix release trigger | P1 | done | #105 merged, v0.9.8 shipped |
 | SG-05 | Bookcase CSP/SRI hardening (vendored Three.js + header CSP) | P1 | done | #107 merged |
-| SG-06 | Docs/version/PROGRESS sync + security contact | P2 | ready | — |
+| SG-06 | Docs/version/PROGRESS sync + security contact | P2 | in-review | #98 |
 | SG-07 | Bookcase UX: library index, walk-to-shelf, surprise me | P2 | done | #108 merged |
 | SG-08 | Container hardening (Dockerfile, non-root, dumb-init) | P2 | ready | — |
 | SG-09 | Repo/branch/local vault hygiene | P3 | ready (ops, no PR) | — |
