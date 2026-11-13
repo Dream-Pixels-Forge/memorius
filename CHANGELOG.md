@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Added
+- **Production container image** (#100). A multi-stage `python:3.12-slim`
+  build installs CPU-only torch and the package into a venv; the runtime
+  copies that venv, adds only `dumb-init`, and runs as non-root UID 10001
+  with the vault on a `/data` volume. The server starts via
+  `dumb-init` as PID 1 on `0.0.0.0:8912`, healthchecks `GET /health/live`,
+  and ships with a `compose.yml` that publishes loopback only and passes an
+  optional `MEMORIUS_API_KEY`. README documents build and run.
 - **Walk controls, a walking librarian, and a centered reader** (#102).
   A hold-to-walk pad sits bottom-left (`#bc-nav`, 44 px, Home resets the
   view) and works with mouse and touch. The hippo now walks to the book he
