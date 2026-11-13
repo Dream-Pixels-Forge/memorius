@@ -17,6 +17,10 @@
                  (signed with the hippo librarian, librarian-hippo.webp)
     #bc-tooltip  hover tooltip for books
     #bc-map      floor-plan minimap (click to be walked there; M toggles)
+    #bc-index    library index panel: one row per bay, book/folder counts,
+                 click to walk there (I toggles; Escape closes)
+    #bc-index-btn  topbar "index" toggle (aria-expanded mirrors the panel)
+    #bc-surprise   topbar "surprise me" button (X opens a random book)
     #bc-help     opens #bc-usage (also "?")
     #bc-hint     first-visit controls hint (fades on first move)
     #bc-cross    crosshair shown while pointer-locked (body.bc-locked)
@@ -30,7 +34,8 @@
       "bc:reset-view" {}
       "bc:open"       {id|null}  (draw the opened book out of the shelf)
       "bc:fly"        {id}       (lantern run to one book)
-      "bc:goto"       {x, z}     (minimap → walk to a floor-plan point)
+      "bc:goto"       {x, z, yaw?}  (minimap / index → walk to a floor-plan
+                                     point; yaw faces the camera into a bay)
     scene → main:
       "bc:book-hover" {id: string|null, x, y, label}
       "bc:book-click" {id}
@@ -61,7 +66,7 @@
 <div id="bc-cross" aria-hidden="true"></div>
 <div id="bc-hint" class="bc-hint">
   <b>Click</b> to look around · <b>WASD</b> to walk · <b>Shift</b> to hurry ·
-  <b>/</b> to ask the librarian · <b>?</b> for help
+  <b>I</b> for the index · <b>X</b> surprise · <b>/</b> to ask · <b>?</b> for help
 </div>
 <canvas id="bc-map" class="bc-map" width="200" height="200" title="Floor plan: click to walk there (M)"></canvas>
 
@@ -93,6 +98,8 @@
     <span>Librarian</span>
   </label>
   <button id="bc-view" type="button" title="Reset camera (R)">⟲ view</button>
+  <button id="bc-index-btn" type="button" aria-expanded="false" aria-controls="bc-index" title="Library index (I)">☰ index</button>
+  <button id="bc-surprise" type="button" title="Open a random book (X)">✦ surprise</button>
   <button id="bc-help" type="button" title="Controls (?)" aria-label="Help">?</button>
 </header>
 
@@ -109,12 +116,22 @@
     <li><b>Results:</b> <kbd>N</kbd> / <kbd>P</kbd> walk you to the next / previous match, <kbd>F</kbd> flies back to the current one.</li>
     <li><b>Read:</b> click a book — it is drawn out and opened; "Read aloud" lets the librarian read it.</li>
     <li><b>Map:</b> <kbd>M</kbd> toggles the floor plan; click it to be walked there.</li>
+    <li><b>Index:</b> <kbd>I</kbd> (or ☰ index) lists every bay with its book and folder counts — click a bay, <kbd>Enter</kbd> on a focused row, and you are walked into it facing the shelves. <kbd>X</kbd> or ✦ surprise opens a random book.</li>
     <li><b>Floor plan:</b> each shelf is a bay off the main aisle (alternating left / right, signs hang at each opening); each folder is a case inside its bay, read clockwise; books run left → right from eye level down. Positions never move.</li>
     <li><b>Vault / layout:</b> switch vault (from <code>GET /vaults</code>); "light newest" makes the newest books glow and lean out — the newest also stand on the table by the doors.</li>
     <li><b>Reset:</b> <kbd>R</kbd> or ⟲ view. <kbd>Space</kbd>/<kbd>Esc</kbd> skips a camera move.</li>
     <li><b>Colour:</b> each folder has its own binding colour; fresher memories are brighter with shinier gilt.</li>
   </ul>
 </div>
+
+<aside id="bc-index" class="bc-index" hidden aria-label="Library index">
+  <header class="bc-index-head">
+    <h2>Library index</h2>
+    <button id="bc-index-close" type="button" aria-label="Close index">×</button>
+  </header>
+  <div id="bc-index-card" class="bc-index-card"></div>
+  <div id="bc-index-list" class="bc-index-list"></div>
+</aside>
 
 <aside id="bc-detail" class="bc-detail" hidden>
   <button id="bc-detail-close" aria-label="Close panel">×</button>

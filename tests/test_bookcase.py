@@ -17,6 +17,7 @@ dev-notes/GOAL-bookcase-walkable-shelves.md:
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -40,7 +41,8 @@ REQUIRED_ASSETS = [
     "bookcase-scene.js", "bookcase-walk.js", "bookcase-layout.js",
     "bookcase-atmosphere.js", "bookcase-guide.js", "bookcase-textures.js",
     "bookcase-minimap.js", "bookcase-mascot.js", "librarian-hippo.webp",
-    "bookcase-cases.js", "librarian-hippo.glb",
+    "bookcase-cases.js", "librarian-hippo.glb", "bookcase-index.js",
+    "bookcase-copy.js",
 ]
 MAX_LINES_PER_FILE = 500
 
@@ -492,3 +494,312 @@ class TestBookcaseFloorPlan:
         assert out["bad"] == 0, "a book sits in the wrong bay or overflows a plank"
         assert "alpha bay, second on the left" in out["describe"]
 
+
+
+_INDEX_PROBE = r"""
+const { LibraryIndex } = await import(__URL__);
+
+class El {
+  constructor(tag) {
+    this.tagName = String(tag).toUpperCase();
+    this.children = [];
+    this.attrs = {};
+    this.listeners = {};
+    this.className = "";
+    this.hidden = false;
+    this.textContent = "";
+    this.classList = {
+      _s: new Set(),
+      add: (c) => this.classList._s.add(c),
+      remove: (c) => this.classList._s.delete(c),
+      contains: (c) => this.classList._s.has(c),
+      toggle: (c, on) => (on ? this.classList._s.add(c) : this.classList._s.delete(c)),
+    };
+  }
+  append(...kids) { for (const k of kids) this.children.push(k); }
+  appendChild(k) { this.children.push(k); return k; }
+  set innerHTML(_) { this.children = []; }
+  get innerHTML() { return ""; }
+  addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); }
+  fire(type, ev) { for (const fn of this.listeners[type] || []) fn(ev || {}); }
+  setAttribute(k, v) { this.attrs[k] = String(v); }
+  getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; }
+  focus() { this.focused = true; }
+  text() { return this.textContent + this.children.map((c) => c.text()).join(" | "); }
+}
+
+const ids = ["bc-index", "bc-index-list", "bc-index-card", "bc-index-btn",
+             "bc-index-close", "bc-surprise"];
+const els = {};
+for (const id of ids) els[id] = new El("button");
+els["bc-index"].hidden = true;
+
+globalThis.document = {
+  getElementById: (id) => els[id] || null,
+  createElement: (tag) => new El(tag),
+};
+const events = [];
+globalThis.window = { dispatchEvent: (e) => { events.push(e); return true; } };
+globalThis.CustomEvent = class {
+  constructor(type, init) { this.type = type; this.detail = init && init.detail; }
+};
+
+const bays = [
+  { label: "alpha", side: -1, ordinal: 1, sideName: "left", center: { x: -3, z: -2 } },
+  { label: "beta II", side: 1, ordinal: 2, sideName: "right", center: { x: 3, z: -9 } },
+];
+const cases = [
+  { bay: "alpha", folder: "refs", shelves: [{ slots: [{}, {}] }, { slots: [{}] }] },
+  { bay: "alpha", folder: "projects", shelves: [{ slots: [{}] }] },
+  { bay: "beta II", folder: "notes", shelves: [{ slots: [{}] }] },
+];
+const books = [
+  { id: "a", shelf: "alpha", folder: "refs", note: "one", createdAt: 1000 },
+  { id: "b", shelf: "alpha", folder: "projects", note: "two", createdAt: 3000 },
+  { id: "c", shelf: "beta", folder: "notes", note: "three", createdAt: 2000 },
+];
+const opened = [];
+const said = [];
+const idx = new LibraryIndex({
+  books: () => books,
+  plan: () => ({ bays, cases }),
+  open: (id) => opened.push(id),
+  announce: (t) => said.push(t),
+  age: (t) => "aged-" + t,
+});
+
+const out = { events: [] };
+idx.show();
+out.openAfterShow = els["bc-index"].hidden === false;
+out.expanded = els["bc-index-btn"].getAttribute("aria-expanded");
+const rows = els["bc-index-list"].children;
+out.rows = rows.length;
+out.rowTags = rows.map((r) => r.tagName);
+out.rowTexts = rows.map((r) => r.text());
+out.card = els["bc-index-card"].children.map((c) => c.text());
+rows[1].fire("click");
+const goto = events.find((e) => e.type === "bc:goto");
+out.goto = goto ? goto.detail : null;
+out.closedAfterWalk = els["bc-index"].hidden;
+out.expandedAfterWalk = els["bc-index-btn"].getAttribute("aria-expanded");
+
+const key = (k, target, mods) => ({
+  key: k, target: target || { tagName: "BODY" },
+  metaKey: !!(mods && mods.meta), ctrlKey: false, altKey: false,
+  preventDefault() { this.defaultPrevented = true; },
+});
+out.iConsumed = idx.handleKey(key("i"));
+out.openAfterI = els["bc-index"].hidden === false;
+out.escapeConsumed = idx.handleKey(key("Escape"));
+out.closedAfterEscape = els["bc-index"].hidden;
+out.xConsumed = idx.handleKey(key("x"));
+out.ignoredInInput = idx.handleKey(key("i", { tagName: "INPUT" }));
+out.ignoredWithMeta = idx.handleKey(key("x", { tagName: "BODY" }, { meta: true }));
+idx.surprise();
+out.opened = opened;
+out.said = said;
+out.fly = events.filter((e) => e.type === "bc:fly").length;
+
+// an empty vault must not throw and must say so
+const empty = new LibraryIndex({
+  books: () => [], plan: () => ({ bays: [], cases: [] }),
+  open: () => { throw new Error("opened a book from an empty vault"); },
+  announce: (t) => said.push(t), age: (t) => String(t),
+});
+empty.show();
+out.emptyRows = els["bc-index-list"].children.length;
+out.emptyCard = els["bc-index-card"].children.length;
+empty.surprise();
+console.log(JSON.stringify(out));
+"""
+
+
+class TestBookcaseIndex:
+    """SG-07: library index panel + "surprise me" (issue #99)."""
+
+    def _asset(self, name: str) -> str:
+        import memorius.bookcase as bookcase_pkg
+
+        return (Path(bookcase_pkg.__file__).parent / name).read_text(
+            encoding="utf-8"
+        )
+
+    def test_index_markup(self):
+        html = self._asset("bookcase.html")
+        for element_id in (
+            "bc-index", "bc-index-btn", "bc-index-list", "bc-index-card",
+            "bc-index-close", "bc-surprise",
+        ):
+            assert f'id="{element_id}"' in html, f"missing #{element_id}"
+
+        # The panel starts closed and the button announces that state.
+        assert re.search(r'<aside[^>]*id="bc-index"[^>]*hidden', html), (
+            "#bc-index must start hidden"
+        )
+        button = re.search(r'<button[^>]*id="bc-index-btn"[^>]*>', html)
+        assert button, "#bc-index-btn must be a <button>"
+        tag = button.group(0)
+        assert 'aria-expanded="false"' in tag, tag
+        assert 'aria-controls="bc-index"' in tag, tag
+        assert re.search(r'<button[^>]*id="bc-surprise"[^>]*>', html)
+
+    def test_index_module_wiring(self):
+        index = self._asset("bookcase-index.js")
+        for needle in (
+            'new CustomEvent("bc:goto"', 'new CustomEvent("bc:fly"',
+            "aria-expanded", "handleKey", "bc-index-list", "bc-index-card",
+        ):
+            assert needle in index, f"bookcase-index.js lacks {needle!r}"
+        main = self._asset("bookcase.js")
+        assert "./bookcase-index.js" in main, "main module does not import the index"
+        assert "handleKey" in main, "main module does not delegate I / X / Esc"
+
+    @pytest.mark.skipif(shutil.which("node") is None, reason="needs Node.js")
+    def test_index_behavior(self):
+        import json
+
+        import memorius.bookcase as bookcase_pkg
+
+        url = json.dumps(
+            (Path(bookcase_pkg.__file__).parent / "bookcase-index.js").as_uri()
+        )
+        res = subprocess.run(
+            ["node", "--input-type=module", "-e", _INDEX_PROBE.replace("__URL__", url)],
+            capture_output=True, text=True, timeout=60, check=False,
+        )
+        assert res.returncode == 0, res.stderr
+        out = json.loads(res.stdout)
+
+        # the panel opens, announces its state, and lists one row per bay
+        assert out["openAfterShow"] is True
+        assert out["expanded"] == "true"
+        assert out["rows"] == 2
+        assert out["rowTags"] == ["BUTTON", "BUTTON"], "rows must be keyboard-activatable"
+        alpha, beta = out["rowTexts"]
+        assert "alpha" in alpha and "4" in alpha and "2 folders" in alpha, alpha
+        assert "beta II" in beta and "1 folder" in beta, beta
+
+        # the library card summarises the vault, oldest → newest
+        stats, when = out["card"][:3], out["card"][-1]
+        assert "books" in stats[0] and "3" in stats[0], stats
+        assert "shelves" in stats[1] and "2" in stats[1], stats
+        assert "folders" in stats[2] and "3" in stats[2], stats
+        assert "oldest" in when and "newest" in when, when
+        assert "aged-1000" in when and "aged-3000" in when, when
+
+        # clicking a bay walks the visitor there, facing into the alcove
+        assert out["goto"]["x"] == 3 and out["goto"]["z"] == -9, out["goto"]
+        assert out["goto"]["yaw"] < 0, out["goto"]  # beta is on the right
+        assert out["closedAfterWalk"] is True
+        assert out["expandedAfterWalk"] == "false"
+
+        # keyboard: I toggles, Escape closes, X surprises
+        assert out["iConsumed"] is True and out["openAfterI"] is True
+        assert out["escapeConsumed"] is True and out["closedAfterEscape"] is True
+        assert out["xConsumed"] is True
+        assert out["ignoredInInput"] is False, "I must not fire while typing"
+        assert out["ignoredWithMeta"] is False, "X must not fire with a modifier"
+        assert out["fly"] == 2, "both surprises should fly the camera to a book"
+        assert out["opened"] and set(out["opened"]) <= {"a", "b", "c"}
+        assert out["said"], "surprises must be announced through the librarian"
+
+        # an empty vault renders a placeholder instead of crashing
+        assert out["emptyRows"] == 1
+        assert out["emptyCard"] == 4  # three zeroed stats + the date line
+
+
+_COPY_PROBE = r"""
+const { copyText, copyButton } = await import(__URL__);
+
+const out = { exec: null, execResult: true, writes: [], selected: null };
+
+const node = (tag) => ({
+  tagName: String(tag).toUpperCase(),
+  style: {}, value: "", textContent: "", attrs: {}, listeners: {},
+  setAttribute(k, v) { this.attrs[k] = v; },
+  addEventListener(t, fn) { (this.listeners[t] = this.listeners[t] || []).push(fn); },
+  select() { out.selected = this.value; },
+});
+
+globalThis.document = {
+  body: { appendChild() {}, removeChild() {} },
+  createElement: node,
+  execCommand: (cmd) => { out.exec = cmd; return out.execResult; },
+};
+
+// 1. modern path: navigator.clipboard.writeText
+const setNavigator = (v) => Object.defineProperty(globalThis, "navigator", { value: v, configurable: true });
+setNavigator({ clipboard: { writeText: async (v) => out.writes.push(v) } });
+out.modern = await copyText("hello memory");
+out.empty = await copyText(null);
+out.afterEmpty = out.writes.length;
+
+// 2. fallback: clipboard missing → hidden textarea + execCommand
+setNavigator({});
+out.fallback = await copyText("fallback text");
+out.fallbackSelected = out.selected;
+out.execResult = false;
+out.fallbackFailed = await copyText("nope");
+
+// 3. a button that copies on click and reports the result
+out.execResult = true;
+setNavigator({ clipboard: { writeText: async (v) => out.writes.push(v) } });
+const btn = copyButton(() => "copied payload", 15);
+out.tag = btn.tagName;
+out.label = btn.textContent;
+btn.listeners.click[0]();
+await new Promise((r) => setTimeout(r, 5));
+out.after = btn.textContent;
+out.selected = out.selected;
+await new Promise((r) => setTimeout(r, 30));
+out.restored = btn.textContent;
+out.payload = out.writes[out.writes.length - 1];
+console.log(JSON.stringify(out));
+"""
+
+
+class TestBookcaseCopy:
+    """SG-07: Copy memory — clipboard with a fallback (issue #99)."""
+
+    def _asset(self, name: str) -> str:
+        import memorius.bookcase as bookcase_pkg
+
+        return (Path(bookcase_pkg.__file__).parent / name).read_text(
+            encoding="utf-8"
+        )
+
+    def test_copy_module_wiring(self):
+        main = self._asset("bookcase.js")
+        assert "./bookcase-copy.js" in main, "openBook does not import the copy helper"
+        assert "copyButton(" in main, "the detail panel has no Copy button"
+        assert "bookcase-copy.js" in REQUIRED_ASSETS
+
+    @pytest.mark.skipif(shutil.which("node") is None, reason="needs Node.js")
+    def test_copy_behavior(self):
+        import json
+
+        import memorius.bookcase as bookcase_pkg
+
+        url = json.dumps(
+            (Path(bookcase_pkg.__file__).parent / "bookcase-copy.js").as_uri()
+        )
+        res = subprocess.run(
+            ["node", "--input-type=module", "-e", _COPY_PROBE.replace("__URL__", url)],
+            capture_output=True, text=True, timeout=60, check=False,
+        )
+        assert res.returncode == 0, res.stderr
+        out = json.loads(res.stdout)
+
+        assert out["modern"] is True
+        assert out["writes"][0] == "hello memory"
+        assert out["empty"] is True and out["afterEmpty"] == 2
+
+        assert out["fallback"] is True and out["exec"] == "copy"
+        assert out["fallbackSelected"] == "fallback text", "fallback must copy the textarea value"
+        assert out["fallbackFailed"] is False
+
+        assert out["tag"] == "BUTTON"
+        assert out["label"] == "Copy"
+        assert out["after"] == "Copied"
+        assert out["payload"] == "copied payload"
+        assert out["restored"] == "Copy", "the label must reset after the flash"

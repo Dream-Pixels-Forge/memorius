@@ -211,6 +211,10 @@ def test_static_server_sends_the_security_headers(tmp_path):
     assert headers.get("X-Content-Type-Options") == "nosniff"
     assert headers.get("X-Frame-Options") == "DENY"
     assert headers.get("Referrer-Policy") == "no-referrer"
+    # The page is served from the package directory and upgraded in place.
+    # Without no-store the browser keeps running the previous bookcase.js
+    # after an upgrade (new buttons appear in the HTML but do nothing).
+    assert headers.get("Cache-Control") == "no-store"
 
 
 def test_static_server_refuses_directory_listing(tmp_path):
