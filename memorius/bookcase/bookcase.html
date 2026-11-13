@@ -48,8 +48,8 @@
 <script type="importmap">
 {
   "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    "three": "./vendor/three.module.min.js",
+    "three/addons/": "./vendor/addons/"
   }
 }
 </script>
@@ -124,20 +124,6 @@
 <div id="bc-guidance" class="bc-guidance" role="log" aria-live="polite"></div>
 
 <script type="module" src="./bookcase.js"></script>
-<script>
-  // Fallback: if the module graph (incl. the Three.js CDN) fails to boot,
-  // surface it in the status pill instead of a blank page.
-  window.addEventListener("load", function () {
-    setTimeout(function () {
-      if (!window.__bcBooted) {
-        var pill = document.getElementById("bc-status");
-        if (pill) {
-          pill.textContent = "3D engine failed to load (CDN offline?)";
-          pill.classList.add("bc-pill-error");
-        }
-      }
-    }, 4000);
-  });
-</script>
+<script src="./bookcase-boot.js"></script>
 </body>
 </html>

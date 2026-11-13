@@ -106,6 +106,56 @@ class TestCORSActualRequest:
         assert "access-control-allow-origin" in response.headers
 
 
+class TestCORSConfiguredPorts:
+    """`memorius bookcase --port/--static-port` documents custom ports.
+
+    The allow-list was hardcoded to 8912/8400, so the page booted on any
+    other static port and then failed every request with "API unreachable".
+    The allow-list must follow the configured ports, and still reject
+    everything else on loopback.
+    """
+
+    @pytest.fixture
+    def app(self, engine):
+        from memorius.rest_server import MemoriusAPI
+
+        engine._config["server"]["rest_port"] = 9123
+        engine._config["server"]["static_port"] = 9456
+        return MemoriusAPI(engine).create_app()
+
+    def test_configured_static_port_is_allowed(self, app):
+        from fastapi.testclient import TestClient
+
+        response = TestClient(app).options(
+            "/search",
+            headers={
+                "Origin": "http://127.0.0.1:9456",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+        assert response.headers.get("access-control-allow-origin") == "http://127.0.0.1:9456"
+
+    def test_configured_rest_port_is_allowed(self, app):
+        from fastapi.testclient import TestClient
+
+        response = TestClient(app).get(
+            "/status", headers={"Origin": "http://localhost:9123"}
+        )
+        assert response.headers.get("access-control-allow-origin") == "http://localhost:9123"
+
+    def test_still_rejects_an_unconfigured_port(self, app):
+        from fastapi.testclient import TestClient
+
+        response = TestClient(app).options(
+            "/search",
+            headers={
+                "Origin": "http://127.0.0.1:5173",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+        assert "access-control-allow-origin" not in response.headers
+
+
 # ── Idempotency key tests (issue #65, H-02) ──────────────────────────────────
 
 class TestIdempotency:

@@ -815,11 +815,9 @@ def cmd_bookcase(engine, args, config):
     down), serves memorius/bookcase/ on a loopback static port, prints the
     URL, and opens the browser unless --no-browser.
     """
-    import http.server
     import signal
     import threading
     import webbrowser
-    from functools import partial
 
     import memorius.bookcase as bookcase_pkg
 
@@ -827,6 +825,13 @@ def cmd_bookcase(engine, args, config):
     port = args.port or config_server.get("rest_port", 8912)
     static_port = args.static_port or config_server.get("static_port", 8400)
     api_base = f"http://127.0.0.1:{port}"
+
+    # The REST API allow-lists this page's origin. Publish the ports actually
+    # in use before the app is built so --port/--static-port do not leave the
+    # page unable to reach its own API.
+    config.setdefault("server", {}).update(
+        {"rest_port": port, "static_port": static_port}
+    )
 
     # 1. Health-check REST; start it (existing serve path) when down.
     uvicorn_server = None
@@ -870,36 +875,9 @@ def cmd_bookcase(engine, args, config):
         print(f"Static port {static_port} is in use — pass --static-port <other>.")
         sys.exit(1)
     static_dir = Path(bookcase_pkg.__file__).resolve().parent
-    class _NoDirectoryListingHandler(http.server.SimpleHTTPRequestHandler):
-        """SimpleHTTPRequestHandler that disables directory listing."""
+    from memorius.bookcase.server import serve as serve_static
 
-        def list_directory(self, path):
-            """Override to return 403 instead of a directory listing."""
-            self.send_error(403, "Directory listing disabled")
-
-    # Bounded thread pool to prevent thread-per-connection exhaustion (H-24)
-    class _BoundedThreadingHTTPServer(http.server.ThreadingHTTPServer):
-        daemon_threads = True
-        request_queue_size = 50
-
-        def __init__(self, *args, **kwargs):
-            import concurrent.futures
-            self._thread_pool = concurrent.futures.ThreadPoolExecutor(
-                max_workers=50, thread_name_prefix="bookcase-static"
-            )
-            super().__init__(*args, **kwargs)
-
-        def process_request(self, request, client_address):
-            self._thread_pool.submit(super().process_request, request, client_address)
-
-        def server_close(self):
-            self._thread_pool.shutdown(wait=False)
-            super().server_close()
-
-    handler = partial(
-        _NoDirectoryListingHandler, directory=str(static_dir)
-    )
-    httpd = _BoundedThreadingHTTPServer(("127.0.0.1", static_port), handler)
+    httpd = serve_static(static_dir, static_port)
     threading.Thread(
         target=httpd.serve_forever, daemon=True, name="memorius-bookcase-static"
     ).start()

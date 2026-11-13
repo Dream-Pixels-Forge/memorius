@@ -63,4 +63,9 @@ build-backend = "setuptools.build_meta"
 include-package-data = true
 
 [tool.setuptools.package-data]
-memorius = ["data/*", "bookcase/*"]
+memorius = [
+    "data/*",
+    "bookcase/*",
+    "bookcase/vendor/*",
+    "bookcase/vendor/addons/*/*",
+]
