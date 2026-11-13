@@ -5,7 +5,8 @@
 - Version: 0.9.8 (released 2026-11-13; tag, GitHub release and PyPI verified against the same version)
 - Active branch: main
 - Vault health: all doctor checks pass (meta=826, vectors=826 after repair --reindex)
-- Status: CI green on Python 3.11 / 3.12 / 3.13 plus the full suite (570 tests). Subgoals SG-01–SG-05, SG-07 and SG-10 are merged; SG-08 (container hardening) and SG-09 (repo hygiene) remain.
+- Status: CI green on Python 3.11 / 3.12 / 3.13 plus the full suite (570 tests). All subgoals SG-01–SG-10 are done; SG-08 added the production container image (#111) and SG-09 cleaned branches and the local vault.
+- [2026-11-13] SG-09 hygiene: local branches reduced to `main`, 18 merged remote branches deleted, local CLI upgraded 0.9.5 → 0.9.8, `repair --reindex` re-embedded 894 missing vectors, `memorius doctor` all checks ok.
 - [2026-11-13] Bookcase series landed: SG-05 strict CSP with vendored Three.js (#107), SG-07 library index / walk-to-shelf / surprise me (#108), and SG-10 bottom-left walk pad, walking hippo and centered reader (#109). Every bookcase asset stays under 500 lines; the page boots with zero console errors.
 - [2026-11-13] Release integrity: v0.9.8 verified three-way (tag ↔ GitHub release ↔ PyPI); SG-04 removed `skip-existing` and pinned the release workflow to the tag (#105).
 - [2026-10-17] Triage done: #31–#34 closed stale (verified 15/15 pass); #26–#30 wired to PR #37 (180s timeout); #23/#24 root-caused → PR #38 (Popen detach in _start_daemon); #22 → PR #35 (README CLI-ref anchor). PRs #37/#38/#35 merged to main with CI green (3.11+3.12). New convention: auto-merge only when all CI green + zero open issues/warnings + goal-met MET 10/10.
@@ -36,6 +37,8 @@
 - [2026-10-11] Prioritized neuroscience-inspired consolidation, hybrid retrieval, and observability enhancements based on 2026 trends analysis
 
 ## Next Steps
-1. SG-08: container hardening (Dockerfile, non-root user, dumb-init)
-2. SG-09: repo/branch/local-vault hygiene
-3. Keep CI green across 3.11/3.12/3.13 and the full suite after each subgoal
+1. All audited subgoals SG-01–SG-10 are complete; keep CI green across
+   3.11/3.12/3.13 and the full suite on every change.
+2. On the next version bump, re-run the three-way release verification
+   (tag ↔ GitHub release ↔ version-specific PyPI endpoint).
+3. Keep the local vault in sync (`memorius doctor`, `memorius repair --reindex`).

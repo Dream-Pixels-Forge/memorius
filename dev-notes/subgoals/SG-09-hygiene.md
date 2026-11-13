@@ -15,8 +15,25 @@
 - Run `memorius repair` (not dry-run) to re-embed the 894 missing vectors.
 - Re-run `memorius doctor`; expect all checks ok.
 
+## What was built
+
+- **Branches** — every local branch whose PR was squash-merged is deleted;
+  `git branch` now lists only `main`. `fix/66-xss-hardening` was the one
+  branch with content not in `main` (a `<meta>` CSP plus an unpkg SRI
+  preload); SG-05 superseded it with a vendored Three.js and an HTTP-header
+  CSP, so it was deleted rather than merged. All 18 stale remote branches
+  (dependabot, `claude/*`, `fix/*`) are gone after `git push origin
+  --delete` and `git fetch --prune`; `git branch -r` lists only
+  `origin/main`.
+- **Local install** — `/home/dimona/.memorius-venv` upgraded from 0.9.5 to
+  0.9.8 with `pip install --upgrade memorius==0.9.8` from PyPI;
+  `memorius --version` → `memorius v0.9.8`.
+- **Vault** — `memorius repair --reindex` re-embedded the 894 metadata rows
+  whose vectors were missing (903 meta / 9 vectors before). `memorius
+  doctor` now reports every check ok.
+
 ## Definition of done
-- [ ] `git branch` shows only `main`.
-- [ ] `git branch -r` has no merged stale branches.
-- [ ] `memorius --version` → 0.9.8.
-- [ ] `memorius doctor` → all checks ok (or documented warnings).
+- [x] `git branch` shows only `main`.
+- [x] `git branch -r` has no merged stale branches.
+- [x] `memorius --version` → 0.9.8.
+- [x] `memorius doctor` → all checks ok (or documented warnings).
