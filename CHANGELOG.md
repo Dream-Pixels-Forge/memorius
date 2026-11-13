@@ -3,6 +3,17 @@
 ## Unreleased
 
 ### Added
+- **Walk controls, a walking librarian, and a centered reader** (#102).
+  A hold-to-walk pad sits bottom-left (`#bc-nav`, 44 px, Home resets the
+  view) and works with mouse and touch. The hippo now walks to the book he
+  is pointing at — through the nave and into the bay, never across a case —
+  instead of teleporting, with a bob/roll walk cycle and a hop on arrival.
+  Clicking a book opens a centered reader (`#bc-reader`, 68 ch at 17 px)
+  with Copy, Read aloud, Walk me there, and its neighbours on the shelf;
+  Esc, ×, and the backdrop close it and focus returns where it was. Search
+  results stay in `#bc-detail`. The stylesheet split into
+  `bookcase-nav.css` and `bookcase-reader.css` so every shipped asset stays
+  under 500 lines.
 - **Bookcase library index and "surprise me"** (#99). `I` (or ☰ index)
   opens a table of contents built from the floor plan: every bay with its
   book and folder counts, a library card (books / shelves / folders,
@@ -11,9 +22,9 @@
   opens it. Rows are keyboard-activatable, `aria-expanded` mirrors the
   panel, and Escape closes it. The index lives in its own
   `bookcase-index.js` so the main module stays under the 500-line budget.
-- **Copy a memory from the bookcase.** The book detail panel has a Copy
-  action that writes the memory to the clipboard, falling back to a
-  hidden textarea when the page is not on a secure origin.
+- **Copy a memory from the bookcase.** The reader has a Copy action that
+  writes the memory to the clipboard, falling back to a hidden textarea
+  when the page is not on a secure origin.
 
 ### Security
 - **The bookcase page now runs under a strict Content-Security-Policy**

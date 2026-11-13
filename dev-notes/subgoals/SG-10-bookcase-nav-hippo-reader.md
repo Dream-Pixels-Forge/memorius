@@ -164,19 +164,49 @@ Add to `tests/test_bookcase.py`:
    `bookcase-reader.js` / `bookcase-nav.js` modules; keep the ≤500-line
    assertion.
 
+## What was built
+
+**Nav pad** — `bookcase-nav.js` builds the wiring: `pointerdown` calls
+`WalkControls.press("KeyW")`, and `pointerup` / `pointercancel` /
+`pointerleave` / `lostpointercapture` call `release`. No synthetic
+keyboard events, so focus and modifiers are untouched. Home dispatches
+`bc:reset-view`; the pad hides on `bc:cinema` and returns after the
+flight. Buttons are 44 px (40 px under 720 px), and `bookcase-nav.css`
+moves `#bc-guidance` to `bottom: 112px`.
+
+**Walking hippo** — `routeBetween(from, to, plan)` in
+`bookcase-layout.js` builds bay-centre → nave → target-bay-centre →
+target. `Mascot.walkTo()` follows those waypoints at `WALK_SPEED`
+(1.25 m/s), damps yaw at corners, bobs/rolls/leans during the walk, and
+hops on arrival. Reduced motion places him instantly. `standAt` is kept
+as an alias. `window.__bookcase.mascot()` reports `at`, `walking`, `path`
+and `position` for headless checks. He sets off immediately during a
+camera flight instead of waiting for its duration.
+
+**Centered reader** — `bookcase-reader.js` owns the dialog: fetch with a
+last-request-wins token, `bc:open` on open and close, focus moved to the
+close button, Tab trapped, focus restored on close, Esc / × / backdrop,
+`body.bc-reader-open` scroll lock, Copy / Read aloud / Walk me there, and
+neighbours from the same shelf+folder. `#bc-detail` is now only the
+search-results panel; result rows and book clicks both open the reader.
+
+**File budget** — `bookcase.js` 468 lines, `bookcase.css` 451 split into
+`bookcase-nav.css` (60) and `bookcase-reader.css` (146); mascot 280,
+reader 180. Both new stylesheets are linked from `bookcase.html`.
+
 ## Definition of done
 
-- [ ] Holding a nav button walks continuously; releasing stops; touch and
+- [x] Holding a nav button walks continuously; releasing stops; touch and
       mouse both work; `R`/Home resets the view.
-- [ ] Nav cluster sits bottom-left and never overlaps the librarian log or
+- [x] Nav cluster sits bottom-left and never overlaps the librarian log or
       the minimap at 1280×720 and 390×844.
-- [ ] The hippo visibly walks to a searched book and back home, routes
+- [x] The hippo visibly walks to a searched book and back home, routes
       around cases, and arrives facing the visitor.
-- [ ] Clicking a book opens the centered reader with readable typography;
+- [x] Clicking a book opens the centered reader with readable typography;
       `Esc`, the close button, and the backdrop all close it; focus returns
       to where it was.
-- [ ] Copy and Read aloud work from the reader.
-- [ ] `prefers-reduced-motion` keeps instant placement and no fades.
-- [ ] `pytest tests/test_bookcase.py -q` green; full suite green.
-- [ ] Headless smoke: page boots to "N books", nav moves the camera, reader
+- [x] Copy and Read aloud work from the reader.
+- [x] `prefers-reduced-motion` keeps instant placement and no fades.
+- [x] `pytest tests/test_bookcase.py -q` green; full suite green.
+- [x] Headless smoke: page boots to "N books", nav moves the camera, reader
       opens on a book click, zero console errors.

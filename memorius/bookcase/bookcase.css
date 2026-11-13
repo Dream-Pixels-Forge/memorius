@@ -315,7 +315,7 @@ select:disabled { opacity: 0.4; }
 .bc-guidance {
   position: fixed;
   left: 14px;
-  bottom: 14px;
+  bottom: 112px;
   z-index: 10;
   max-width: 460px;
   max-height: 30vh;

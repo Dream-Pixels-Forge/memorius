@@ -1,0 +1,146 @@
+/* Memorius bookcase — the centered reader dialog.
+ * Split from bookcase.css to keep every shipped asset under 500 lines.
+ */
+/* ── centered reader ─────────────────────────────────────────── */
+.bc-reader {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+.bc-reader[hidden] { display: none; }
+.bc-reader-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 4, 3, 0.72);
+  backdrop-filter: blur(6px);
+}
+.bc-reader-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(720px, calc(100vw - 32px));
+  max-height: min(82vh, 900px);
+  background: var(--bc-panel);
+  border: 1px solid var(--bc-panel-line);
+  border-radius: 16px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+.bc-reader-head {
+  position: relative;
+  padding: 20px 56px 12px 26px;
+  border-bottom: 1px solid var(--bc-panel-line);
+}
+.bc-reader-head h2 {
+  margin: 2px 0 8px;
+  font-family: var(--bc-serif);
+  font-size: 26px;
+  line-height: 1.2;
+  color: var(--bc-text);
+  word-break: break-word;
+}
+#bc-reader-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--bc-panel-line);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--bc-text-dim);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+#bc-reader-close:hover, #bc-reader-close:focus-visible {
+  border-color: var(--bc-accent);
+  color: var(--bc-accent);
+  outline: none;
+}
+.bc-reader-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 26px;
+  border-bottom: 1px solid var(--bc-panel-line);
+}
+.bc-reader-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 68ch;
+  margin: 0 auto;
+  padding: 22px 26px;
+  font-family: var(--bc-serif);
+  font-size: 17px;
+  line-height: 1.75;
+  color: var(--bc-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.bc-reader-body h3 {
+  margin: 26px 0 10px;
+  font-family: var(--bc-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--bc-text-dim);
+}
+.bc-reader-text { margin: 0; }
+.bc-reader-foot {
+  padding: 10px 26px 14px;
+  border-top: 1px solid var(--bc-panel-line);
+  font-family: var(--bc-mono);
+  font-size: 11px;
+  color: var(--bc-text-dim);
+}
+body.bc-reader-open { overflow: hidden; }
+
+@media (max-width: 720px) {
+  .bc-reader { padding: 0; }
+  .bc-reader-panel {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: 100%;
+    border: none;
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .bc-reader-head { padding: 18px 52px 10px 18px; }
+  .bc-reader-actions { padding: 10px 18px; }
+  .bc-reader-body { padding: 18px; font-size: 16px; }
+  .bc-reader-foot { padding: 8px 18px 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bc-reader-backdrop { transition: none; }
+}
+
+.bc-reader-body .bc-neighbour {
+  display: inline-block;
+  margin: 4px 6px 0 0;
+  padding: 6px 10px;
+  border: 1px solid var(--bc-panel-line);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--bc-text);
+  font-family: var(--bc-mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+.bc-reader-body .bc-neighbour:hover,
+.bc-reader-body .bc-neighbour:focus-visible {
+  border-color: var(--bc-accent);
+  color: var(--bc-accent);
+  outline: none;
+}

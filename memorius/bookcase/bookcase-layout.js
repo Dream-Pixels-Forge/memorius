@@ -245,3 +245,43 @@ export function describePlace(dx, dz, yaw, level, caseLabel, bay = null) {
     text: `in ${bayText}${caseLabel} case, ${lvl} — ${where}`,
   };
 }
+
+/* A walkable route from `from` to `to` through the hall.
+ *
+ * The hall is a central nave with bays opening off it, so the safe path is
+ * never a straight line: leave the bay you are in through its centre, walk
+ * the nave to the target's bay, enter through that bay's centre, then go to
+ * the point. Plain numbers (no THREE) so the route is testable, and so the
+ * mascot and any future walker share one definition of "walkable".
+ * plan: {bays: [{minX,maxX,minZ,maxZ,center:{x,z}}]} — cases are implied by
+ * the bay interiors; the centres are open floor by construction. */
+export function routeBetween(from, to, plan = {}) {
+  const bays = plan.bays || [];
+  const pts = [];
+  const push = (x, z) => {
+    const last = pts[pts.length - 1];
+    if (last && Math.hypot(last.x - x, last.z - z) < 0.05) return;
+    pts.push({ x, z });
+  };
+  const bayAt = (p) =>
+    bays.find(
+      (b) =>
+        p.x >= b.minX - 0.05 && p.x <= b.maxX + 0.05 &&
+        p.z >= b.minZ - 0.05 && p.z <= b.maxZ + 0.05
+    ) || null;
+  push(from.x, from.z);
+  const fromBay = bayAt(from);
+  if (fromBay) {
+    push(fromBay.center.x, fromBay.center.z);
+    push(0, fromBay.center.z);
+  }
+  const toBay = bayAt(to);
+  if (toBay) {
+    push(0, toBay.center.z);
+    push(toBay.center.x, toBay.center.z);
+  } else {
+    push(0, to.z);
+  }
+  push(to.x, to.z);
+  return pts;
+}

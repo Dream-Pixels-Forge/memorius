@@ -96,6 +96,15 @@ export class WalkControls {
     this.colliders = list;
   }
 
+  /* Programmatic press/release for the on-screen walk controls. */
+  press(code) {
+    this._keys.add(code);
+  }
+
+  release(code) {
+    this._keys.delete(code);
+  }
+
   /* Would the body (a pad-radius disc) overlap any collider at (x, z)? */
   collides(x, z) {
     for (const c of this.colliders) {

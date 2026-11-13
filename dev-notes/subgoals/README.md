@@ -17,7 +17,7 @@ PR with `Closes #N`, CI green, squash merge, then update this index.
 | SG-07 | Bookcase UX: library index, walk-to-shelf, surprise me | P2 | done | #108 merged |
 | SG-08 | Container hardening (Dockerfile, non-root, dumb-init) | P2 | ready | — |
 | SG-09 | Repo/branch/local vault hygiene | P3 | ready (ops, no PR) | — |
-| SG-10 | Bookcase: bottom-left walk controls, walking hippo, centered reader | P1 | blocked by SG-07 | — |
+| SG-10 | Bookcase: bottom-left walk controls, walking hippo, centered reader | P1 | in-review | #102 |
 
 Status legend: `ready` · `in-progress` · `in-review` · `done` · `blocked`.
 
