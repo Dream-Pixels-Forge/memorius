@@ -79,12 +79,28 @@ Publishing is driven by a GitHub release, never by pushing to `main`:
 
    ```bash
    CODE=$(grep '^version' pyproject.toml | cut -d'"' -f2)
-   TAG=$(git ls-remote --tags origin | awk -F'refs/tags/' '{print $2}' | sort -V | tail -1)
+   TAG=$(git ls-remote --tags origin | awk -F'refs/tags/' '{print $2}' | grep -v '\^{}' | sort -V | tail -1)
    REL=$(gh release list --limit 1 --json tagName --jq '.[0].tagName')
-   PYPI=$(curl -s https://pypi.org/pypi/memorius/json | python3 -c "import json,sys; print(json.load(sys.stdin)['info']['version'])")
+   # Query the version-specific endpoint. https://pypi.org/pypi/memorius/json
+   # is CDN-cached and kept reporting the previous version minutes after the
+   # 0.9.8 upload succeeded.
+   PYPI=$(curl -fsS "https://pypi.org/pypi/memorius/$CODE/json" \
+     | python3 -c "import json,sys; print(json.load(sys.stdin)['info']['version'])")
    [ "v$CODE" = "$TAG" ] && [ "$TAG" = "$REL" ] && [ "$CODE" = "$PYPI" ] \
      && echo "OK $CODE" || echo "MISMATCH code=$CODE tag=$TAG rel=$REL pypi=$PYPI"
    ```
+   Then download the published wheel and check the shipped code, not just
+   the metadata:
+
+   ```bash
+   python -m pip download --no-deps --only-binary=:all: \
+     --index-url https://pypi.org/simple "memorius==$CODE" -d /tmp/wheelcheck
+   python -c "import zipfile;print(zipfile.ZipFile('/tmp/wheelcheck/memorius-$CODE-py3-none-any.whl').namelist()[:5])"
+   ```
+
+   Note: a local/internal pip mirror may lag PyPI by hours. If
+   `pip download` reports "no matching distribution", retry with an explicit
+   `--index-url https://pypi.org/simple` before assuming the upload failed.
 
 PyPI versions are immutable. Never reuse a published version or move a
 published tag — bump the version instead. `release.yml` deliberately has no
