@@ -12,7 +12,9 @@
     #bc-search   search input (Enter submits; hold #bc-mic to talk)
     #bc-mic      hold-to-talk button (Chromium only; disabled elsewhere)
     #bc-librarian librarian toggle (on = speak, off = text-only guidance)
-    #bc-detail   side panel (book detail / search results)
+    #bc-detail   side panel — search results only (click a row to open it)
+    #bc-reader   centered reader dialog for one memory (click a book / result;
+                 Esc, × or the backdrop closes it, focus returns where it was)
     #bc-guidance text log — every librarian utterance is rendered here
                  (signed with the hippo librarian, librarian-hippo.webp)
     #bc-tooltip  hover tooltip for books
@@ -23,6 +25,7 @@
     #bc-surprise   topbar "surprise me" button (X opens a random book)
     #bc-help     opens #bc-usage (also "?")
     #bc-hint     first-visit controls hint (fades on first move)
+    #bc-nav      bottom-left walk pad (hold ▲◀▼▶ to walk; ⌂ resets the view)
     #bc-cross    crosshair shown while pointer-locked (body.bc-locked)
     .bc-bars     cinematic letterbox shown during crane moves (body.bc-cinema)
 
@@ -50,6 +53,8 @@
 <meta name="theme-color" content="#0d0b09" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23F97316'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='ui-monospace,monospace' font-size='34' font-weight='700' fill='white'%3EM%3C/text%3C/svg%3E" />
 <link rel="stylesheet" href="./bookcase.css" />
+<link rel="stylesheet" href="./bookcase-nav.css" />
+<link rel="stylesheet" href="./bookcase-reader.css" />
 <script type="importmap">
 {
   "imports": {
@@ -68,6 +73,13 @@
   <b>Click</b> to look around · <b>WASD</b> to walk · <b>Shift</b> to hurry ·
   <b>I</b> for the index · <b>X</b> surprise · <b>/</b> to ask · <b>?</b> for help
 </div>
+<nav id="bc-nav" class="bc-nav" aria-label="Walk controls">
+  <button id="bc-nav-forward" type="button" data-key="KeyW" aria-label="Walk forward"><span aria-hidden="true">▲</span><span class="bc-sr">Walk forward</span></button>
+  <button id="bc-nav-left" type="button" data-key="KeyA" aria-label="Strafe left"><span aria-hidden="true">◀</span><span class="bc-sr">Strafe left</span></button>
+  <button id="bc-nav-back" type="button" data-key="KeyS" aria-label="Walk back"><span aria-hidden="true">▼</span><span class="bc-sr">Walk back</span></button>
+  <button id="bc-nav-right" type="button" data-key="KeyD" aria-label="Strafe right"><span aria-hidden="true">▶</span><span class="bc-sr">Strafe right</span></button>
+  <button id="bc-nav-home" type="button" aria-label="Reset view"><span aria-hidden="true">⌂</span><span class="bc-sr">Reset view</span></button>
+</nav>
 <canvas id="bc-map" class="bc-map" width="200" height="200" title="Floor plan: click to walk there (M)"></canvas>
 
 <header class="bc-topbar">
@@ -115,6 +127,7 @@
     <li><b>Ask:</b> <kbd>/</kbd> then type (or hold the mic) — the librarian's lantern flies off and the camera follows it over the stacks to the book; hits slide out of the shelf.</li>
     <li><b>Results:</b> <kbd>N</kbd> / <kbd>P</kbd> walk you to the next / previous match, <kbd>F</kbd> flies back to the current one.</li>
     <li><b>Read:</b> click a book — it is drawn out and opened; "Read aloud" lets the librarian read it.</li>
+    <li><b>Walk:</b> hold the bottom-left pad (▲◀▼▶) with mouse or touch, or use <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>; <kbd>⌂</kbd> resets the view like <kbd>R</kbd>.</li>
     <li><b>Map:</b> <kbd>M</kbd> toggles the floor plan; click it to be walked there.</li>
     <li><b>Index:</b> <kbd>I</kbd> (or ☰ index) lists every bay with its book and folder counts — click a bay, <kbd>Enter</kbd> on a focused row, and you are walked into it facing the shelves. <kbd>X</kbd> or ✦ surprise opens a random book.</li>
     <li><b>Floor plan:</b> each shelf is a bay off the main aisle (alternating left / right, signs hang at each opening); each folder is a case inside its bay, read clockwise; books run left → right from eye level down. Positions never move.</li>
@@ -137,6 +150,22 @@
   <button id="bc-detail-close" aria-label="Close panel">×</button>
   <div id="bc-detail-body"></div>
 </aside>
+
+<div id="bc-reader" class="bc-reader" hidden>
+  <div id="bc-reader-backdrop" class="bc-reader-backdrop" data-close="reader"></div>
+  <section id="bc-reader-panel" class="bc-reader-panel" role="dialog" aria-modal="true" aria-labelledby="bc-reader-title">
+    <header class="bc-reader-head">
+      <div id="bc-reader-crumb" class="bc-crumb"></div>
+      <h2 id="bc-reader-title"></h2>
+      <div id="bc-reader-meta" class="bc-meta"></div>
+      <div id="bc-reader-tags" class="bc-tags"></div>
+      <button id="bc-reader-close" type="button" aria-label="Close reader">×</button>
+    </header>
+    <div id="bc-reader-actions" class="bc-actions"></div>
+    <article id="bc-reader-body" class="bc-reader-body"></article>
+    <footer id="bc-reader-foot" class="bc-reader-foot"></footer>
+  </section>
+</div>
 
 <div id="bc-guidance" class="bc-guidance" role="log" aria-live="polite"></div>
 

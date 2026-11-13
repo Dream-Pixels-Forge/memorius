@@ -9,7 +9,8 @@ import { Librarian } from "./bookcase-librarian.js";
 import { Minimap } from "./bookcase-minimap.js";
 import { Mascot } from "./bookcase-mascot.js";
 import { LibraryIndex } from "./bookcase-index.js";
-import { copyButton } from "./bookcase-copy.js";
+import { createNav } from "./bookcase-nav.js";
+import { createReader } from "./bookcase-reader.js";
 
 const $ = (id) => document.getElementById(id);
 const API =
@@ -24,7 +25,6 @@ const state = {
   greeting: false,
   results: [],
   resultIdx: 0,
-  current: null, // book open in the detail panel
 };
 
 const scene = new BookcaseScene($("bc-scene"));
@@ -41,6 +41,13 @@ const minimap = new Minimap($("bc-map"), {
 // the hippo librarian: waits at the entrance, meets you at the found book
 const mascot = new Mascot(scene.scene, { reducedMotion: scene.reducedMotion });
 const mascotFrame = mascot.attach(scene);
+// debug hook: where the hippo is and where he is walking (headless checks)
+window.__bookcase.mascot = () => ({
+  at: mascot.at,
+  walking: mascot.isWalking,
+  path: mascot.path,
+  position: { x: mascot.position.x, y: mascot.position.y, z: mascot.position.z },
+});
 scene.onFrame = (t) => { minimap.draw(t); mascotFrame(t); };
 // index + surprise: reads state lazily, so vault switches stay fresh
 const index = new LibraryIndex({
@@ -67,6 +74,15 @@ function setStatus(text, isError = false) {
   pill.textContent = text;
   pill.classList.toggle("bc-pill-error", isError);
 }
+
+// the centered reader: clicking a book or a result row opens it here
+const reader = createReader({
+  api,
+  librarian,
+  setStatus,
+  books: () => state.books,
+  announce: (text) => librarian.say(text),
+});
 
 function logGuidance(text) {
   const log = $("bc-guidance");
@@ -268,67 +284,13 @@ function relativeDate(value) {
   return `${new Date(t).toLocaleDateString()} · ${when}`;
 }
 
-function el(tag, cls, text) {
-  const node = document.createElement(tag);
-  if (cls) node.className = cls;
-  if (text != null) node.textContent = text;
-  return node;
-}
-
-async function openBook(id) {
-  try {
-    const m = await api(`/memory/${encodeURIComponent(id)}`);
-    state.current = m;
-    window.dispatchEvent(new CustomEvent("bc:open", { detail: { id } }));
-    const shelf = m.shelf || "default";
-    const folder = m.folder || "default";
-    const body = $("bc-detail-body");
-    body.innerHTML = "";
-    body.appendChild(el("div", "bc-crumb", `${shelf} › ${folder}`));
-    const h = el("h2", "bc-title", (m.note || "default").replace(/[-_]+/g, " "));
-    h.title = `${shelf}/${folder}/${m.note || "default"}`;
-    body.appendChild(h);
-    body.appendChild(el("div", "bc-meta", relativeDate(m.created_at || m.createdAt)));
-    if (m.tags && m.tags.length) {
-      const tags = el("div", "bc-tags");
-      for (const t of m.tags) tags.appendChild(el("span", "bc-tag", t));
-      body.appendChild(tags);
-    }
-    const actions = el("div", "bc-actions");
-    const walkBtn = el("button", "bc-btn", "Walk me there");
-    walkBtn.type = "button";
-    walkBtn.addEventListener("click", () =>
-      window.dispatchEvent(new CustomEvent("bc:fly", { detail: { id } })));
-    const readBtn = el("button", "bc-btn", librarian.supported ? "Read aloud" : "Read aloud (n/a)");
-    readBtn.type = "button";
-    readBtn.disabled = !librarian.supported;
-    readBtn.addEventListener("click", () => librarian.readAloud(h.textContent, m.content));
-    actions.append(walkBtn, readBtn, copyButton(() => m.content));
-    body.appendChild(actions);
-    body.appendChild(el("div", "bc-content", m.content || ""));
-    const neighbours = state.books
-      .filter((b) => b.id !== id && b.shelf === shelf && b.folder === folder)
-      .slice(0, 6);
-    if (neighbours.length) {
-      body.appendChild(el("h3", null, "Beside it on the shelf"));
-      for (const b of neighbours) {
-        const row = el("div", "bc-neighbour", b.note.replace(/[-_]+/g, " "));
-        row.tabIndex = 0;
-        row.addEventListener("click", () => openBook(b.id));
-        row.addEventListener("keydown", (e) => { if (e.key === "Enter") openBook(b.id); });
-        body.appendChild(row);
-      }
-    }
-    body.appendChild(el("div", "bc-meta bc-id", `id ${m.id}`));
-    $("bc-detail").hidden = false;
-  } catch (err) {
-    setStatus("book not found", true);
-  }
+/* A clicked book (or a result row) opens the centered reader. */
+function openBook(id) {
+  return reader.open(id);
 }
 
 function closeDetail() {
   $("bc-detail").hidden = true;
-  state.current = null;
   window.dispatchEvent(new CustomEvent("bc:open", { detail: { id: null } }));
 }
 
@@ -341,6 +303,7 @@ function onShortcut(e) {
     return;
   }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (reader.handleKey(e)) return;
   if (index.handleKey(e)) return;
   const k = e.key;
   if (k === "/") {
@@ -399,6 +362,11 @@ function wire() {
   });
 
   $("bc-detail-close").addEventListener("click", closeDetail);
+  createNav({
+    walk: scene.walk,
+    onHome: () => window.dispatchEvent(new CustomEvent("bc:reset-view", { detail: {} })),
+  });
+  $("bc-nav").addEventListener("pointerdown", dismissHint);
   $("bc-help").addEventListener("click", toggleHelp);
   window.addEventListener("keydown", onShortcut);
   setTimeout(dismissHint, 12000);

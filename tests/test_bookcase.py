@@ -38,11 +38,12 @@ REQUIRED_ELEMENT_IDS = [
 REQUIRED_JS_ENDPOINT_REFS = ["/vault", "/memories", "/search", "/memory/"]
 REQUIRED_ASSETS = [
     "bookcase.html", "bookcase.css", "bookcase.js",
+    "bookcase-nav.css", "bookcase-reader.css",
     "bookcase-scene.js", "bookcase-walk.js", "bookcase-layout.js",
     "bookcase-atmosphere.js", "bookcase-guide.js", "bookcase-textures.js",
     "bookcase-minimap.js", "bookcase-mascot.js", "librarian-hippo.webp",
     "bookcase-cases.js", "librarian-hippo.glb", "bookcase-index.js",
-    "bookcase-copy.js",
+    "bookcase-copy.js", "bookcase-reader.js", "bookcase-nav.js",
 ]
 MAX_LINES_PER_FILE = 500
 
@@ -769,9 +770,9 @@ class TestBookcaseCopy:
         )
 
     def test_copy_module_wiring(self):
-        main = self._asset("bookcase.js")
-        assert "./bookcase-copy.js" in main, "openBook does not import the copy helper"
-        assert "copyButton(" in main, "the detail panel has no Copy button"
+        reader = self._asset("bookcase-reader.js")
+        assert "./bookcase-copy.js" in reader, "the reader does not import the copy helper"
+        assert "copyButton(" in reader, "the reader has no Copy action"
         assert "bookcase-copy.js" in REQUIRED_ASSETS
 
     @pytest.mark.skipif(shutil.which("node") is None, reason="needs Node.js")
@@ -803,3 +804,443 @@ class TestBookcaseCopy:
         assert out["after"] == "Copied"
         assert out["payload"] == "copied payload"
         assert out["restored"] == "Copy", "the label must reset after the flash"
+
+
+_NAV_PROBE = r"""
+const { createNav } = await import(__URL__);
+
+const out = { pressed: [], released: [], homes: 0, cinema: [] };
+const node = (id, key) => ({
+  id, tagName: "BUTTON", attrs: { "data-key": key }, listeners: {}, hidden: false,
+  classList: { _s: new Set(), add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); } },
+  getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; },
+  addEventListener(t, fn) { (this.listeners[t] = this.listeners[t] || []).push(fn); },
+  fire(t, ev) { for (const fn of this.listeners[t] || []) fn(Object.assign({ preventDefault() {} }, ev || {})); },
+});
+const ids = ["bc-nav-forward", "bc-nav-left", "bc-nav-back", "bc-nav-right", "bc-nav-home"];
+const els = Object.fromEntries(ids.map((id) => [id, node(id, null)]));
+els["bc-nav"] = node("bc-nav");
+els["bc-nav-forward"].attrs["data-key"] = "KeyW";
+els["bc-nav-left"].attrs["data-key"] = "KeyA";
+els["bc-nav-back"].attrs["data-key"] = "KeyS";
+els["bc-nav-right"].attrs["data-key"] = "KeyD";
+
+globalThis.document = {
+  getElementById: (id) => els[id] || null,
+  querySelectorAll: (sel) => (sel === "#bc-nav [data-key]" ? ids.slice(0, 4).map((id) => els[id]) : []),
+};
+const listeners = {};
+globalThis.window = {
+  addEventListener: (t, fn) => { (listeners[t] = listeners[t] || []).push(fn); },
+};
+
+const controls = {
+  press: (code) => out.pressed.push(code),
+  release: (code) => out.released.push(code),
+};
+createNav({ walk: controls, onHome: () => { out.homes += 1; } });
+
+els["bc-nav-forward"].fire("pointerdown", { button: 0, pointerId: 1 });
+els["bc-nav-forward"].fire("pointerup", { pointerId: 1 });
+els["bc-nav-left"].fire("pointerdown", { button: 0 });
+els["bc-nav-left"].fire("pointerleave", {});
+els["bc-nav-right"].fire("pointerdown", { button: 0 });
+els["bc-nav-right"].fire("pointercancel", {});
+els["bc-nav-home"].fire("click", {});
+
+// Enter/Space hold on a focused button presses and releases the same key
+const space = { key: " ", code: "Space", target: els["bc-nav-back"], preventDefault() {} };
+for (const fn of listeners.keydown || []) fn(space);
+for (const fn of listeners.keyup || []) fn(space);
+
+// cinematic flights hide the cluster
+for (const fn of listeners["bc:cinema"] || []) fn({ detail: { on: true } });
+out.navHidden = els["bc-nav"].hidden;
+for (const fn of listeners["bc:cinema"] || []) fn({ detail: { on: false } });
+out.navBack = els["bc-nav"].hidden;
+
+console.log(JSON.stringify(out));
+"""
+
+
+class TestBookcaseNav:
+    """SG-10: bottom-left hold-to-walk controls (issue #102)."""
+
+    def _asset(self, name: str) -> str:
+        import memorius.bookcase as bookcase_pkg
+
+        return (Path(bookcase_pkg.__file__).parent / name).read_text(
+            encoding="utf-8"
+        )
+
+    def test_nav_markup(self):
+        html = self._asset("bookcase.html")
+        assert '<nav id="bc-nav"' in html, "no walk-control nav"
+        for bid, key, label in (
+            ("bc-nav-forward", "KeyW", "Walk forward"),
+            ("bc-nav-left", "KeyA", "Strafe left"),
+            ("bc-nav-back", "KeyS", "Walk back"),
+            ("bc-nav-right", "KeyD", "Strafe right"),
+        ):
+            m = re.search(rf'<button[^>]*id="{bid}"[^>]*>', html)
+            assert m, f"missing #{bid}"
+            tag = m.group(0)
+            assert 'type="button"' in tag, tag
+            assert f'data-key="{key}"' in tag, tag
+            assert f'aria-label="{label}"' in tag, tag
+        home = re.search(r'<button[^>]*id="bc-nav-home"[^>]*>', html)
+        assert home and 'aria-label="Reset view"' in home.group(0), home
+        assert 'class="bc-sr"' in html, "buttons need visually-hidden labels"
+
+    def test_nav_css(self):
+        css = self._asset("bookcase.css") + self._asset("bookcase-nav.css")
+        nav = re.search(r"\.bc-nav\s*\{([^}]*)\}", css)
+        assert nav, "no .bc-nav rule"
+        body = nav.group(1)
+        assert "position: fixed" in body
+        assert "left:" in body and "14px" in body
+        assert "bottom:" in body
+        # the librarian log moves up so the two never overlap
+        log = re.search(r"\.bc-guidance\s*\{([^}]*)\}", css)
+        assert log, "no .bc-guidance rule"
+        assert re.search(r"bottom:\s*(1[0-9]{2}|[2-9][0-9]{2})px", log.group(1)), (
+            ".bc-guidance must sit clear of the walk controls"
+        )
+        assert "touch-action: none" in body
+        button = re.search(r"\.bc-nav button\s*\{([^}]*)\}", css)
+        assert button, "no .bc-nav button rule"
+        assert "min-width: 44px" in button.group(1)
+        assert "height: 44px" in button.group(1)
+
+    def test_nav_module_wiring(self):
+        nav = self._asset("bookcase-nav.js")
+        for needle in (
+            "createNav", "press(", "release(", "pointerdown", "pointerup",
+            "pointercancel", "pointerleave", "data-key", "bc:cinema",
+        ):
+            assert needle in nav, f"bookcase-nav.js lacks {needle!r}"
+        walk = self._asset("bookcase-walk.js")
+        assert "press(code)" in walk and "release(code)" in walk
+        main = self._asset("bookcase.js")
+        assert "./bookcase-nav.js" in main, "main module does not wire the nav"
+        assert "createNav(" in main
+
+    @pytest.mark.skipif(shutil.which("node") is None, reason="needs Node.js")
+    def test_nav_behavior(self):
+        import json
+
+        import memorius.bookcase as bookcase_pkg
+
+        url = json.dumps(
+            (Path(bookcase_pkg.__file__).parent / "bookcase-nav.js").as_uri()
+        )
+        res = subprocess.run(
+            ["node", "--input-type=module", "-e", _NAV_PROBE.replace("__URL__", url)],
+            capture_output=True, text=True, timeout=60, check=False,
+        )
+        assert res.returncode == 0, res.stderr
+        out = json.loads(res.stdout)
+        assert out["pressed"][:3] == ["KeyW", "KeyA", "KeyD"]
+        assert out["released"][:3] == ["KeyW", "KeyA", "KeyD"]
+        assert out["pressed"][-1] == "KeyS" and out["released"][-1] == "KeyS"
+        assert out["homes"] == 1
+        assert out["navHidden"] is True and out["navBack"] is False
+
+
+_ROUTE_PROBE = r"""
+const { routeBetween } = await import(__URL__);
+
+const plan = {
+  bays: [{
+    label: "alpha", side: -1, depth: 2.8,
+    minX: -4.4, maxX: -1.6, minZ: -6, maxZ: -2,
+    center: { x: -3, z: -4 }, sign: { x: -1.95, z: -4 },
+  }, {
+    label: "beta", side: 1, depth: 2.8,
+    minX: 1.6, maxX: 4.4, minZ: -6, maxZ: -2,
+    center: { x: 3, z: -4 }, sign: { x: 1.95, z: -4 },
+  }],
+  cases: [
+    { aabb: { minX: -4.4, maxX: -4.06, minZ: -6, maxZ: -2 } },
+    { aabb: { minX: -4.4, maxX: -1.6, minZ: -6, maxZ: -5.66 } },
+    { aabb: { minX: -4.4, maxX: -1.6, minZ: -2.34, maxZ: -2 } },
+    { aabb: { minX: 4.06, maxX: 4.4, minZ: -6, maxZ: -2 } },
+    { aabb: { minX: 1.6, maxX: 4.4, minZ: -6, maxZ: -5.66 } },
+    { aabb: { minX: 1.6, maxX: 4.4, minZ: -2.34, maxZ: -2 } },
+  ],
+};
+const clear = (p, pad) => plan.cases.every((c) => {
+  const a = c.aabb;
+  return !(p.x > a.minX - pad && p.x < a.maxX + pad && p.z > a.minZ - pad && p.z < a.maxZ + pad);
+});
+
+const cases = [
+  { name: "into-left-bay", from: { x: 0, z: 4.5 }, to: { x: -3.2, z: -4.6 } },
+  { name: "into-right-bay", from: { x: -3, z: -3.4 }, to: { x: 3.2, z: -4.6 } },
+  { name: "stay-on-nave", from: { x: 0, z: 4.5 }, to: { x: 0, z: -3 } },
+  { name: "home-again", from: { x: -3, z: -4 }, to: { x: -1.3, z: 3 } },
+];
+const out = { cases: {} };
+for (const c of cases) {
+  const pts = routeBetween(c.from, c.to, plan);
+  const samples = [];
+  for (let i = 0; i + 1 < pts.length; i += 1) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.05));
+    for (let k = 0; k <= n; k += 1) {
+      samples.push({ x: a.x + ((b.x - a.x) * k) / n, z: a.z + ((b.z - a.z) * k) / n });
+    }
+  }
+  out.cases[c.name] = {
+    pts,
+    endsAtTarget: Math.hypot(pts[pts.length - 1].x - c.to.x, pts[pts.length - 1].z - c.to.z) < 0.01,
+    blocked: samples.filter((p) => !clear(p, 0.25)).length,
+    onNave: pts.some((p) => Math.abs(p.x) < 0.01),
+    bayCenter: pts.some((p) => p.x === -3 || p.x === 3),
+  };
+}
+console.log(JSON.stringify(out));
+"""
+
+
+class TestBookcaseMascotWalks:
+    """SG-10: the hippo walks the plan instead of teleporting (issue #102)."""
+
+    def _asset(self, name: str) -> str:
+        import memorius.bookcase as bookcase_pkg
+
+        return (Path(bookcase_pkg.__file__).parent / name).read_text(
+            encoding="utf-8"
+        )
+
+    def test_mascot_contract(self):
+        mascot = self._asset("bookcase-mascot.js")
+        for needle in ("WALK_SPEED", "walkTo(", "isWalking", "reducedMotion"):
+            assert needle in mascot, f"mascot lacks {needle!r}"
+        assert "routeBetween" in mascot, "mascot does not route through the plan"
+        assert "walkTo(" in mascot, "attach still teleports"
+        layout = self._asset("bookcase-layout.js")
+        assert "export function routeBetween" in layout
+
+    @pytest.mark.skipif(shutil.which("node") is None, reason="needs Node.js")
+    def test_route_geometry(self):
+        import json
+
+        import memorius.bookcase as bookcase_pkg
+
+        url = json.dumps(
+            (Path(bookcase_pkg.__file__).parent / "bookcase-layout.js").as_uri()
+        )
+        res = subprocess.run(
+            ["node", "--input-type=module", "-e", _ROUTE_PROBE.replace("__URL__", url)],
+            capture_output=True, text=True, timeout=60, check=False,
+        )
+        assert res.returncode == 0, res.stderr
+        out = json.loads(res.stdout)
+        for name, r in out["cases"].items():
+            assert r["endsAtTarget"], f"{name} does not end at the target"
+            assert r["blocked"] == 0, f"{name} crosses a case AABB"
+            assert r["onNave"], f"{name} does not use the central nave"
+        assert out["cases"]["into-left-bay"]["bayCenter"]
+        assert out["cases"]["into-right-bay"]["bayCenter"]
+        assert len(out["cases"]["stay-on-nave"]["pts"]) <= 3
+
+
+_READER_PROBE = r"""
+const { createReader } = await import(__URL__);
+
+const out = { fetched: [], focused: [], events: [], said: [], status: [], copied: [] };
+const classList = () => {
+  const s = new Set();
+  return { add: (c) => s.add(c), remove: (c) => s.delete(c), contains: (c) => s.has(c), toggle: (c, on) => (on ? s.add(c) : s.delete(c)) };
+};
+const make = (id) => ({
+  id, tagName: id === "bc-reader-close" ? "BUTTON" : "DIV",
+  children: [], listeners: {}, hidden: false, disabled: false,
+  className: "", textContent: "", style: {}, classList: classList(),
+  append(...k) { this.children.push(...k); },
+  appendChild(k) { this.children.push(k); return k; },
+  set innerHTML(_) { this.children = []; },
+  addEventListener(t, fn) { (this.listeners[t] = this.listeners[t] || []).push(fn); },
+  fire(t, ev) { for (const fn of this.listeners[t] || []) fn(ev || {}); },
+  setAttribute(k, v) { this.attrs = Object.assign(this.attrs || {}, { [k]: v }); },
+  focus() { out.focused.push(this.id); globalThis.document.activeElement = this; },
+  querySelectorAll: () => [els["bc-reader-close"], els["bc-reader-copy"]],
+});
+const ids = ["bc-reader", "bc-reader-backdrop", "bc-reader-panel", "bc-reader-crumb",
+  "bc-reader-title", "bc-reader-meta", "bc-reader-tags", "bc-reader-close",
+  "bc-reader-actions", "bc-reader-body", "bc-reader-foot", "bc-reader-copy"];
+const els = Object.fromEntries(ids.map((id) => [id, make(id)]));
+els["bc-reader"].hidden = true;
+
+globalThis.document = {
+  getElementById: (id) => els[id] || null,
+  createElement: (tag) => Object.assign(make("made-" + tag), { tagName: String(tag).toUpperCase() }),
+  body: { classList: classList() },
+  activeElement: { id: "bc-search", focus() { out.focused.push("bc-search"); globalThis.document.activeElement = this; } },
+  addEventListener() {},
+};
+globalThis.window = {
+  dispatchEvent: (e) => { out.events.push(e); return true; },
+  addEventListener() {},
+};
+globalThis.CustomEvent = class {
+  constructor(type, init) { this.type = type; this.detail = init && init.detail; }
+};
+
+let resolveA = null;
+const api = (path) => {
+  out.fetched.push(path);
+  const body = (note, content) => ({ id: path.split("/").pop(), note, content, shelf: "alpha", folder: "refs", tags: ["t1"], created_at: 1700000000 });
+  if (path === "/memory/a") return new Promise((r) => { resolveA = () => r(body("alpha note", "A content")); });
+  return Promise.resolve(body("beta note", "B content"));
+};
+
+const reader = createReader({
+  api,
+  librarian: { supported: true, readAloud: (t, c) => out.said.push([t, c]) },
+  setStatus: (...a) => out.status.push(a),
+  books: () => [],
+  announce: (t) => out.said.push(t),
+});
+
+out.initiallyHidden = els["bc-reader"].hidden;
+
+const openA = reader.open("a");
+const openB = reader.open("b");
+await openB;
+resolveA && resolveA();
+await openA;
+out.title = els["bc-reader-title"].textContent;
+out.bodyText = els["bc-reader-body"].children.map((c) => c.textContent).join("");
+out.crumb = els["bc-reader-crumb"].textContent;
+out.meta = els["bc-reader-meta"].textContent;
+out.actions = els["bc-reader-actions"].children.map((b) => b.textContent);
+out.openHidden = els["bc-reader"].hidden;
+out.focusOnOpen = out.focused[out.focused.length - 1];
+out.opened = out.events.filter((e) => e.type === "bc:open").map((e) => e.detail.id);
+
+// Escape closes, restores focus, and returns the book to the shelf
+const prev = document.activeElement;
+document.activeElement = els["bc-reader-close"];
+out.escaped = reader.handleKey({ key: "Escape", preventDefault() {} });
+out.closedHidden = els["bc-reader"].hidden;
+out.restored = out.focused[out.focused.length - 1];
+out.closedEvent = out.events.filter((e) => e.type === "bc:open").map((e) => e.detail.id).pop();
+out.bodyClass = document.body.classList.contains("bc-reader-open");
+
+// backdrop click closes too
+reader.open("b");
+await new Promise((r) => setTimeout(r, 0));
+els["bc-reader-backdrop"].fire("click", {});
+out.backdropClosed = els["bc-reader"].hidden;
+
+// a failed fetch keeps the reader closed and reports the error
+const failing = createReader({
+  api: () => Promise.reject(new Error("nope")),
+  librarian: { supported: false }, setStatus: (...a) => out.status.push(a),
+  books: () => [], announce: () => {},
+});
+await failing.open("missing");
+out.failedHidden = els["bc-reader"].hidden;
+out.failedStatus = out.status[out.status.length - 1];
+console.log(JSON.stringify(out));
+"""
+
+
+class TestBookcaseReader:
+    """SG-10: the centered reader modal (issue #102)."""
+
+    def _asset(self, name: str) -> str:
+        import memorius.bookcase as bookcase_pkg
+
+        return (Path(bookcase_pkg.__file__).parent / name).read_text(
+            encoding="utf-8"
+        )
+
+    def test_reader_markup(self):
+        html = self._asset("bookcase.html")
+        for element_id in (
+            "bc-reader", "bc-reader-backdrop", "bc-reader-panel",
+            "bc-reader-crumb", "bc-reader-title", "bc-reader-meta",
+            "bc-reader-tags", "bc-reader-close", "bc-reader-actions",
+            "bc-reader-body", "bc-reader-foot",
+        ):
+            assert f'id="{element_id}"' in html, f"missing #{element_id}"
+        assert re.search(r'<div[^>]*id="bc-reader"[^>]*hidden', html)
+        assert re.search(r'backdrop[^>]*data-close="reader"', html)
+        panel = re.search(r'<section[^>]*class="bc-reader-panel"[^>]*>', html)
+        assert panel, "no reader panel"
+        tag = panel.group(0)
+        assert 'role="dialog"' in tag and 'aria-modal="true"' in tag
+        assert 'aria-labelledby="bc-reader-title"' in tag
+
+    def test_reader_css(self):
+        css = self._asset("bookcase.css") + self._asset("bookcase-reader.css")
+        shell = re.search(r"\.bc-reader\s*\{([^}]*)\}", css)
+        assert shell, "no .bc-reader rule"
+        assert "position: fixed" in shell.group(1)
+        assert "place-items: center" in shell.group(1)
+        panel = re.search(r"\.bc-reader-panel\s*\{([^}]*)\}", css)
+        assert panel, "no .bc-reader-panel rule"
+        body = panel.group(1)
+        assert "min(720px" in body, body
+        assert "max-height:" in body and "82vh" in body
+        article = re.search(r"\.bc-reader-body\s*\{([^}]*)\}", css)
+        assert article, "no .bc-reader-body rule"
+        text = article.group(1)
+        assert "68ch" in text, text
+        assert "font-size: 17px" in text, text
+        assert "line-height: 1.75" in text, text
+        assert "white-space: pre-wrap" in text, text
+        assert "overflow-wrap: anywhere" in text, text
+        assert "body.bc-reader-open" in css, "background scroll is not locked"
+
+    def test_reader_module_wiring(self):
+        reader = self._asset("bookcase-reader.js")
+        for needle in (
+            "createReader", "bc-reader-body", "bc:open", "bc:fly",
+            "copyButton", "readAloud", "Tab", "focus()", "bc-reader-open",
+            "handleKey", "Escape",
+        ):
+            assert needle in reader, f"bookcase-reader.js lacks {needle!r}"
+        main = self._asset("bookcase.js")
+        assert "./bookcase-reader.js" in main, "main module does not import the reader"
+        assert "reader.open(" in main
+        assert "bc-reader-body" not in main, "openBook still writes the old detail body"
+
+    @pytest.mark.skipif(shutil.which("node") is None, reason="needs Node.js")
+    def test_reader_behavior(self):
+        import json
+
+        import memorius.bookcase as bookcase_pkg
+
+        url = json.dumps(
+            (Path(bookcase_pkg.__file__).parent / "bookcase-reader.js").as_uri()
+        )
+        res = subprocess.run(
+            ["node", "--input-type=module", "-e", _READER_PROBE.replace("__URL__", url)],
+            capture_output=True, text=True, timeout=60, check=False,
+        )
+        assert res.returncode == 0, res.stderr
+        out = json.loads(res.stdout)
+
+        # the last request wins: a slow "a" cannot overwrite "b"
+        assert out["title"] == "beta note"
+        assert "B content" in out["bodyText"]
+        assert out["crumb"] == "alpha › refs"
+        assert "t1" in out["meta"] or out["meta"], out["meta"]
+        assert out["actions"][:3] == ["Copy", "Read aloud", "Walk me there"], out["actions"]
+        assert out["openHidden"] is False
+        assert out["focusOnOpen"] == "bc-reader-close"
+
+        assert out["escaped"] is True
+        assert out["closedHidden"] is True
+        assert out["restored"] == "bc-search"
+        assert out["closedEvent"] is None
+        assert out["bodyClass"] is False
+        assert out["backdropClosed"] is True
+
+        assert out["failedHidden"] is True
+        assert out["failedStatus"][1] is True, "a failed fetch must set the error pill"

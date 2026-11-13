@@ -1,0 +1,60 @@
+/* Memorius bookcase — the bottom-left walk pad.
+ * Split from bookcase.css to keep every shipped asset under 500 lines.
+ */
+/* ── walk controls (bottom-left) ──────────────────────────────── */
+.bc-nav {
+  position: fixed;
+  left: 14px;
+  bottom: 14px;
+  z-index: 12;
+  display: grid;
+  grid-template-columns: repeat(4, 44px);
+  grid-auto-rows: 44px;
+  gap: 6px;
+  touch-action: none;
+}
+.bc-nav button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--bc-panel-line);
+  border-radius: 10px;
+  background: var(--bc-panel);
+  backdrop-filter: blur(8px);
+  color: var(--bc-text);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+.bc-nav button:hover { border-color: var(--bc-accent); }
+.bc-nav button.bc-nav-active,
+.bc-nav button:active {
+  border-color: var(--bc-accent);
+  background: var(--bc-accent-soft);
+  color: var(--bc-accent);
+}
+#bc-nav-forward { grid-column: 2; grid-row: 1; }
+#bc-nav-left { grid-column: 1; grid-row: 2; }
+#bc-nav-back { grid-column: 2; grid-row: 2; }
+#bc-nav-right { grid-column: 3; grid-row: 2; }
+#bc-nav-home { grid-column: 4; grid-row: 2; color: var(--bc-gilt); }
+.bc-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .bc-nav { grid-template-columns: repeat(4, 40px); grid-auto-rows: 40px; }
+  .bc-nav button { width: 40px; min-width: 40px; height: 40px; }
+}
