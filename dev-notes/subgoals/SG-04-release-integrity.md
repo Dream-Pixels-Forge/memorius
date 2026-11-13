@@ -12,6 +12,11 @@ Release gate on 2026-11-12:
 ## Scope
 - Change `release.yml` to publish only on `release: published` (and
   `workflow_dispatch` for manual recovery). Remove the `push` trigger.
+- Publish the **tagged commit**, not `main`'s tip: `actions/checkout` with
+  `ref: ${{ github.event.release.tag_name || inputs.ref }}`.
+- Assert the tag equals the `pyproject.toml` version before building.
+- Drop `skip-existing: true` so a reused version fails loudly instead of
+  silently reusing the old artifact.
 - After SG-01/SG-02 merge and version `0.9.8` is on `main`:
   - tag `v0.9.8` at the release commit,
   - create the GitHub release with notes,
@@ -19,6 +24,15 @@ Release gate on 2026-11-12:
 - Do not reuse published versions; if 0.9.8 was already published by a
   `pyproject.toml` push, publish 0.9.9 instead.
 - Add a release checklist entry to CONTRIBUTING.
+- Pin all of it with `tests/test_release_contract.py`.
+
+## Findings (2026-11-13)
+- `0.9.8` was **not** published: SG-01 removed the push trigger in the same
+  commit that bumped the version, so no drift. The tag is `v0.9.6`.
+- A second integrity bug sat behind the first: the publish job had no `ref`,
+  so `release: published` would have built and uploaded **main's tip**. With
+  the version-match check absent, a release cut on an older commit would
+  publish newer, untagged code under the released version.
 
 ## Release notes draft (v0.9.8)
 
