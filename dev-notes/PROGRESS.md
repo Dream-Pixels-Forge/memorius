@@ -2,10 +2,11 @@
 
 ## Current State
 - Project: memorius
-- Version: 0.9.8 (released 2026-11-13; tag, GitHub release and PyPI verified against the same version)
+- Version: 0.9.9 (released 2026-11-13; tag, GitHub release and PyPI verified against the same version)
 - Active branch: main
-- Vault health: all doctor checks pass (meta=826, vectors=826 after repair --reindex)
+- Vault health: all doctor checks pass (meta=903, vectors=903 after repair --reindex)
 - Status: CI green on Python 3.11 / 3.12 / 3.13 plus the full suite (570 tests). All subgoals SG-01–SG-10 are done; SG-08 added the production container image (#111) and SG-09 cleaned branches and the local vault.
+- [2026-11-13] v0.9.9 released: the bookcase series (strict CSP #107, library index #108, walk pad / walking hippo / centered reader #109), the production container image (#111), and docs/version sync (#110). Unreleased folded into `CHANGELOG.md`; README, docs badges and this file bumped to 0.9.9.
 - [2026-11-13] SG-09 hygiene: local branches reduced to `main`, 18 merged remote branches deleted, local CLI upgraded 0.9.5 → 0.9.8, `repair --reindex` re-embedded 894 missing vectors, `memorius doctor` all checks ok.
 - [2026-11-13] Bookcase series landed: SG-05 strict CSP with vendored Three.js (#107), SG-07 library index / walk-to-shelf / surprise me (#108), and SG-10 bottom-left walk pad, walking hippo and centered reader (#109). Every bookcase asset stays under 500 lines; the page boots with zero console errors.
 - [2026-11-13] Release integrity: v0.9.8 verified three-way (tag ↔ GitHub release ↔ PyPI); SG-04 removed `skip-existing` and pinned the release workflow to the tag (#105).
@@ -17,7 +18,7 @@
 - [x] Phase 0: Bootstrap (DISCOVERY.md + AUDIT.md)
 - [x] Phase 2: Governance (GOAL.md + SECURITY.md + SPEC.md)
 - [ ] Phase 2: Design System (DESIGN.md) - Not applicable for this backend-focused enhancement
-- [x] Phase 3: Engineer (implementation) - shipped through v0.9.8; ongoing subgoals tracked in `subgoals/README.md`
+- [x] Phase 3: Engineer (implementation) - shipped through v0.9.9; ongoing subgoals tracked in `subgoals/README.md`
 
 ## Planning
 

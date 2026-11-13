@@ -11,7 +11,7 @@
   <a href="https://github.com/Dream-Pixels-Forge/memorius/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/Dream-Pixels-Forge/memorius/test.yml?label=Tests&color=%23007ec6" alt="Tests"></a>
   <a href="https://github.com/Dream-Pixels-Forge/memorius/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/Dream-Pixels-Forge/memorius/release.yml?label=Publish&color=%23007ec6" alt="PyPI publish"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-%23007ec6" alt="MIT license"></a>
-  <a href="https://github.com/Dream-Pixels-Forge/memorius/blob/main/CHANGELOG.md"><img src="https://img.shields.io/badge/changelog-v0.9.8-green" alt="Changelog"></a>
+  <a href="https://github.com/Dream-Pixels-Forge/memorius/blob/main/CHANGELOG.md"><img src="https://img.shields.io/badge/changelog-v0.9.9-green" alt="Changelog"></a>
   <a href="https://python.org"><img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-%23007ec6" alt="Python versions"></a>
 </p>
 

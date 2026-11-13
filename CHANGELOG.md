@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.9.9 (2026-11-13)
 
 ### Added
 - **Production container image** (#100). A multi-stage `python:3.12-slim`
