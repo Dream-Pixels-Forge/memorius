@@ -58,7 +58,33 @@ Release gate on 2026-11-12:
 ## Definition of done
 - [x] Workflow has no `push` publish trigger (landed with SG-01 to stop
       0.9.8 shipping untagged).
-- [ ] `git ls-remote --tags` shows `v0.9.8`.
-- [ ] `gh release list` latest is `v0.9.8`.
-- [ ] PyPI latest is `0.9.8`.
-- [ ] `pip download memorius==0.9.8` wheel imports and contains the auth fix.
+- [x] Publish job checks out the release tag and asserts tag == version.
+- [x] `git ls-remote --tags` shows `v0.9.8`.
+- [x] `gh release list` latest is `v0.9.8`.
+- [x] PyPI latest is `0.9.8` (version-specific endpoint).
+- [x] `pip download memorius==0.9.8` wheel imports and contains the auth fix.
+- [x] CONTRIBUTING release checklist documents a gate that actually works.
+
+## Verification (2026-11-13)
+```
+code=0.9.8 tag=v0.9.8 release=v0.9.8 pypi_version_specific=0.9.8
+```
+Published wheel `memorius-0.9.8-py3-none-any.whl` (776 KB, 80 files)
+installed into a clean venv and exercised over HTTP:
+
+| request | key set | no key | expected |
+|---|---|---|---|
+| `GET /health` | 200 | — | bypasses auth |
+| `POST /memory`, no token | **401** | **401** | rejected |
+| `GET /vault`, bad token | **401** | — | rejected |
+| `GET /vault`, good token | 200 | 200 | allowed |
+| `POST /search` | — | 200 | bookcase read-only allowlist |
+| `DELETE /memory/{id}` | — | **401** | rejected |
+
+Two things that bit this release and are now documented:
+- `https://pypi.org/pypi/memorius/json` is CDN-cached and still reported
+  `0.9.7` after the `0.9.8` upload succeeded — verify with the
+  version-specific endpoint.
+- The local pip mirror did not have `0.9.8`; `pip download` needed an
+  explicit `--index-url https://pypi.org/simple`.
+

@@ -10,9 +10,9 @@ PR with `Closes #N`, CI green, squash merge, then update this index.
 |---|---------|----------|--------|-------------|
 | SG-01 | Restore REST authentication (hotfix) | P0 | done | #101 merged |
 | SG-02 | Make the full test suite green (3 stale tests) | P0 | done | #103 merged |
-| SG-03 | Enforce full-suite CI + blocking dependency audit | P1 | in-progress | `ci/95-full-suite` |
-| SG-04 | Release integrity: tag 0.9.7/0.9.8 + fix release trigger | P1 | blocked by SG-01 | — |
-| SG-05 | Bookcase CSP/SRI hardening (externalize inline script) | P1 | blocked by SG-01 | — |
+| SG-03 | Enforce full-suite CI + blocking dependency audit | P1 | done | #104 merged |
+| SG-04 | Release integrity: tag 0.9.7/0.9.8 + fix release trigger | P1 | done | #105 merged, v0.9.8 shipped |
+| SG-05 | Bookcase CSP/SRI hardening (externalize inline script) | P1 | ready | — |
 | SG-06 | Docs/version/PROGRESS sync + security contact | P2 | blocked by SG-04 | — |
 | SG-07 | Bookcase UX: library index, walk-to-shelf, surprise me, copy | P2 | blocked by SG-05 | — |
 | SG-08 | Container hardening (Dockerfile, non-root, dumb-init) | P2 | blocked by SG-03 | — |
