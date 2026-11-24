@@ -21,8 +21,8 @@ Release gate on 2026-11-12:
   - tag `v0.9.8` at the release commit,
   - create the GitHub release with notes,
   - verify PyPI `0.9.8`, tag, and release all match.
-- Do not reuse published versions; if 0.9.8 was already published by a
-  `pyproject.toml` push, publish 0.9.9 instead.
+- Do not reuse published versions; if 0.9.9 was already published by a
+  `pyproject.toml` push, publish 0.9.10 instead.
 - Add a release checklist entry to CONTRIBUTING.
 - Pin all of it with `tests/test_release_contract.py`.
 

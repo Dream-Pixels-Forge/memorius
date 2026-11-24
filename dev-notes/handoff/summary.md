@@ -1,7 +1,7 @@
 # memorius codebase review - handoff summary
 
 ## task overview
-review the memorius v0.9.9 codebase, identify failures in `dev-notes/GOAL.md`, fix them, and complete all remaining Phase 4 observability features (4.1-4.3) plus container hardening verification.
+review the memorius v0.9.10 codebase, identify failures in `dev-notes/GOAL.md`, fix them, and complete all remaining Phase 4 observability features (4.1-4.3) plus container hardening verification.
 
 ## current progress ✅
 

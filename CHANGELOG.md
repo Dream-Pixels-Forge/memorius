@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.9.10 (2026-11-24)
+
+### Changed
+- **Removed librarian-hippo assets** (#112). Deleted `assets/librarian-hippo.txt` and
+  `assets/librarian-hippo-to-ascii.webp`; `StoreModule._confirm_storage()` now reads the
+  hippo art best-effort and never breaks storage if the asset is missing.
+- **Version sync**: `pyproject.toml`, CHANGELOG, README badge, GOAL.md, PROGRESS.md all
+  aligned to `0.9.10`; tag `v0.9.10` cut and pushed.
+
 ## v0.9.9 (2026-11-13)
 
 ### Added
