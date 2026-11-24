@@ -14,8 +14,10 @@ The module owns the coordination between VectorStore and MetaStore.
 from __future__ import annotations
 
 import logging
+import sys
 import uuid
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from memorius.meta_store import SQLiteStore
@@ -25,6 +27,19 @@ from memorius.validation import validate_memory_id, validate_name
 from memorius.vector_store_base import VectorStore
 
 logger = logging.getLogger("memorius.store")
+
+_HIPPO_ART = Path(__file__).resolve().parents[1] / "assets" / "librarian-hippo.txt"
+
+
+def _confirm_storage(memory_id: str) -> None:
+    """Print the librarian-hippo emoji when a memory is stored.
+
+    Best-effort: never breaks storage if the asset is missing."""
+    try:
+        art = _HIPPO_ART.read_text()
+    except OSError:
+        return
+    print(art.rstrip(), file=sys.stderr)
 
 
 class StoreModule:
@@ -121,6 +136,7 @@ class StoreModule:
             self._meta.auto_link_by_proximity(memory.id, recent)
         except Exception:  # best-effort: graph linking failure should not prevent memory storage  # noqa: BLE001
             logger.debug("Graph linking failed (best-effort)")
+        _confirm_storage(memory.id)
         return memory
 
     def touch(self, memory_id: str) -> None:

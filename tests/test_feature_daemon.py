@@ -3,6 +3,17 @@ import os
 import subprocess
 import sys
 
+# ── Helper function ──
+
+
+def _config_with_storage(tmp_path):
+    """Create a config with temp storage path for VaultEngine tests."""
+    from memorius.config import get_config
+    cfg = get_config()
+    cfg["storage"]["path"] = str(tmp_path)
+    return cfg
+
+
 # ── PID file management ──
 
 
@@ -10,10 +21,9 @@ class TestPidFile:
     def test_pid_file_written_on_start(self, tmp_path):
         """Daemon writes PID file with current process ID."""
         from memorius.cli.main import _start_daemon, _stop_daemon
-        from memorius.config import load_config
         from memorius.vault import VaultEngine
 
-        config = load_config()
+        config = _config_with_storage(tmp_path)
         engine = VaultEngine(config)
         pid_file = tmp_path / "test.pid"
 
@@ -30,10 +40,9 @@ class TestPidFile:
     def test_stop_daemon_removes_pid_file(self, tmp_path):
         """_stop_daemon removes PID file after stopping."""
         from memorius.cli.main import _start_daemon, _stop_daemon
-        from memorius.config import load_config
         from memorius.vault import VaultEngine
 
-        config = load_config()
+        config = _config_with_storage(tmp_path)
         engine = VaultEngine(config)
         pid_file = tmp_path / "test.pid"
 
@@ -80,7 +89,7 @@ class TestPidFile:
         from memorius.cli.main import _stop_daemon
 
         pid_file = tmp_path / "foreign.pid"
-        # Use our own PID but pretend it's not memorius by monkeypatching
+        # Use our own PID but pretend it is not memorius by monkeypatching
         own_pid = os.getpid()
         pid_file.write_text(str(own_pid))
 
@@ -93,13 +102,16 @@ class TestPidFile:
         assert not pid_file.exists()
 
     def test_is_memorius_process_rejects_non_memorius(self):
-        """_is_memorius_process returns False for non-memorius processes."""
+        """_is_memorius_process returns False for processes without memorius in cmdline."""
+        from memorius.cli.main import _is_memorius_process
         import os
 
-        from memorius.cli.main import _is_memorius_process
-        # PID 1 is init/systemd, not memorius
-        assert _is_memorius_process(1) is False
-        # Current pytest process is not memorius
+        # PID 1 may or may not be memorius in test environments
+        # Use a negative PID which should always fail /proc lookup
+        assert _is_memorius_process(-1) is False
+        # Use a high PID that is unlikely to exist
+        assert _is_memorius_process(99999999) is False
+        # Current pytest process should not be memorius
         assert _is_memorius_process(os.getpid()) is False
 
 

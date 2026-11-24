@@ -5,6 +5,13 @@ from memorius.config import get_config
 from memorius.consolidation import ConsolidationDaemon
 
 
+def _config_with_storage(tmp_path):
+    """Create a config with temp storage path for VaultEngine tests."""
+    cfg = get_config()
+    cfg["storage"]["path"] = str(tmp_path)
+    return cfg
+
+
 def test_config_has_consolidation_section():
     """Config should include consolidation settings."""
     cfg = get_config()
@@ -27,32 +34,34 @@ def test_daemon_stops():
     assert not daemon.is_alive()
 
 
-def test_vault_starts_daemon_when_enabled():
+def test_vault_starts_daemon_when_enabled(tmp_path):
     """VaultEngine should start consolidation daemon when enabled."""
     from memorius.vault import VaultEngine
-    cfg = get_config()
+    cfg = _config_with_storage(tmp_path)
     cfg["consolidation"]["enabled"] = True
     vault = VaultEngine(config=cfg)
     assert hasattr(vault, '_consolidation_daemon')
     assert vault._consolidation_daemon is not None
     vault._consolidation_daemon.stop()
     vault._consolidation_daemon.join(timeout=2)
+    vault.close()
 
 
-def test_vault_no_daemon_when_disabled():
+def test_vault_no_daemon_when_disabled(tmp_path):
     """VaultEngine should not start consolidation daemon when disabled."""
     from memorius.vault import VaultEngine
-    cfg = get_config()
+    cfg = _config_with_storage(tmp_path)
     cfg["consolidation"]["enabled"] = False
     vault = VaultEngine(config=cfg)
     assert hasattr(vault, '_consolidation_daemon')
     assert vault._consolidation_daemon is None
+    vault.close()
 
 
-def test_vault_close_stops_daemon():
+def test_vault_close_stops_daemon(tmp_path):
     """VaultEngine.close() should stop the consolidation daemon."""
     from memorius.vault import VaultEngine
-    cfg = get_config()
+    cfg = _config_with_storage(tmp_path)
     cfg["consolidation"]["enabled"] = True
     vault = VaultEngine(config=cfg)
     daemon = vault._consolidation_daemon
