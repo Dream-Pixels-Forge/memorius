@@ -479,7 +479,7 @@ metadata:
 2. **BEFORE ANSWERING**: Call `memorius_search` or check existing notes. Never guess.
 3. **IF UNSURE**: Say "let me check" and query the vault.
 4. **AFTER SESSION**: Write a diary entry with `memorius_diary_write`.
-5. **WHEN FACTS CHANGE**: Invalidate old vault entries, add new ones.
+5. **WHEN FACTS CHANGE**: Fix stale entries with `memorius_update` (or `memorius_delete`, with the user's OK), then store the new fact.
 
 ## MCP Tools (29 total — search, knowledge graph, diary, etc.)
 
@@ -488,17 +488,17 @@ See the full list at: {repository}
 ## Setup
 
 ```bash
-# Install
-uv tool install {name}
+# Install (Python 3.11+)
+pip install {name}
 
-# Initialize
-{name} init ~/projects/myapp
+# Initialize ~/.memorius/config.yaml and the default vault
+{name} init
 
-# Mine
-{name} mine ~/projects/myapp
+# Mine a conversation transcript into the vault
+{name} mine transcript.txt --vault main
 
 # Connect to OpenClaw
-openclaw mcp set {name} '{{"command":"python3","args":["-m","{name}.mcp_server"]}}'
+openclaw mcp set {name} '{{"command":"{name}","args":["serve"]}}'
 ```
 """
     (skill_dir / "SKILL.md").write_text(skill_content)

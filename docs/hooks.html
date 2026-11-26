@@ -110,12 +110,13 @@ memorius-plugin-gen generate  # emits per-agent plugins, hook scripts, skill car
 memorius-hook init-config      # generate default ~/.memorius/hooks.yaml
 memorius-hook status           # show hook state summary</code></pre>
         <p>Auto-detect the agent by piping the payload in:</p>
-<pre><code>cat hook-payload.json | memorius-hook mine
-cat hook-payload.json | memorius-hook diary
+<pre><code>cat hook-payload.json | memorius-hook run --event stop
+cat hook-payload.json | memorius-hook run --event precompact
 
 # or force a specific agent:
-memorius-hook mine --agent claude-code
-memorius-hook diary --agent opencode</code></pre>
+cat hook-payload.json | memorius-hook run --event stop --agent claude-code
+cat hook-payload.json | memorius-hook run --event session-start --agent opencode</code></pre>
+        <p><code>--event</code> is required. Which actions run (mine, diary, inject_context, …) is set per event in <code>~/.memorius/hooks.yaml</code>.</p>
       </section>
 
       <section class="docs-section" id="plugin-gen">
