@@ -1,83 +1,42 @@
-# memorius
+# memorius skill
 
-**Self-contained memory vault for any AI agent.**
+Agent skill for [memorius](https://github.com/Dream-Pixels-Forge/memorius) — a local-first memory vault
+for AI agents. It teaches the agent **when** to capture and recall (always with the user's consent),
+**which** command or MCP tool to use, and how to report results honestly. See [`SKILL.md`](SKILL.md).
 
-memorius provides persistent memory storage with vector search, session diaries, and hooks for agent frameworks.
-
-## Quick Start
+## Install
 
 ```bash
-memorius init                    # Create vault
-memorius store "important fact"  # Store a memory
-memorius search "important"      # Find it later
+pip install memorius
+memorius init
+npx skills add github.com/Dream-Pixels-Forge/memorius/tree/main/skills/memorius
 ```
 
-## Commands
+Optional — connect the MCP server so the agent can use `memorius_*` tools directly:
 
-| Command | Description |
-|---------|-------------|
-| `memorius init` | Initialize a new vault |
-| `memorius status` | Show vault status |
-| `memorius store <content>` | Store a memory |
-| `memorius search <query>` | Semantic search |
-| `memorius mine <file>` | Mine memories from transcript |
-| `memorius extract <file>` | Extract with LLM |
-| `memorius diary <session>` | Write session diary |
-| `memorius diaries` | List recent diaries |
-| `memorius context <topic>` | Get context for injection |
-| `memorius facts` | Fact-check with ML inference |
-| `memorius learn <learning>` | Store a learning (bug fix, strategy, pattern, etc.) |
-| `memorius recall <query>` | Search stored learnings |
-| `memorius learnings` | List all learnings |
-| `memorius apply-learning <id>` | Mark a learning as applied |
-| `memorius learning-stats` | Learning statistics by category |
-| `memorius consolidate` | Merge similar memories |
-| `memorius ls` | Explore vault hierarchy |
-| `memorius stats` | Memory statistics |
-| `memorius serve` | Start MCP server |
-| `memorius serve-rest` | Start REST API |
-| `memorius config --show` | Show configuration |
-| `memorius obsidian list/import/export` | Obsidian sync |
-
-## Flags
-
-| Flag | Commands | Description |
-|------|----------|-------------|
-| `--vault` | most | Target vault name |
-| `--shelf` | store, search, mine, extract | Shelf category |
-| `--folder` | store | Folder sub-category |
-| `--note` | store | Note name |
-| `--n` | search | Result limit |
-| `--backend` | extract | LLM backend (auto/openai/ollama/regex) |
-| `--threshold` | consolidate | Similarity threshold (0-1) |
-| `--dry-run` | consolidate | Preview without changes |
-| `--max` | context | Max context items |
-| `--text` | mine, extract | Inline text input |
-
-## Vault Hierarchy
-
-```
-vault/
-  shelf/
-    folder/
-      note (individual memory)
+```bash
+claude mcp add memorius -- memorius serve
 ```
 
-## MCP Server
+## Command summary
 
-```json
-{
-  "mcpServers": {
-    "memorius": {
-      "command": "memorius",
-      "args": ["serve"]
-    }
-  }
-}
+| Area | Commands |
+|---|---|
+| Store | `store`, `learn`, `update` |
+| Recall | `search`, `context`, `recall`, `factcheck`, `get`, `list`, `ls`, `learnings`, `web` |
+| Sessions | `diary`, `diaries`, `profile` |
+| Ingest | `mine`, `extract`, `obsidian list/import/export`, `memorius-normalize` |
+| Maintenance | `stats`, `status`, `doctor`, `consolidate`, `prune`, `repair`, `delete`, `export`, `import`, `graph` |
+| Servers | `serve` (MCP stdio), `serve-rest`, `bookcase` |
+| Hooks | `memorius-hook run/init-config/status`, `memorius-plugin-gen list/init/generate` |
+
+Run `memorius <command> --help` for the authoritative flags.
+
+## Hierarchy
+
 ```
-
-## Dependencies
-
-- chromadb (vector search)
-- httpx (HTTP client)
-- pyyaml (config)
+vault/            e.g. main
+  shelf/          e.g. decisions, bugs, preferences, projects
+    folder/       e.g. acme-api
+      note        individual memory (default: "default")
+```
