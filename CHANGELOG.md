@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **Agent skill matches the real CLI and MCP surface** (#115). `skills/memorius/SKILL.md`
+  was rewritten after checking it line by line against the CLI, MCP server, hooks and
+  config. It no longer mentions things that don't exist (`mine --shelf`,
+  `memorius-hook install/uninstall`, `facts`, `tavily` as a `web --provider` value).
+  It also corrects wrong security notes: hooks don't touch `~/.bashrc`, MCP runs over
+  stdio rather than port 8911, REST needs TLS unless `--insecure`, and data does leave
+  the machine with OpenAI embeddings, `extract --backend openai` or `--web`. An unsafe
+  quoting example is replaced with stdin through a quoted heredoc. New in the skill: a
+  consent table, `learn`/`recall` categories, the maintenance commands, and a map of
+  all 29 MCP tools to CLI commands. The skill README and `.memorius_version` are updated
+  too.
+- **Hook docs**: `docs/hooks.html` now shows `memorius-hook run --event <event>` in
+  place of the non-existent `memorius-hook mine/diary`.
+- **Generated skill card**: the setup block that `memorius-plugin-gen` writes now uses
+  `pip install`, `memorius init`, `memorius mine <file>` and `memorius serve`.
+- **Docs version badge**: `docs/index.html` now says v0.9.10, which fixes
+  `test_docs_badges_match_version`.
+
 ## v0.9.10 (2026-11-24)
 
 ### Changed
