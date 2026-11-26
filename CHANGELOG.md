@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.9.11 (2026-11-26)
 
 ### Fixed
 - **Agent skill matches the real CLI and MCP surface** (#115). `skills/memorius/SKILL.md`
